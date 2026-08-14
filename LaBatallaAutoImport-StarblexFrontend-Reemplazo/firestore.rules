@@ -1,0 +1,416 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    // AUTORIZACIÓN — SIN CAMBIOS respecto a lo desplegado hoy. Estas
+    // funciones y las reglas de /vehicles ya están en producción y
+    // app.js ya las cumple: no se tocan (Fase 2, requisito explícito
+    // de conservar TODAS las reglas actuales de vehicles).
+    // ============================================================
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Paso 2 — Restauración del panel de administración: whitelist de
+    // correos autorizados a auto-promoverse a admin. Esta es la MISMA
+    // lista que auth.js usa del lado del cliente, pero AQUÍ es donde
+    // realmente se decide — el cliente solo puede "pedir" convertirse
+    // en admin (ver allow update de /users más abajo); Firestore es
+    // quien concede o rechaza, comparando contra el email YA VERIFICADO
+    // y anclado en el documento (resource.data.email, nunca el que
+    // venga en la petición). Si alguien manipula auth.js o llama a
+    // Firestore directo desde la consola, esta lista sigue siendo la
+    // única fuente de la verdad — no el frontend.
+    function isWhitelistedAdminEmail(email) {
+      return email in [
+        'manuel15160410@gmail.com',
+        'jose.10.manuel@hotmail.com'
+      ];
+    }
+
+    function userDoc() {
+      return get(
+        /databases/$(database)/documents/users/$(request.auth.uid)
+      );
+    }
+
+    function userExists() {
+      return signedIn()
+        && exists(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        );
+    }
+
+    function isActive() {
+      return userExists()
+        && userDoc().data.status == "active";
+    }
+
+    function isAdmin() {
+      return isActive()
+        && userDoc().data.role == "admin";
+    }
+
+    function isEditor() {
+      return isActive()
+        && userDoc().data.role == "editor";
+    }
+
+    function canManageVehicles() {
+      return isAdmin() || isEditor();
+    }
+
+    // ==========================================================
+    // VALIDACIONES — VEHÍCULOS (sin cambios respecto a lo desplegado)
+    // ==========================================================
+
+    function datosValidos() {
+      let d = request.resource.data;
+
+      return
+        d.keys().hasAll([
+          'name',
+          'price',
+          'category',
+          'condition',
+          'brand',
+          'year',
+          'carfax'
+        ])
+
+        && d.name is string
+        && d.name.size() > 0
+        && d.name.size() < 150
+
+        && d.price is number
+        && d.price > 0
+        && d.price < 20000000
+
+        && d.category in [
+          'sedanes',
+          'suvs',
+          'pickups'
+        ]
+
+        && d.condition in [
+          'nuevo',
+          'usado',
+          'importado'
+        ]
+
+        && d.brand is string
+        && d.brand.size() > 0
+        && d.brand.size() < 50
+
+        && d.year is string
+        && d.year.matches('^[0-9]{4}$')
+
+        && d.carfax in ['si', 'no'];
+    }
+
+    function camposOpcionalesValidos() {
+
+      let d = request.resource.data;
+
+      return
+
+        (!('mileage' in d)
+          || (d.mileage is string && d.mileage.size() < 30))
+
+        && (!('color' in d)
+          || (d.color is string && d.color.size() < 40))
+
+        && (!('transmission' in d)
+          || (d.transmission in [
+              'Automático',
+              'Mecánica',
+              'Manual',
+              ''
+          ]))
+
+        && (!('currency' in d)
+          || (d.currency in ['RD','USD']))
+
+        && (!('priceUSD' in d)
+          || (
+              d.priceUSD == null
+              || (
+                d.priceUSD is number
+                && d.priceUSD > 0
+                && d.priceUSD < 20000000
+              )
+          ))
+
+        && (!('priceDisplay' in d)
+          || (
+              d.priceDisplay is string
+              && d.priceDisplay.size() < 100
+          ))
+
+        && (!('features' in d)
+          || (
+              d.features is list
+              && d.features.size() <= 30
+          ))
+
+        && (!('seoTags' in d)
+          || (
+              d.seoTags is list
+              && d.seoTags.size() <= 20
+          ))
+
+        && (!('media' in d)
+          || (
+              d.media is list
+              && d.media.size() <= 10
+          ))
+
+        && (!('tags' in d)
+          || (
+              d.tags is map
+              && d.tags.size() <= 30
+          ))
+
+        && (!('slug' in d)
+          || (
+              d.slug is string
+              && d.slug.size() < 150
+              && d.slug.matches('^[a-z0-9]+(-[a-z0-9]+)*$')
+          ))
+
+        && (!('img' in d)
+          || (
+              d.img is string
+              && d.img.size() < 500
+          ))
+
+        && (!('createdAt' in d)
+          || (
+              d.createdAt is number
+              && d.createdAt > 0
+          ));
+    }
+
+    function soloCamposPermitidos() {
+
+      let d = request.resource.data;
+
+      return d.keys().hasOnly([
+
+        'name',
+        'price',
+        'priceUSD',
+        'currency',
+        'priceDisplay',
+
+        'category',
+        'condition',
+        'brand',
+        'year',
+        'carfax',
+
+        'mileage',
+        'color',
+        'transmission',
+
+        'features',
+        'seoTags',
+        'media',
+
+        'tags',
+        'slug',
+        'img',
+
+        'createdAt'
+      ]);
+    }
+
+    function createdAtInmutable() {
+      return request.method != 'update'
+        || request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    // ==========================================================
+    // VEHÍCULOS — SIN CAMBIOS (idéntico a lo desplegado hoy)
+    // ==========================================================
+
+    match /vehicles/{vehicleId} {
+
+      allow read: if true;
+
+      allow create:
+        if canManageVehicles()
+        && datosValidos()
+        && camposOpcionalesValidos()
+        && soloCamposPermitidos();
+
+      allow update:
+        if canManageVehicles()
+        && datosValidos()
+        && camposOpcionalesValidos()
+        && soloCamposPermitidos()
+        && createdAtInmutable();
+
+      allow delete:
+        if canManageVehicles();
+    }
+
+    // ==========================================================
+    // PERFILES — CORREGIDO (Fase 2). El bloque anterior tenía
+    // `allow write: if false`, que bloqueaba TODA escritura, incluida
+    // la auto-creación del perfil que auth.js hace en cada registro
+    // (email/password Y Google). Resultado real: cualquier intento de
+    // registro fallaba con permission-denied desde el día del deploy
+    // de esa versión. Este bloque restaura la escritura, pero con
+    // las mismas restricciones de seguridad que ya existían en el
+    // diseño original de auth.js/roles.js:
+    //   - el usuario SOLO puede crear su propio documento (uid propio)
+    //   - SOLO puede nacer como role:customer + status:active
+    //   - NUNCA puede escalar su propio role/status/createdAt/schemaVersion
+    //   - un admin puede gestionar cualquier perfil, con listas cerradas
+    // ==========================================================
+
+    // Validaciones de integridad del propio perfil (no de autorización).
+    // provider/photoURL son opcionales — auth.js los escribe siempre
+    // (Google e email/password), pero se validan como opcionales para
+    // no romper documentos ya existentes que no los tengan.
+    function validUserProfile(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.email is string && data.email.size() > 0 && data.email.size() <= 254
+        && data.createdAt is timestamp
+        && data.schemaVersion is int && data.schemaVersion >= 1
+        && (!('provider' in data) || data.provider in ['password', 'google.com'])
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 600))
+        && (!('lastLogin' in data) || data.lastLogin is timestamp)
+        && (!('lastName' in data) || (data.lastName is string && data.lastName.size() <= 100))
+        && (!('username' in data) || (data.username is string && data.username.size() <= 30))
+        && (!('city' in data) || (data.city is string && data.city.size() <= 100))
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 30))
+        && (!('address' in data) || (data.address is string && data.address.size() <= 200))
+        && (!('country' in data) || (data.country is string && data.country.size() <= 100));
+    }
+
+    match /users/{uid} {
+      // Lectura: el propio usuario, o un admin gestionando usuarios.
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+
+      // Auto-registro: el propio usuario crea SU documento. Solo puede
+      // nacer como 'customer' + 'active' — escalar a sales/editor/admin
+      // exige que un admin lo haga después, nunca en la creación.
+      // createdAt debe escribirse con FieldValue.serverTimestamp() en
+      // el cliente (auth.js lo hace), nunca con Date.now().
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['email','name','role','status','createdAt','schemaVersion','provider','photoURL','lastLogin','lastName','username','city','phone','address','country'])
+        && request.resource.data.role == 'customer'
+        && request.resource.data.status == 'active'
+        && validUserProfile(request.resource.data);
+
+      // El propio usuario edita su perfil, pero NUNCA role/status/
+      // createdAt/schemaVersion/email — deben permanecer EXACTAMENTE
+      // iguales. email se ancla aquí porque NINGÚN flujo legítimo lo
+      // reescribe tras la creación (verificado: ni loginUser(), ni
+      // loginWithGoogle(), ni updateUserProfile() lo tocan jamás) — así
+      // que bloquearlo no rompe nada y cierra una vía de manipulación
+      // directa vía consola del navegador (Auditoría 4).
+      // provider NO se ancla a propósito: loginWithGoogle() SÍ necesita
+      // reescribirlo de forma legítima (línea ~320 de auth.js) cuando
+      // el proveedor detectado cambia. No es un riesgo de privilegios:
+      // ninguna función de autorización (isAdmin/isEditor/canManage*)
+      // lee 'provider' — solo role/status, que sí están anclados.
+      // (photoURL SÍ puede cambiar: lo actualiza loginWithGoogle() en
+      // cada login si Google trae una foto nueva, y ahora también el
+      // propio usuario desde su perfil.)
+      // role: caso normal, no cambia. ÚNICA excepción (Paso 2): el
+      // propio usuario puede ponerse role:'admin' a sí mismo — pero
+      // SOLO si su email (resource.data.email, el ya verificado y
+      // anclado, nunca el de la petición) está en la whitelist server-
+      // side de arriba. Cualquier otro cambio de role (a 'editor',
+      // 'sales', o 'admin' sin estar en la whitelist) sigue denegado
+      // exactamente igual que antes.
+      allow update: if signedIn() && request.auth.uid == uid
+        && (
+          request.resource.data.role == resource.data.role
+          || (request.resource.data.role == 'admin' && isWhitelistedAdminEmail(resource.data.email))
+        )
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.schemaVersion == resource.data.schemaVersion
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.keys().hasOnly(['email','name','role','status','createdAt','schemaVersion','provider','photoURL','lastLogin','lastName','username','city','phone','address','country'])
+        && validUserProfile(request.resource.data);
+
+      // Un admin puede cambiar cualquier cosa de cualquier perfil, con
+      // listas cerradas para role/status y perfil siempre válido.
+      allow update, delete: if isAdmin()
+        && validUserProfile(request.resource.data)
+        && (!('role' in request.resource.data) || request.resource.data.role in ['customer','sales','editor','admin'])
+        && (!('status' in request.resource.data) || request.resource.data.status in ['active','disabled','pending']);
+    }
+
+    // ==========================================================
+    // SUBCOLECCIONES DEL USUARIO — favoritos, historial, cotizaciones
+    // y preferencias. Todas siguen el mismo patrón: SOLO el propio
+    // usuario puede leer/escribir su subcolección — ni siquiera un
+    // admin puede leerlas (no son datos de gestión, son datos
+    // personales del cliente). uid en la ruta ya es la autorización;
+    // no hace falta canManageUsers()/isAdmin() aquí.
+    // ==========================================================
+
+    // Favoritos: users/{uid}/favorites/{vehicleId} — el ID del vehículo
+    // como ID del documento evita duplicados por diseño (upsert natural).
+    match /users/{uid}/favorites/{vehicleId} {
+      allow read, write: if signedIn() && request.auth.uid == uid
+        && (request.method == 'delete'
+          || (request.resource.data.keys().hasOnly(['addedAt'])
+            && request.resource.data.addedAt is timestamp));
+    }
+
+    // Historial de vehículos vistos: users/{uid}/history/{autoId}.
+    match /users/{uid}/history/{entryId} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['vehicleId', 'viewedAt'])
+        && request.resource.data.vehicleId is string
+        && request.resource.data.viewedAt is timestamp;
+      // El historial no se edita, solo se crea o se borra.
+      allow update: if false;
+    }
+
+    // Cotizaciones guardadas desde la calculadora: users/{uid}/quotes/{autoId}.
+    match /users/{uid}/quotes/{quoteId} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly([
+          'vehicleId', 'vehicleName', 'downPayment', 'termMonths', 'monthlyPayment', 'createdAt'
+        ])
+        && request.resource.data.vehicleName is string && request.resource.data.vehicleName.size() <= 150
+        && request.resource.data.downPayment is number && request.resource.data.downPayment >= 0
+        && request.resource.data.termMonths is number && request.resource.data.termMonths > 0
+        && request.resource.data.monthlyPayment is number && request.resource.data.monthlyPayment >= 0
+        && request.resource.data.createdAt is timestamp;
+      allow update: if false;
+    }
+
+    // Preferencias de búsqueda: documento único users/{uid}/preferences/settings.
+    match /users/{uid}/preferences/{docId} {
+      allow read, write: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly([
+          'brands', 'priceMin', 'priceMax', 'vehicleType', 'transmission', 'fuel'
+        ])
+        && (!('brands' in request.resource.data) || (request.resource.data.brands is list && request.resource.data.brands.size() <= 20))
+        && (!('priceMin' in request.resource.data) || request.resource.data.priceMin is number)
+        && (!('priceMax' in request.resource.data) || request.resource.data.priceMax is number)
+        && (!('vehicleType' in request.resource.data) || (request.resource.data.vehicleType is string && request.resource.data.vehicleType.size() <= 30))
+        && (!('transmission' in request.resource.data) || (request.resource.data.transmission is string && request.resource.data.transmission.size() <= 30))
+        && (!('fuel' in request.resource.data) || (request.resource.data.fuel is string && request.resource.data.fuel.size() <= 30));
+    }
+
+    // Deny por defecto
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

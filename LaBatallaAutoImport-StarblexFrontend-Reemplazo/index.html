@@ -1,0 +1,1365 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>La Batalla Auto Import | Sedanes, SUVs y Camionetas en RD</title>
+  <meta name="description" content="Compra tu próximo vehículo en La Batalla Auto Import. Sedanes, SUVs y camionetas nuevas, usadas e importadas en Santo Domingo, San Francisco de Macorís y Nagua. Financiamiento disponible.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://labatallaautoimport.netlify.app/">
+
+  <!-- ============================================================
+    RENDIMIENTO — preconnect a los orígenes críticos del render
+    inicial (fuentes, imágenes del hero y Firestore) para eliminar
+    el costo de DNS+TLS en el camino crítico, y preload de la
+    primera imagen del hero (elemento LCP de la página).
+  ============================================================ -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://images.pexels.com">
+  <link rel="preconnect" href="https://firestore.googleapis.com">
+  <!-- ⚠️ HERO/CLOUDINARY: esta URL debe ser SIEMPRE la misma que la primera
+       imagen del slideshow del hero (ver bloque marcado en el <header>). -->
+  <link rel="preload" as="image" fetchpriority="high" href="https://images.pexels.com/photos/16176576/pexels-photo-16176576.jpeg?auto=compress&cs=tinysrgb&w=1280">
+
+  <!-- Open Graph — preview al compartir en WhatsApp / Facebook / Instagram -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="La Batalla Auto Import">
+  <meta property="og:description" content="Sedanes, SUVs y camionetas al mejor precio. Financiamiento disponible en República Dominicana.">
+  <meta property="og:image" content="https://labatallaautoimport.netlify.app/preview.jpg">
+  <meta property="og:image:width" content="1204">
+  <meta property="og:image:height" content="644">
+  <meta property="og:url" content="https://labatallaautoimport.netlify.app/">
+  <meta property="og:locale" content="es_DO">
+
+  <!-- ============================================================
+    GOOGLE SEARCH CONSOLE — verificación de propiedad del sitio.
+    ⚠️ Reemplaza TU_CODIGO_DE_VERIFICACION con el código que te da
+    Google Search Console al agregar esta propiedad (Configuración →
+    Verificación de propiedad → etiqueta HTML). Sin esto, Google no
+    te deja ver estadísticas de indexación ni forzar el rastreo.
+  ============================================================ -->
+  <meta name="google-site-verification" content="jgdU7BoX3UAD-5WLzVBFI4a7rfiC0BxcpgwdjoC7DXs">
+
+  <!-- ============================================================
+    GOOGLE ANALYTICS (GA4) — mide visitas, origen del tráfico y
+    comportamiento de los usuarios en el sitio.
+    ⚠️ Reemplaza G-XXXXXXXXXX con tu Measurement ID real
+    (Google Analytics → Administrador → Flujos de datos → Web).
+  ============================================================ -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-8Q0K0K1MBP"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-8Q0K0K1MBP');
+  </script>
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="La Batalla Auto Import">
+  <meta name="twitter:description" content="Sedanes, SUVs y camionetas al mejor precio. Financiamiento disponible.">
+  <meta name="twitter:image" content="https://labatallaautoimport.netlify.app/preview.jpg">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="apple-touch-icon" href="/favicon.png">
+  <!-- Web App Manifest — permite agregar el sitio a pantalla de inicio en móvil -->
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#38bdf8">
+  <link rel="stylesheet" href="/tailwind.css?v=20260722">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <script defer src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js" integrity="sha384-JNhb/AfQ8tCvhjfm2WXKx9qovmn7LcndXYllHYDf2CcTBaBMAiPsjRJeC3f9U8V6" crossorigin="anonymous"></script>
+  <!-- Firebase compat — funciona tanto en servidor como abriendo el archivo directo -->
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
+<link rel="stylesheet" href="/styles.css?v=20260814">
+<link rel="stylesheet" href="/dashboard.css?v=20260810">
+</head>
+<body style="background: rgb(15, 23, 42);" class="w-full min-h-screen">
+
+<!-- SEO — Datos estructurados para Google (rich results) -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "AutoDealer",
+  "name": "La Batalla Auto Import",
+  "url": "https://labatallaautoimport.netlify.app/",
+  "image": "https://labatallaautoimport.netlify.app/preview.jpg",
+  "telephone": "+18097759771",
+  "priceRange": "RD$1,500,000 - RD$10,000,000",
+  "address": {
+    "@type": "PostalAddress",
+    "addressLocality": "Santo Domingo",
+    "addressCountry": "DO"
+  },
+  "areaServed": ["Santo Domingo", "San Francisco de Macorís", "Nagua"],
+  "sameAs": ["https://www.instagram.com/jmsanchez1015"]
+}
+</script>
+
+<!-- Sprite SVG reutilizable (evita repetir el path del icono WhatsApp 4 veces) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="icon-whatsapp" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"/></symbol>
+</svg>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- LOADING OVERLAY -->
+<div id="loading-overlay" style="position:fixed;inset:0;background:rgb(15,23,42);z-index:9998;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
+  <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 24 24'%3E%3Cpath fill='%2338bdf8' d='M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z' opacity='.3'/%3E%3Cpath fill='%2338bdf8' d='M20 12h2A10 10 0 0 0 12 2v2a8 8 0 0 1 8 8z'%3E%3CanimateTransform attributeName='transform' type='rotate' from='0 12 12' to='360 12 12' dur='.8s' repeatCount='indefinite'/%3E%3C/path%3E%3C/svg%3E" alt="cargando">
+  <p style="color:#94a3b8;font-family:'DM Sans',sans-serif;font-size:14px;">Cargando La Batalla Auto Import…</p>
+</div>
+
+<!-- MAIN PAGE -->
+<div id="main-page">
+  <nav class="sticky top-0 z-30 shadow-md relative" style="background: rgb(30, 41, 59);">
+    <div class="max-w-6xl mx-auto flex items-center px-4 py-3 gap-3 relative">
+      <div class="flex items-center gap-4 md:gap-10 flex-1 justify-center">
+        <a href="#sedanes" class="nav-cat-link whitespace-nowrap text-sm md:text-base" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;">Sedanes</a>
+        <a href="#suvs" class="nav-cat-link whitespace-nowrap text-sm md:text-base" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;">SUVs</a>
+        <a href="#pickups" class="nav-cat-link whitespace-nowrap text-sm md:text-base" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;">Camionetas</a>
+        <div class="nav-empresa" id="nav-empresa">
+          <button type="button" id="nav-empresa-btn" class="nav-cat-link whitespace-nowrap text-sm md:text-base flex items-center gap-1" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;" aria-haspopup="true" aria-expanded="false">
+            Empresa <i data-lucide="chevron-down" class="w-3.5 h-3.5" aria-hidden="true"></i>
+          </button>
+          <div id="nav-empresa-menu" class="nav-empresa-menu hidden" role="menu">
+            <a href="/empresa/por-que-elegirnos" class="nav-empresa-item" data-nav-target="por-que-elegirnos" role="menuitem"><i data-lucide="award" class="w-4 h-4" aria-hidden="true"></i>¿Por qué elegirnos?</a>
+            <a href="/empresa/quienes-somos" class="nav-empresa-item" data-nav-target="quienes-somos" role="menuitem"><i data-lucide="building-2" class="w-4 h-4" aria-hidden="true"></i>Quiénes somos</a>
+            <a href="/empresa/mision-vision" class="nav-empresa-item" data-nav-target="mision-vision" role="menuitem"><i data-lucide="target" class="w-4 h-4" aria-hidden="true"></i>Misión y Visión</a>
+            <a href="/empresa/nuestros-valores" class="nav-empresa-item" data-nav-target="nuestros-valores" role="menuitem"><i data-lucide="heart-handshake" class="w-4 h-4" aria-hidden="true"></i>Nuestros valores</a>
+            <div class="nav-empresa-sep"></div>
+            <a href="/politica-privacidad.html" class="nav-empresa-item nav-empresa-item--secondary" role="menuitem"><i data-lucide="shield-check" class="w-4 h-4" aria-hidden="true"></i>Política de Privacidad</a>
+            <a href="/terminos-y-condiciones.html" class="nav-empresa-item nav-empresa-item--secondary" role="menuitem"><i data-lucide="file-text" class="w-4 h-4" aria-hidden="true"></i>Términos y Condiciones</a>
+          </div>
+        </div>
+      </div>
+      <!-- Cuenta / Favoritos + Admin badge + publish button -->
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <button id="nav-account-btn" type="button" class="flex items-center gap-1.5 bg-slate-700/60 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg font-medium transition text-sm border border-white/5" aria-label="Mi cuenta y favoritos">
+          <i data-lucide="user-circle" class="w-4 h-4 pointer-events-none"></i>
+          <span class="hidden sm:inline">Mi Cuenta</span>
+          <span id="nav-fav-count" class="hidden items-center justify-center text-[10px] font-black rounded-full" style="min-width:16px;height:16px;background:#f87171;color:#fff;padding:0 4px;"></span>
+        </button>
+        <span id="admin-badge" class="items-center gap-1 bg-yellow-500/20 text-yellow-400 text-xs font-bold px-2 py-1 rounded-full border border-yellow-500/40">
+          <i data-lucide="shield" class="w-3 h-3 inline"></i> <span id="admin-badge-label" class="hidden sm:inline">ADMIN</span>
+        </span>
+        <button id="nav-publish-btn" class="hidden items-center gap-1 bg-sky-500 hover:bg-sky-600 text-white px-3 py-2 rounded-lg font-medium transition text-sm">
+          <i data-lucide="plus" class="w-4 h-4"></i><span class="hidden sm:inline">Publicar</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <header class="relative h-[70vh] overflow-hidden flex items-center justify-center" role="region" aria-roledescription="carrusel" aria-label="Vehículos destacados">
+    <div class="absolute inset-0" id="hero-slides">
+      <!-- ════════════════════════════════════════════════════════
+        HERO — MIGRAR A CLOUDINARY (pendiente de tus imágenes):
+        1. Sube 6 fotos a tu Cloudinary (carpeta labatalla/, ej: hero-1.jpg … hero-6.jpg).
+        2. Reemplaza los 6 src de abajo por:
+           https://res.cloudinary.com/TU_CLOUD/image/upload/f_auto,q_auto,w_1600/labatalla/hero-1.jpg
+        3. IMPORTANTE: actualiza también el <link rel="preload"> del <head>
+           (marcado con el mismo aviso) con la URL de la PRIMERA imagen.
+        Mientras tanto se usan fotos de stock de Pexels (temporal).
+      ════════════════════════════════════════════════════════ -->
+      <img class="slide active w-full h-full object-cover" fetchpriority="high" src="https://images.pexels.com/photos/16176576/pexels-photo-16176576.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Vehículos en exhibición en La Batalla Auto Import" data-title="Tu Próximo Vehículo Te Espera" data-subtitle="Sedanes, SUVs y Camionetas al mejor precio">
+      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/11205815/pexels-photo-11205815.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Sedán deportivo disponible en el inventario" data-title="Sedanes Elegantes Para Cada Trayecto" data-subtitle="Diseño, tecnología y eficiencia en un solo vehículo">
+      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/19908577/pexels-photo-19908577.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="SUV familiar en venta" data-title="SUVs Espaciosas Para Toda la Familia" data-subtitle="Comodidad y seguridad en cada kilómetro">
+      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/16419610/pexels-photo-16419610.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Camioneta pickup de trabajo y aventura" data-title="Camionetas Listas Para el Trabajo y la Aventura" data-subtitle="Potencia y versatilidad cuando más las necesitas">
+      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/395537/pexels-photo-395537.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Patio de vehículos del dealer" data-title="Amplio Inventario, Siempre Actualizado" data-subtitle="Nuevos vehículos cada semana en Santo Domingo">
+      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/29566862/pexels-photo-29566862.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Sedán de lujo exhibido en showroom elegante" data-title="Compra con Confianza y Financiamiento a tu Medida" data-subtitle="Te acompañamos en cada paso de tu compra">
+    </div>
+    <div class="absolute inset-0 bg-black/50"></div>
+    <div class="relative z-10 text-center px-4 flex flex-col items-center gap-6" id="hero-text-wrap" style="transition:opacity 0.5s ease;">
+      <h1 id="hero-title" class="font-black mb-4" style="color:#fff; font-size:44px; line-height:1.1; text-shadow:0 2px 20px rgba(0,0,0,0.4); letter-spacing:-0.5px;">Tu Próximo Vehículo Te Espera</h1>
+      <p id="hero-subtitle" style="color:rgb(226,232,240); font-size:20px; font-weight:500;">Sedanes, SUVs y Camionetas al mejor precio</p>
+    </div>
+    <button type="button" id="hero-prev" class="hero-arrow hero-arrow--prev" aria-label="Diapositiva anterior">‹</button>
+    <button type="button" id="hero-next" class="hero-arrow hero-arrow--next" aria-label="Siguiente diapositiva">›</button>
+    <div id="hero-dots" class="hero-dots" role="tablist" aria-label="Seleccionar diapositiva"></div>
+  </header>
+
+  <!-- BRAND LOGO FILTER -->
+  <section class="-mt-8 relative z-20 max-w-6xl mx-auto rounded-2xl shadow-2xl mb-12 overflow-hidden" style="background:rgb(22,32,50);">
+    <div class="px-6 pt-6 pb-4">
+      <div class="flex items-center justify-between flex-wrap gap-3 mb-5">
+        <h2 class="font-black flex items-center gap-2" style="color:#f8fafc;font-size:20px;">
+          <i data-lucide="search" class="w-5 h-5 text-sky-400"></i>
+          Explorar por Marca
+        </h2>
+        <button id="brand-clear-btn" class="hidden text-xs px-3 py-1.5 rounded-full font-bold border transition" style="color:#f87171;border-color:rgba(248,113,113,0.4);background:rgba(248,113,113,0.08);">
+          ✕ Limpiar selección
+        </button>
+      </div>
+      <div id="brand-logo-grid" class="grid gap-2.5" style="grid-template-columns:repeat(auto-fill,minmax(100px,1fr));"></div>
+    </div>
+    <div id="filter-results" class="hidden px-6 pb-4">
+      <div class="pt-4 mb-3" style="border-top:1px solid rgba(255,255,255,0.07);">
+        <p id="filter-results-count" class="text-slate-300 text-sm font-semibold"></p>
+      </div>
+      <div id="filter-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+      <p id="filter-no-results" class="text-slate-400 text-center py-8 hidden">No se encontraron vehículos de esta marca.</p>
+    </div>
+  </section>
+
+  <main class="max-w-6xl mx-auto px-6 py-12 space-y-16">
+
+    <!-- ============== VISTA: CATÁLOGO (por defecto, visible) ============== -->
+    <div id="catalog-view" class="space-y-16">
+      <!-- Sedanes -->
+      <section id="sedanes">
+        <h2 class="font-bold mb-6" style="color:rgb(241,245,249); font-size:24px;">Sedanes</h2>
+        <div class="scroll-section" id="sedanes-scroll"></div>
+        <div id="sedanes-pagination"></div>
+      </section>
+      <!-- SUVs -->
+      <section id="suvs">
+        <h2 class="font-bold mb-6" style="color:rgb(241,245,249); font-size:24px;">SUVs</h2>
+        <div class="scroll-section" id="suvs-scroll"></div>
+        <div id="suvs-pagination"></div>
+      </section>
+      <!-- Pickups -->
+      <section id="pickups">
+        <h2 class="font-bold mb-6" style="color:rgb(241,245,249); font-size:24px;">Camionetas</h2>
+        <div class="scroll-section" id="pickups-scroll"></div>
+        <div id="pickups-pagination"></div>
+      </section>
+      <!-- Contacto -->
+      <section id="contacto" class="rounded-2xl p-10" style="background:rgb(30,41,59);">
+        <h2 class="font-bold mb-8" style="color:rgb(248,250,252); font-size:24px;">Contáctanos</h2>
+        <div class="grid md:grid-cols-3 gap-8">
+          <div class="flex items-start gap-3">
+            <i data-lucide="phone" class="w-6 h-6 mt-1 shrink-0 text-sky-400"></i>
+            <div>
+              <p class="font-medium" style="color:rgb(248,250,252);">Teléfono</p>
+              <a href="tel:+18097759771" class="text-slate-300 hover:text-sky-400 transition" style="color:rgb(148,163,184);">809-775-9771</a>
+            </div>
+          </div>
+          <div class="flex items-start gap-3">
+            <i data-lucide="instagram" class="w-6 h-6 mt-1 shrink-0 text-pink-400"></i>
+            <div>
+              <p class="font-medium" style="color:rgb(248,250,252);">Instagram</p>
+              <a href="https://www.instagram.com/jmsanchez1015" target="_blank" rel="noopener noreferrer" style="color:rgb(148,163,184);">@jmsanchez1015</a>
+            </div>
+          </div>
+          <div class="flex items-start gap-3">
+            <i data-lucide="map-pin" class="w-6 h-6 mt-1 shrink-0 text-sky-400"></i>
+            <div>
+              <p class="font-medium" style="color:rgb(248,250,252);">Dirección</p>
+              <p style="color:rgb(148,163,184);">Santo Domingo, San Francisco y Nagua</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============== VISTA: EMPRESA (sub-página, oculta por defecto) ============== -->
+    <div id="empresa-page" class="hidden space-y-16">
+      <button type="button" id="empresa-back-btn" class="inline-flex items-center gap-2 font-bold text-sm rounded-xl px-4 py-2 transition" style="background:rgb(30,41,59);color:#38bdf8;border:1px solid rgba(56,189,248,0.25);">
+        <i data-lucide="arrow-left" class="w-4 h-4"></i> Volver al catálogo
+      </button>
+
+      <!-- Quiénes somos -->
+      <section id="quienes-somos" aria-labelledby="quienes-somos-h2" class="rounded-2xl p-8 md:p-10" style="background:rgb(30,41,59);">
+        <div class="grid md:grid-cols-[auto,1fr] gap-8 items-center">
+          <div class="mx-auto md:mx-0 rounded-xl flex items-center justify-center shrink-0" style="width:96px;height:96px;background:rgb(15,23,42);">
+            <i data-lucide="car" class="w-10 h-10 text-sky-400"></i>
+          </div>
+          <div>
+            <p class="font-bold" style="color:#38bdf8;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">Sobre nosotros</p>
+            <h2 id="quienes-somos-h2" class="font-bold mt-2 mb-4" style="color:rgb(241,245,249);font-size:24px;">Quiénes somos</h2>
+            <p style="color:#cbd5e1;font-size:14px;line-height:1.7;">
+              La Batalla Auto Import nació de una idea sencilla: comprar un vehículo en República Dominicana no debería sentirse como una apuesta. Muchas personas llegan con dudas razonables —¿el precio es justo?, ¿el vehículo es lo que dice ser?, ¿habrá alguien disponible si algo sale mal después?— y esas preguntas merecen respuestas claras, no evasivas.
+            </p>
+            <p class="mt-3" style="color:#cbd5e1;font-size:14px;line-height:1.7;">
+              Por eso construimos un proceso donde cada sedán, SUV y camioneta pasa por una verificación antes de publicarse, cada precio se explica sin letras pequeñas, y cada cliente tiene un asesor real disponible por WhatsApp, no un formulario que nadie responde. Trabajamos con presencia en Santo Domingo, San Francisco de Macorís y Nagua, pero el criterio es el mismo en cualquier ubicación: transparencia primero, venta después.
+            </p>
+            <p class="mt-3" style="color:#cbd5e1;font-size:14px;line-height:1.7;">
+              No medimos el éxito solo en unidades vendidas, sino en cuántos clientes nos recomiendan a un familiar o vuelven cuando necesitan su próximo vehículo.
+            </p>
+            <a href="#sedanes" class="inline-flex items-center gap-2 font-bold text-sm rounded-xl px-5 py-2.5 transition" style="background:#38bdf8;color:#0f172a;margin-top:20px;">
+              Explorar el inventario <i data-lucide="arrow-right" class="w-4 h-4"></i>
+            </a>
+          </div>
+        </div>
+
+        <!-- Franja de confianza — reemplaza los textos entre [] con cifras reales cuando las tengas -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-8 pt-8" style="border-top:1px solid rgba(148,163,184,0.15);">
+          <div class="text-center">
+            <i data-lucide="map-pin" class="w-5 h-5 text-sky-400 mx-auto mb-2"></i>
+            <p class="font-bold" style="color:#f8fafc;font-size:13px;">3 ubicaciones</p>
+            <p style="color:#94a3b8;font-size:11.5px;">Santo Domingo, SFM y Nagua</p>
+          </div>
+          <div class="text-center">
+            <i data-lucide="shield-check" class="w-5 h-5 text-sky-400 mx-auto mb-2"></i>
+            <p class="font-bold" style="color:#f8fafc;font-size:13px;">Vehículos verificados</p>
+            <p style="color:#94a3b8;font-size:11.5px;">Historial revisado antes de publicar</p>
+          </div>
+          <div class="text-center">
+            <i data-lucide="message-circle" class="w-5 h-5 text-sky-400 mx-auto mb-2"></i>
+            <p class="font-bold" style="color:#f8fafc;font-size:13px;">Respuesta directa</p>
+            <p style="color:#94a3b8;font-size:11.5px;">Asesor real por WhatsApp</p>
+          </div>
+          <div class="text-center">
+            <i data-lucide="banknote" class="w-5 h-5 text-sky-400 mx-auto mb-2"></i>
+            <p class="font-bold" style="color:#f8fafc;font-size:13px;">Financiamiento flexible</p>
+            <p style="color:#94a3b8;font-size:11.5px;">Aliados con bancos y financieras</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Cómo trabajamos -->
+      <section id="como-trabajamos" aria-labelledby="como-trabajamos-h2">
+        <div class="text-center mb-8">
+          <p class="font-bold" style="color:#38bdf8;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">Nuestro proceso</p>
+          <h2 id="como-trabajamos-h2" class="font-bold mt-2" style="color:rgb(241,245,249);font-size:24px;">Cómo trabajamos</h2>
+          <p class="mt-2 mx-auto" style="color:#94a3b8;font-size:13.5px;line-height:1.6;max-width:32rem;">Cuatro pasos simples, sin presión y con un asesor acompañándote en cada uno.</p>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
+            <p class="font-black mb-2" style="color:#38bdf8;font-size:20px;">01</p>
+            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Cuéntanos qué buscas</h3>
+            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Por WhatsApp o navegando el catálogo: marca, presupuesto y uso que le darás al vehículo.</p>
+          </div>
+          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
+            <p class="font-black mb-2" style="color:#38bdf8;font-size:20px;">02</p>
+            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Te mostramos opciones reales</h3>
+            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Fotos, especificaciones y estado verificado de cada unidad disponible que encaje contigo.</p>
+          </div>
+          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
+            <p class="font-black mb-2" style="color:#38bdf8;font-size:20px;">03</p>
+            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Simulas tu financiamiento</h3>
+            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Calculas tu cuota estimada al instante, sin comprometerte a nada todavía.</p>
+          </div>
+          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
+            <p class="font-black mb-2" style="color:#38bdf8;font-size:20px;">04</p>
+            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Firmamos y entregamos</h3>
+            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Confirmamos condiciones, resolvemos papeles y coordinamos la entrega de las llaves.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Misión y Visión -->
+      <section id="mision-vision" aria-labelledby="mision-vision-h2">
+        <h2 id="mision-vision-h2" class="sr-only">Misión y visión</h2>
+        <div class="grid md:grid-cols-2 gap-6">
+          <div class="rounded-2xl p-8" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.15);">
+            <i data-lucide="target" class="w-7 h-7 text-sky-400 mb-3"></i>
+            <h3 class="font-bold mb-2" style="color:#f8fafc;font-size:16px;">Nuestra misión</h3>
+            <p style="color:#94a3b8;font-size:13.5px;line-height:1.65;">Facilitar el acceso a vehículos de calidad en República Dominicana, ofreciendo opciones de financiamiento reales y un servicio honesto que le ahorre tiempo y dudas a cada cliente.</p>
+          </div>
+          <div class="rounded-2xl p-8" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.15);">
+            <i data-lucide="compass" class="w-7 h-7 text-sky-400 mb-3"></i>
+            <h3 class="font-bold mb-2" style="color:#f8fafc;font-size:16px;">Nuestra visión</h3>
+            <p style="color:#94a3b8;font-size:13.5px;line-height:1.65;">Ser el concesionario de referencia en el país, reconocido por la calidad de su inventario y por construir relaciones de largo plazo basadas en la confianza, no solo en la venta.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Nuestros valores -->
+      <section id="nuestros-valores" aria-labelledby="nuestros-valores-h2">
+        <h2 id="nuestros-valores-h2" class="font-bold mb-6 text-center" style="color:rgb(241,245,249);font-size:24px;">Nuestros valores</h2>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
+            <i data-lucide="shield-check" class="w-6 h-6 text-sky-400 mx-auto mb-2"></i>
+            <h3 class="font-bold" style="color:#e2e8f0;font-size:13px;">Honestidad</h3>
+            <p class="mt-1" style="color:#94a3b8;font-size:11.5px;line-height:1.4;">Decimos lo que hay, incluso cuando no es la respuesta más cómoda.</p>
+          </div>
+          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
+            <i data-lucide="eye" class="w-6 h-6 text-sky-400 mx-auto mb-2"></i>
+            <h3 class="font-bold" style="color:#e2e8f0;font-size:13px;">Transparencia</h3>
+            <p class="mt-1" style="color:#94a3b8;font-size:11.5px;line-height:1.4;">Precio, condiciones y estado del vehículo, sin costos ocultos.</p>
+          </div>
+          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
+            <i data-lucide="star" class="w-6 h-6 text-sky-400 mx-auto mb-2"></i>
+            <h3 class="font-bold" style="color:#e2e8f0;font-size:13px;">Calidad</h3>
+            <p class="mt-1" style="color:#94a3b8;font-size:11.5px;line-height:1.4;">Cada unidad se revisa antes de publicarse en el catálogo.</p>
+          </div>
+          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
+            <i data-lucide="flag" class="w-6 h-6 text-sky-400 mx-auto mb-2"></i>
+            <h3 class="font-bold" style="color:#e2e8f0;font-size:13px;">Compromiso</h3>
+            <p class="mt-1" style="color:#94a3b8;font-size:11.5px;line-height:1.4;">Te acompañamos antes, durante y después de la compra.</p>
+          </div>
+          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
+            <i data-lucide="heart-handshake" class="w-6 h-6 text-sky-400 mx-auto mb-2"></i>
+            <h3 class="font-bold" style="color:#e2e8f0;font-size:13px;">Confianza</h3>
+            <p class="mt-1" style="color:#94a3b8;font-size:11.5px;line-height:1.4;">Construimos relaciones que duran más que una sola venta.</p>
+          </div>
+          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
+            <i data-lucide="check-circle-2" class="w-6 h-6 text-sky-400 mx-auto mb-2"></i>
+            <h3 class="font-bold" style="color:#e2e8f0;font-size:13px;">Responsabilidad</h3>
+            <p class="mt-1" style="color:#94a3b8;font-size:11.5px;line-height:1.4;">Cumplimos lo que prometemos, desde el primer mensaje.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ¿Por qué elegirnos? -->
+      <section id="por-que-elegirnos" aria-labelledby="por-que-elegirnos-h2">
+        <div class="text-center mb-8">
+          <p class="font-bold" style="color:#38bdf8;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">Ventajas competitivas</p>
+          <h2 id="por-que-elegirnos-h2" class="font-bold mt-2" style="color:rgb(241,245,249);font-size:24px;">¿Por qué elegirnos?</h2>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
+            <i data-lucide="globe" class="w-6 h-6 text-sky-400 mb-3"></i>
+            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Vehículos importados de calidad</h3>
+            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Seleccionamos cada unidad verificando su procedencia y estado real antes de ponerla a la venta.</p>
+          </div>
+          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
+            <i data-lucide="calculator" class="w-6 h-6 text-sky-400 mb-3"></i>
+            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Financiamiento a tu medida</h3>
+            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Trabajamos con bancos y financieras del país para encontrar la cuota que se ajuste a tu presupuesto.</p>
+          </div>
+          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
+            <i data-lucide="headphones" class="w-6 h-6 text-sky-400 mb-3"></i>
+            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Atención personalizada</h3>
+            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Un asesor te acompaña desde la primera pregunta hasta la entrega de las llaves.</p>
+          </div>
+          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
+            <i data-lucide="file-check-2" class="w-6 h-6 text-sky-400 mb-3"></i>
+            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Proceso transparente</h3>
+            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Precios claros, condiciones explicadas y ningún costo oculto en el camino.</p>
+          </div>
+          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
+            <i data-lucide="thumbs-up" class="w-6 h-6 text-sky-400 mb-3"></i>
+            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Excelente servicio al cliente</h3>
+            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Respondemos rápido por WhatsApp y damos seguimiento después de la compra.</p>
+          </div>
+          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
+            <i data-lucide="refresh-cw" class="w-6 h-6 text-sky-400 mb-3"></i>
+            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Inventario actualizado</h3>
+            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Sumamos vehículos nuevos cada semana, así que siempre hay opciones frescas para ver.</p>
+          </div>
+        </div>
+        <div class="text-center mt-8">
+          <button type="button" onclick="openCalcModal()" class="inline-flex items-center gap-2 font-bold text-sm rounded-xl px-5 py-2.5 transition" style="background:#38bdf8;color:#0f172a;">
+            <i data-lucide="calculator" class="w-4 h-4"></i> Simular mi financiamiento
+          </button>
+        </div>
+      </section>
+
+      <!-- Financiamiento paso a paso -->
+      <section id="financiamiento-paso-a-paso" aria-labelledby="financiamiento-h2" class="rounded-2xl p-8 md:p-10" style="background:rgb(30,41,59);">
+        <div class="text-center mb-8">
+          <p class="font-bold" style="color:#38bdf8;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">Financiamiento</p>
+          <h2 id="financiamiento-h2" class="font-bold mt-2" style="color:rgb(241,245,249);font-size:24px;">Financiamiento paso a paso</h2>
+          <p class="mt-2 mx-auto" style="color:#94a3b8;font-size:13.5px;line-height:1.6;max-width:32rem;">Sin letras pequeñas: así se calcula y aprueba tu cuota.</p>
+        </div>
+        <div class="grid md:grid-cols-2 gap-6">
+          <div class="flex items-start gap-4">
+            <div class="rounded-full flex items-center justify-center shrink-0" style="width:36px;height:36px;background:rgba(56,189,248,0.12);color:#38bdf8;font-weight:800;font-size:14px;">1</div>
+            <div>
+              <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Elige tu vehículo</h3>
+              <p style="color:#94a3b8;font-size:12.5px;line-height:1.55;">Selecciona la unidad que te interesa desde el catálogo.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-4">
+            <div class="rounded-full flex items-center justify-center shrink-0" style="width:36px;height:36px;background:rgba(56,189,248,0.12);color:#38bdf8;font-weight:800;font-size:14px;">2</div>
+            <div>
+              <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Simula tu cuota</h3>
+              <p style="color:#94a3b8;font-size:12.5px;line-height:1.55;">Ajusta inicial y plazo en nuestra calculadora y ve el estimado al instante.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-4">
+            <div class="rounded-full flex items-center justify-center shrink-0" style="width:36px;height:36px;background:rgba(56,189,248,0.12);color:#38bdf8;font-weight:800;font-size:14px;">3</div>
+            <div>
+              <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Envía tu solicitud</h3>
+              <p style="color:#94a3b8;font-size:12.5px;line-height:1.55;">Con un clic, tu cotización llega directo a un asesor por WhatsApp.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-4">
+            <div class="rounded-full flex items-center justify-center shrink-0" style="width:36px;height:36px;background:rgba(56,189,248,0.12);color:#38bdf8;font-weight:800;font-size:14px;">4</div>
+            <div>
+              <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Confirmamos la aprobación</h3>
+              <p style="color:#94a3b8;font-size:12.5px;line-height:1.55;">Coordinamos con la institución financiera y te confirmamos condiciones finales.</p>
+            </div>
+          </div>
+        </div>
+        <p class="text-center" style="color:#64748b;font-size:11.5px;margin-top:24px;">* Cálculo referencial sujeto a aprobación y tasa final de la institución financiera.</p>
+      </section>
+
+      <!-- Garantías y transparencia -->
+      <section id="garantias-transparencia" aria-labelledby="garantias-h2">
+        <div class="text-center mb-8">
+          <p class="font-bold" style="color:#38bdf8;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">Compromiso</p>
+          <h2 id="garantias-h2" class="font-bold mt-2" style="color:rgb(241,245,249);font-size:24px;">Garantías y transparencia</h2>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(34,197,94,0.15);">
+            <i data-lucide="file-search" class="w-6 h-6 mx-auto mb-2" style="color:#22c55e;"></i>
+            <h3 class="font-bold" style="color:#e2e8f0;font-size:12.5px;">Historial verificado</h3>
+          </div>
+          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(34,197,94,0.15);">
+            <i data-lucide="tag" class="w-6 h-6 mx-auto mb-2" style="color:#22c55e;"></i>
+            <h3 class="font-bold" style="color:#e2e8f0;font-size:12.5px;">Precio sin sorpresas</h3>
+          </div>
+          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(34,197,94,0.15);">
+            <i data-lucide="file-text" class="w-6 h-6 mx-auto mb-2" style="color:#22c55e;"></i>
+            <h3 class="font-bold" style="color:#e2e8f0;font-size:12.5px;">Papeles en regla</h3>
+          </div>
+          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(34,197,94,0.15);">
+            <i data-lucide="phone-call" class="w-6 h-6 mx-auto mb-2" style="color:#22c55e;"></i>
+            <h3 class="font-bold" style="color:#e2e8f0;font-size:12.5px;">Soporte post-venta</h3>
+          </div>
+        </div>
+      </section>
+
+      <!-- Preguntas frecuentes -->
+      <section id="preguntas-frecuentes" aria-labelledby="faq-h2" class="rounded-2xl p-8 md:p-10" style="background:rgb(30,41,59);max-width:760px;margin-inline:auto;">
+        <div class="text-center mb-6">
+          <p class="font-bold" style="color:#38bdf8;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">Dudas frecuentes</p>
+          <h2 id="faq-h2" class="font-bold mt-2" style="color:rgb(241,245,249);font-size:24px;">Preguntas frecuentes</h2>
+        </div>
+        <div>
+          <details class="lb-faq-item" style="border-bottom:1px solid rgba(148,163,184,0.15);padding:14px 0;">
+            <summary style="cursor:pointer;color:#f8fafc;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:space-between;gap:12px;">¿Los vehículos son nuevos, usados o importados? <i data-lucide="chevron-down" class="lb-faq-chevron w-4 h-4 text-sky-400" style="flex-shrink:0;"></i></summary>
+            <p class="mt-2" style="color:#94a3b8;font-size:12.5px;line-height:1.6;">Manejamos las tres opciones. Cada ficha indica claramente la condición del vehículo para que decidas con información completa.</p>
+          </details>
+          <details class="lb-faq-item" style="border-bottom:1px solid rgba(148,163,184,0.15);padding:14px 0;">
+            <summary style="cursor:pointer;color:#f8fafc;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:space-between;gap:12px;">¿Puedo financiar aunque no tenga historial crediticio extenso? <i data-lucide="chevron-down" class="lb-faq-chevron w-4 h-4 text-sky-400" style="flex-shrink:0;"></i></summary>
+            <p class="mt-2" style="color:#94a3b8;font-size:12.5px;line-height:1.6;">Trabajamos con varias instituciones financieras, cada una con criterios distintos. Un asesor revisa tu caso y te dice qué opciones aplican, sin compromiso.</p>
+          </details>
+          <details class="lb-faq-item" style="border-bottom:1px solid rgba(148,163,184,0.15);padding:14px 0;">
+            <summary style="cursor:pointer;color:#f8fafc;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:space-between;gap:12px;">¿Qué pasa si tengo un problema después de comprar? <i data-lucide="chevron-down" class="lb-faq-chevron w-4 h-4 text-sky-400" style="flex-shrink:0;"></i></summary>
+            <p class="mt-2" style="color:#94a3b8;font-size:12.5px;line-height:1.6;">Nuestro acompañamiento no termina con la entrega. Contáctanos por WhatsApp y te orientamos sobre los siguientes pasos.</p>
+          </details>
+          <details class="lb-faq-item" style="border-bottom:1px solid rgba(148,163,184,0.15);padding:14px 0;">
+            <summary style="cursor:pointer;color:#f8fafc;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:space-between;gap:12px;">¿Atienden fuera de Santo Domingo? <i data-lucide="chevron-down" class="lb-faq-chevron w-4 h-4 text-sky-400" style="flex-shrink:0;"></i></summary>
+            <p class="mt-2" style="color:#94a3b8;font-size:12.5px;line-height:1.6;">Sí, tenemos presencia en Santo Domingo, San Francisco de Macorís y Nagua. Escríbenos y coordinamos según tu ubicación.</p>
+          </details>
+          <details class="lb-faq-item" style="padding:14px 0;">
+            <summary style="cursor:pointer;color:#f8fafc;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:space-between;gap:12px;">¿Cuánto tiempo toma todo el proceso? <i data-lucide="chevron-down" class="lb-faq-chevron w-4 h-4 text-sky-400" style="flex-shrink:0;"></i></summary>
+            <p class="mt-2" style="color:#94a3b8;font-size:12.5px;line-height:1.6;">Depende de la aprobación de la institución financiera, pero la simulación y la solicitud inicial toman solo minutos.</p>
+          </details>
+        </div>
+      </section>
+
+      <!-- Testimonios -->
+      <section id="testimonios" aria-labelledby="testimonios-h2">
+        <div class="text-center mb-3">
+          <p class="font-bold" style="color:#38bdf8;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">Lo que dicen nuestros clientes</p>
+          <h2 id="testimonios-h2" class="font-bold mt-2" style="color:rgb(241,245,249);font-size:24px;">Testimonios</h2>
+          <p class="mt-1" style="color:#64748b;font-size:11px;">* Testimonios de ejemplo, pendientes de reemplazar por reseñas reales de clientes.</p>
+        </div>
+        <div class="grid md:grid-cols-3 gap-4" style="margin-top:24px;">
+          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
+            <i data-lucide="quote" class="w-5 h-5 text-sky-400 mb-2"></i>
+            <p style="color:#cbd5e1;font-size:13px;line-height:1.6;">"Me explicaron cada paso del financiamiento antes de decidir. Sentí que sí les importaba que yo entendiera todo."</p>
+            <p class="mt-3 font-bold" style="color:#94a3b8;font-size:11.5px;">— Cliente, Santo Domingo</p>
+          </div>
+          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
+            <i data-lucide="quote" class="w-5 h-5 text-sky-400 mb-2"></i>
+            <p style="color:#cbd5e1;font-size:13px;line-height:1.6;">"Respondieron rápido por WhatsApp y no sentí presión en ningún momento del proceso."</p>
+            <p class="mt-3 font-bold" style="color:#94a3b8;font-size:11.5px;">— Cliente, San Francisco de Macorís</p>
+          </div>
+          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
+            <i data-lucide="quote" class="w-5 h-5 text-sky-400 mb-2"></i>
+            <p style="color:#cbd5e1;font-size:13px;line-height:1.6;">"El precio que me dieron al inicio fue el mismo hasta la entrega. Sin sorpresas."</p>
+            <p class="mt-3 font-bold" style="color:#94a3b8;font-size:11.5px;">— Cliente, Nagua</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- CTA final -->
+      <section aria-label="Contacto" class="rounded-2xl p-8 md:p-10 text-center" style="background:linear-gradient(135deg, rgba(56,189,248,0.12), rgba(30,41,59,0.6));border:1px solid rgba(56,189,248,0.2);">
+        <h2 class="font-bold mb-2" style="color:rgb(241,245,249);font-size:22px;">¿Listo para encontrar tu próximo vehículo?</h2>
+        <p class="mb-6 max-w-md mx-auto" style="color:#94a3b8;font-size:13.5px;line-height:1.6;">Habla con un asesor real o simula tu financiamiento en menos de un minuto.</p>
+        <div class="flex flex-wrap items-center justify-center gap-3">
+          <a href="https://wa.me/18097759771?text=Hola%2C%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20veh%C3%ADculos%20disponibles." target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 font-bold text-sm rounded-xl px-5 py-2.5 transition" style="background:#25D366;color:#0f172a;">
+            <svg class="w-4 h-4 fill-current shrink-0"><use href="#icon-whatsapp"/></svg> Hablar con un asesor
+          </a>
+          <button type="button" onclick="openCalcModal()" class="inline-flex items-center gap-2 font-bold text-sm rounded-xl px-5 py-2.5 transition" style="background:rgb(15,23,42);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);">
+            <i data-lucide="calculator" class="w-4 h-4"></i> Simular financiamiento
+          </button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="py-6 text-center" style="background:rgb(15,23,42);border-top:1px solid rgba(255,255,255,0.06);">
+    <nav aria-label="Enlaces legales" class="footer-legal-nav">
+      <a href="/politica-privacidad.html" class="footer-legal-link">Política de Privacidad</a>
+      <span class="footer-legal-sep" aria-hidden="true">•</span>
+      <a href="/terminos-y-condiciones.html" class="footer-legal-link">Términos y Condiciones</a>
+    </nav>
+    <p class="text-sm" style="color:rgb(148,163,184);">© 2026 La Batalla Auto Import. Todos los derechos reservados.</p>
+  </footer>
+</div>
+
+<!-- LIGHTBOX -->
+<div id="lightbox" role="dialog" aria-modal="true">
+  <button id="lightbox-close" aria-label="Cerrar">✕</button>
+  <button id="lightbox-prev" aria-label="Anterior">‹</button>
+  <img id="lightbox-img" src="" alt="Foto ampliada" class="hidden">
+  <video id="lightbox-video" controls class="hidden"></video>
+  <button id="lightbox-next" aria-label="Siguiente">›</button>
+</div>
+
+<!-- DETAIL PAGE -->
+<div id="detail-page" class="page-hidden">
+  <div class="sticky top-0 z-30 bg-slate-900 shadow-md px-6 py-4 flex items-center gap-4">
+    <button id="back-btn" class="flex items-center gap-2 text-white font-medium hover:text-sky-400 transition">
+      <i data-lucide="arrow-left" class="w-5 h-5"></i> Volver
+    </button>
+    <img class="h-10 w-10 object-contain ml-auto rounded-full" loading="lazy"
+      src="https://res.cloudinary.com/dqayvw3zt/image/upload/f_auto,q_auto,w_80/labatalla/logo.png"
+      onerror="this.src='https://placehold.co/40x40/1e293b/38bdf8?text=LB'"
+      alt="La Batalla Auto Import logo">
+  </div>
+  <div class="max-w-3xl mx-auto px-6 py-8">
+    <!-- Gallery -->
+    <div class="relative rounded-xl overflow-hidden mb-6 bg-slate-800">
+      <div id="detail-media-container" class="w-full bg-black flex items-center justify-center" style="aspect-ratio:16/9;">
+        <img id="detail-img" class="w-full h-full object-cover hidden" loading="lazy">
+        <video id="detail-video" class="w-full h-full object-cover hidden" controls></video>
+      </div>
+      <button id="gallery-prev" aria-label="Imagen anterior" class="hidden absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white w-8 h-8 rounded-full flex items-center justify-center">
+        <i data-lucide="chevron-left" class="w-5 h-5"></i>
+      </button>
+      <button id="gallery-next" aria-label="Imagen siguiente" class="hidden absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white w-8 h-8 rounded-full flex items-center justify-center">
+        <i data-lucide="chevron-right" class="w-5 h-5"></i>
+      </button>
+      <div id="gallery-dots" class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2"></div>
+    </div>
+    <!-- Admin controls for editing vehicle -->
+    <div id="detail-admin-controls" class="hidden flex gap-2 mb-4">
+      <button id="detail-edit-btn" class="flex items-center gap-1 bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i data-lucide="pencil" class="w-4 h-4"></i> Editar
+      </button>
+      <button id="detail-delete-btn" class="flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i data-lucide="trash-2" class="w-4 h-4"></i> Eliminar
+      </button>
+    </div>
+    <h1 id="detail-name" class="font-black text-white mb-3" style="font-size:clamp(20px,5vw,28px);line-height:1.2;"></h1>
+    <!-- Price + Carfax row -->
+    <div class="flex flex-wrap gap-3 mb-6">
+      <div class="rounded-xl px-5 py-3 flex-1 min-w-0" style="background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.2);">
+        <p class="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-1">Precio</p>
+        <p id="detail-price" class="text-sky-400 font-black" style="font-size:clamp(18px,4vw,24px);"></p>
+      </div>
+      <div class="rounded-xl px-5 py-3" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);">
+        <p class="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-1">Clean Carfax</p>
+        <p id="detail-carfax" class="font-bold text-base"></p>
+      </div>
+    </div>
+    <div class="bg-slate-800 rounded-xl p-6 mb-6">
+      <h2 class="text-white font-bold text-lg mb-4">Especificaciones</h2>
+      <div id="detail-specs" class="grid grid-cols-2 gap-4 text-sm"></div>
+    </div>
+    <div class="bg-slate-800 rounded-xl p-6 mb-6">
+      <h2 class="text-white font-bold text-lg mb-4">Características</h2>
+      <ul id="detail-features" class="space-y-2"></ul>
+    </div>
+    <!-- Simular financiamiento — abre la calculadora modal precargada con este vehículo -->
+    <button type="button" id="detail-open-calc-btn" class="w-full flex items-center justify-center gap-2 mb-6 lb-calc-cta" style="background:rgba(56,189,248,0.12);border:1.5px solid rgba(56,189,248,0.4);color:#38bdf8;box-shadow:none;">
+      <i data-lucide="calculator" class="w-5 h-5"></i>
+      Simular financiamiento para este vehículo
+    </button>
+
+    <!-- Contact buttons -->
+    <div class="flex gap-3 mb-8">
+      <a id="detail-whatsapp-btn" href="#" target="_blank" rel="noopener noreferrer"
+        class="flex-1 flex items-center justify-center gap-2 text-white font-bold py-3 rounded-xl transition text-sm"
+        style="background:rgb(37,211,102);">
+        <svg class="w-5 h-5 fill-current shrink-0"><use href="#icon-whatsapp"/></svg>
+        WhatsApp
+      </a>
+      <a href="https://www.instagram.com/jmsanchez1015" target="_blank" rel="noopener noreferrer"
+        class="flex items-center justify-center gap-2 font-bold py-3 px-4 rounded-xl transition text-sm text-white"
+        style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);">
+        <svg viewBox="0 0 24 24" class="w-5 h-5 fill-current shrink-0"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+        Instagram
+      </a>
+    </div>
+
+    <!-- VEHÍCULOS SIMILARES -->
+    <div id="similar-section" class="hidden mt-2 pb-8">
+      <h2 class="text-white font-bold text-xl mb-4 flex items-center gap-2">
+        <i data-lucide="sparkles" class="w-5 h-5 text-sky-400"></i>
+        Vehículos similares
+      </h2>
+      <div id="similar-grid" class="grid grid-cols-2 md:grid-cols-3 gap-4"></div>
+      <div id="similar-pagination" class="mt-4"></div>
+    </div>
+  </div>
+</div>
+
+<!-- PUBLISH/EDIT MODAL -->
+<div id="publish-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-start justify-center p-4 pt-8" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+  <div class="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+    <div class="sticky top-0 bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center justify-between">
+      <h2 id="modal-title" class="text-white font-bold text-xl">Publicar Vehículo</h2>
+      <button id="publish-close-btn" aria-label="Cerrar" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+    <div class="p-6 space-y-4">
+      <input type="hidden" id="pub-edit-id" value="">
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-1" for="pub-name">Nombre *</label>
+        <input id="pub-name" type="text" placeholder="ej: BMW 330i 2024" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-1">Precio *</label>
+        <div class="flex gap-2">
+          <select id="pub-currency" class="bg-slate-800 border border-slate-600 text-white rounded-lg px-2 py-2 focus:border-sky-400 focus:outline-none text-sm font-bold w-24 flex-shrink-0">
+            <option value="RD">RD$</option>
+            <option value="USD">USD$</option>
+          </select>
+          <input id="pub-price" type="number" placeholder="ej: 3650000" class="flex-1 bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
+        </div>
+        <p class="text-slate-500 text-xs mt-1">Selecciona la moneda y escribe el monto</p>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-1" for="pub-category">Categoría *</label>
+        <select id="pub-category" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
+          <option value="">Selecciona</option><option value="sedanes">Sedán</option><option value="suvs">SUV</option><option value="pickups">Camioneta</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-1" for="pub-condition">Estado *</label>
+        <select id="pub-condition" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
+          <option value="">Selecciona</option><option value="nuevo">Nuevo</option><option value="usado">Usado</option><option value="importado">Recién Importado</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-1" for="pub-brand-search">Marca *</label>
+        <div class="relative">
+          <input id="pub-brand-search" type="text" placeholder="Buscar marca..." autocomplete="off"
+            class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
+          <input type="hidden" id="pub-brand" value="">
+          <div id="brand-dropdown" class="hidden absolute z-50 w-full bg-slate-800 border border-slate-600 rounded-lg mt-1 max-h-48 overflow-y-auto shadow-xl">
+          </div>
+        </div>
+        <p id="brand-selected-display" class="text-sky-400 text-xs mt-1 hidden"></p>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-1" for="pub-year">Año *</label>
+        <select id="pub-year" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
+          <option value="">Selecciona</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-1" for="pub-carfax">Clean Carfax *</label>
+        <select id="pub-carfax" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
+          <option value="si">Sí</option><option value="no">No</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-1" for="pub-mileage">Millaje <span class="text-slate-500 text-xs font-normal">(opcional)</span></label>
+        <input id="pub-mileage" type="text" placeholder="ej: 45,000 km" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-1">Color</label>
+        <div class="relative">
+          <input id="pub-color-search" type="text" placeholder="Buscar color..." autocomplete="off"
+            class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
+          <input type="hidden" id="pub-color" value="">
+          <div id="color-dropdown" class="hidden absolute z-50 w-full bg-slate-800 border border-slate-600 rounded-lg mt-1 max-h-48 overflow-y-auto shadow-xl"></div>
+        </div>
+        <p id="color-selected-display" class="text-sky-400 text-xs mt-1 hidden"></p>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-1" for="pub-transmission">Transmisión</label>
+        <select id="pub-transmission" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
+          <option value="">Selecciona</option><option value="Automático">Automático</option><option value="Mecánica">Mecánica</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-1" for="pub-features">Características (una por línea)</label>
+        <textarea id="pub-features" rows="3" placeholder="ej: Pantalla táctil 10&quot;&#10;Techo panorámico&#10;Cámara de reversa" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none resize-none"></textarea>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-1" for="pub-seo-tags">Etiquetas SEO <span class="text-slate-500 text-xs font-normal">(separadas por coma — ayuda a aparecer en Google)</span></label>
+        <input id="pub-seo-tags" type="text" placeholder="ej: toyota corolla usado, sedan barato santo domingo" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
+        <p class="text-slate-500 text-xs mt-1">Piensa en cómo alguien buscaría este carro en Google.</p>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-2">Etiquetas destacadas</label>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 cursor-pointer text-sm text-slate-300">
+            <input type="checkbox" id="pub-tag-financiamiento" class="pub-tag-cb accent-sky-500"> 💰 Financiamiento disponible
+          </label>
+          <label class="flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 cursor-pointer text-sm text-slate-300">
+            <input type="checkbox" id="pub-tag-negociable" class="pub-tag-cb accent-sky-500"> 🤝 Negociable
+          </label>
+          <label class="flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 cursor-pointer text-sm text-slate-300">
+            <input type="checkbox" id="pub-tag-unicodueno" class="pub-tag-cb accent-sky-500"> 👤 Único dueño
+          </label>
+          <label class="flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 cursor-pointer text-sm text-slate-300">
+            <input type="checkbox" id="pub-tag-importado" class="pub-tag-cb accent-sky-500"> 🌎 Importado
+          </label>
+        </div>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-1">Fotos / Videos <span class="text-sky-400 text-xs font-normal">(máx. 10 — la 1ª será la portada)</span></label>
+        <label for="pub-images" id="pub-images-label" class="flex items-center gap-2 cursor-pointer border-2 border-dashed border-slate-600 rounded-lg p-4 hover:border-sky-400 transition">
+          <i data-lucide="upload" class="w-5 h-5 text-slate-400"></i>
+          <span id="pub-images-label-text" class="text-slate-400 text-sm">Seleccionar fotos o videos (máx. 10)</span>
+        </label>
+        <input type="file" id="pub-images" accept="image/*,video/*" multiple class="hidden">
+        <div id="img-preview" class="img-preview-grid mt-3"></div>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button id="publish-submit-btn" class="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 rounded-xl transition">
+          <span class="btn-label">Publicar Vehículo</span>
+        </button>
+        <button id="publish-cancel-btn" class="px-4 text-slate-400 hover:text-white border border-slate-600 rounded-xl transition">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE CONFIRM MODAL -->
+<div id="delete-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title" tabindex="-1">
+  <div class="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+    <i data-lucide="trash-2" class="w-12 h-12 text-red-400 mx-auto mb-4"></i>
+    <h3 id="delete-modal-title" class="text-white font-bold text-lg mb-2">¿Eliminar vehículo?</h3>
+    <p class="text-slate-400 text-sm mb-6">Esta acción no se puede deshacer.</p>
+    <div class="flex gap-3">
+      <button id="delete-confirm-btn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded-xl transition"><span class="btn-label">Eliminar</span></button>
+      <button id="delete-cancel-btn" class="flex-1 border border-slate-600 text-slate-300 hover:text-white py-2 rounded-xl transition">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============== MI CUENTA / FAVORITOS / LOGIN MODAL ============== -->
+<div id="account-modal" class="hidden fixed inset-0 bg-black/75 z-50 flex items-start justify-center p-4 pt-10 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="account-modal-title" tabindex="-1">
+  <div class="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md border border-slate-700">
+    <div class="sticky top-0 bg-slate-800 border-b border-slate-700 px-5 py-4 flex items-center justify-between rounded-t-2xl">
+      <h2 id="account-modal-title" class="text-white font-bold text-lg flex items-center gap-2">
+        <i data-lucide="user-circle" class="w-5 h-5 text-sky-400"></i> Mi Cuenta
+      </h2>
+      <button id="account-close-btn" type="button" aria-label="Cerrar" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex border-b border-slate-700">
+      <button id="account-tab-fav" type="button" class="account-tab flex-1 py-3 text-sm font-bold transition" data-tab="fav">
+        <i data-lucide="heart" class="w-4 h-4 inline mr-1 pointer-events-none"></i> Favoritos
+      </button>
+      <button id="account-tab-login" type="button" class="account-tab flex-1 py-3 text-sm font-bold transition" data-tab="login">
+        <i data-lucide="log-in" class="w-4 h-4 inline mr-1 pointer-events-none"></i> Iniciar sesión
+      </button>
+    </div>
+
+    <!-- TAB: FAVORITOS -->
+    <div id="account-panel-fav" class="p-5">
+      <div id="account-fav-empty" class="hidden text-center py-10">
+        <i data-lucide="heart" class="w-10 h-10 text-slate-600 mx-auto mb-3"></i>
+        <p class="text-slate-400 text-sm">Aún no tienes vehículos favoritos.</p>
+        <p class="text-slate-500 text-xs mt-1">Toca el corazón ❤️ en cualquier publicación para guardarla aquí.</p>
+      </div>
+      <div id="account-fav-grid" class="grid grid-cols-2 gap-3"></div>
+    </div>
+
+    <!-- TAB: LOGIN / REGISTRO (Firebase Auth + Google) -->
+    <div id="account-panel-login" class="p-5 hidden">
+      <div id="auth-form-view">
+        <div class="text-center mb-4">
+          <img src="https://res.cloudinary.com/dqayvw3zt/image/upload/f_auto,q_auto,w_120/labatalla/logo.png"
+               alt="La Batalla Auto Import" class="h-12 w-12 object-contain rounded-full mx-auto mb-2"
+               onerror="this.style.display='none'">
+          <h3 id="auth-title" class="text-white font-black text-lg">Bienvenido nuevamente</h3>
+          <p class="text-slate-400 text-xs leading-relaxed mt-1">Accede a tu cuenta para guardar favoritos, gestionar tu perfil y disfrutar de una mejor experiencia.</p>
+        </div>
+
+        <div class="flex border-b border-slate-700 mb-4">
+          <button type="button" id="auth-mode-login-btn" class="account-tab active flex-1 py-2 text-sm font-bold">Iniciar sesión</button>
+          <button type="button" id="auth-mode-register-btn" class="account-tab flex-1 py-2 text-sm font-bold">Crear cuenta</button>
+        </div>
+
+        <button id="auth-google-btn" type="button" class="auth-google-btn w-full flex items-center justify-center gap-3 font-medium py-2.5 rounded-xl text-sm mb-4">
+          <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.1 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.1 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C41 35.4 44 30.2 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
+          <span class="btn-label">Continuar con Google</span>
+        </button>
+
+        <div class="flex items-center gap-3 mb-4">
+          <div class="flex-1 h-px bg-slate-700"></div>
+          <span class="text-slate-500 text-[11px] font-medium">o con tu correo</span>
+          <div class="flex-1 h-px bg-slate-700"></div>
+        </div>
+
+        <div id="auth-name-field" class="mb-3 hidden">
+          <label class="text-slate-300 text-xs font-medium block mb-1" for="auth-name-input">Nombre</label>
+          <input id="auth-name-input" type="text" placeholder="Tu nombre" autocomplete="name" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+        </div>
+        <div class="mb-3">
+          <label class="text-slate-300 text-xs font-medium block mb-1" for="auth-email-input">Correo</label>
+          <input id="auth-email-input" type="email" placeholder="correo@ejemplo.com" autocomplete="email" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+        </div>
+        <div class="mb-1">
+          <label class="text-slate-300 text-xs font-medium block mb-1" for="auth-password-input">Contraseña</label>
+          <div class="relative">
+            <input id="auth-password-input" type="password" placeholder="••••••••" autocomplete="current-password" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 pr-10 text-sm focus:border-sky-400 focus:outline-none transition">
+            <button type="button" id="auth-toggle-pw-btn" aria-label="Mostrar u ocultar contraseña" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"><i data-lucide="eye" class="w-4 h-4"></i></button>
+          </div>
+        </div>
+        <p id="auth-capslock-warn" class="text-yellow-400 text-[11px] mb-1 hidden">⇪ Bloq Mayús está activado</p>
+        <div id="auth-strength-wrap" class="mb-2 hidden">
+          <div class="h-1.5 rounded-full bg-slate-700 overflow-hidden"><div id="auth-strength-fill" class="h-full rounded-full transition-all" style="width:0%"></div></div>
+          <p id="auth-strength-label" class="text-[11px] mt-1 font-medium"></p>
+        </div>
+        <div id="auth-confirm-field" class="mb-2 hidden">
+          <label class="text-slate-300 text-xs font-medium block mb-1" for="auth-confirm-input">Confirmar contraseña</label>
+          <div class="relative">
+            <input id="auth-confirm-input" type="password" placeholder="••••••••" autocomplete="new-password" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 pr-10 text-sm focus:border-sky-400 focus:outline-none transition">
+            <button type="button" id="auth-toggle-confirm-btn" aria-label="Mostrar u ocultar confirmación" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"><i data-lucide="eye" class="w-4 h-4"></i></button>
+          </div>
+          <p id="auth-confirm-hint" class="text-red-400 text-[11px] mt-1 hidden">Las contraseñas no coinciden</p>
+        </div>
+        <label class="flex items-center gap-2 mb-3 cursor-pointer select-none">
+          <input id="auth-remember-input" type="checkbox" checked class="accent-sky-500 w-3.5 h-3.5">
+          <span class="text-slate-400 text-xs">Mantener sesión iniciada</span>
+        </label>
+        <p id="auth-form-error" class="text-red-400 text-xs mb-3 hidden" role="alert"></p>
+        <button id="auth-submit-btn" type="button" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl transition text-sm mb-2">
+          <span class="btn-label">Iniciar sesión</span>
+        </button>
+        <button id="auth-forgot-btn" type="button" class="w-full text-sky-400 hover:text-sky-300 text-xs font-medium py-1">¿Olvidaste tu contraseña?</button>
+        <p class="text-slate-500 text-[11px] text-center leading-relaxed mt-3">Al continuar aceptas nuestra <a href="/politica-privacidad.html" class="inline-link">Política de Privacidad</a>.</p>
+      </div>
+
+      <!-- Vista de éxito tras REGISTRO — no cierra el modal automáticamente -->
+      <div id="auth-register-success-view" class="hidden text-center py-4">
+        <div class="w-14 h-14 rounded-full bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center mx-auto mb-3">
+          <i data-lucide="check-circle-2" class="w-7 h-7 text-emerald-400"></i>
+        </div>
+        <h3 class="text-white font-black text-lg mb-1">Cuenta creada correctamente</h3>
+        <p class="text-slate-400 text-sm mb-5">Revisa tu correo para verificar tu cuenta.</p>
+        <button id="auth-success-goto-profile-btn" type="button" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl transition text-sm mb-2">Ir a mi perfil</button>
+        <button id="auth-success-continue-btn" type="button" class="w-full border border-slate-600 text-slate-300 hover:text-white py-2.5 rounded-xl transition text-sm font-medium mb-2">Seguir navegando</button>
+        <button id="auth-success-close-btn" type="button" class="w-full text-slate-500 hover:text-slate-300 text-xs font-medium py-1">Cerrar</button>
+      </div>
+
+      <!-- Vista de éxito tras LOGIN — se muestra ~1s y luego cierra sola -->
+      <div id="auth-login-success-view" class="hidden text-center py-8">
+        <div class="w-14 h-14 rounded-full bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center mx-auto mb-3">
+          <i data-lucide="check-circle-2" class="w-7 h-7 text-emerald-400"></i>
+        </div>
+        <p class="text-white font-bold text-lg" id="auth-login-success-message">¡Bienvenido!</p>
+      </div>
+
+      <div id="auth-reset-view" class="hidden">
+        <h3 class="text-white font-black text-lg mb-1 text-center">Recupera tu acceso</h3>
+        <p class="text-slate-400 text-sm mb-4 text-center">Te enviaremos un correo para restablecer tu contraseña.</p>
+        <div class="mb-3">
+          <label class="text-slate-300 text-xs font-medium block mb-1" for="auth-reset-email-input">Correo</label>
+          <input id="auth-reset-email-input" type="email" placeholder="correo@ejemplo.com" autocomplete="email" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+        </div>
+        <p id="auth-reset-success" class="text-emerald-400 text-xs mb-3 hidden" role="status">✅ Enlace enviado — revisa tu bandeja (y la carpeta de spam).</p>
+        <button id="auth-reset-submit-btn" type="button" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl transition text-sm mb-2">
+          <span class="btn-label">Enviar enlace</span>
+        </button>
+        <button id="auth-reset-back-btn" type="button" class="w-full text-slate-400 hover:text-white text-xs font-medium py-1">← Volver</button>
+      </div>
+
+      <div id="auth-logged-in-view" class="hidden text-center py-4">
+        <div id="auth-logged-avatar" class="w-16 h-16 rounded-full bg-sky-500/15 border border-sky-400/30 flex items-center justify-center mx-auto mb-3 text-sky-400 font-black text-xl overflow-hidden"></div>
+        <p class="text-white font-bold" id="auth-logged-name"></p>
+        <p class="text-slate-400 text-xs mb-3" id="auth-logged-email"></p>
+        <div id="auth-verify-banner" class="hidden bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-3 py-2.5 mb-4 text-left">
+          <p class="text-yellow-400 text-xs font-medium mb-1.5">📧 Tu correo aún no está verificado.</p>
+          <button id="auth-resend-verify-btn" type="button" class="text-yellow-300 hover:text-yellow-200 text-xs font-bold underline">Reenviar correo de verificación</button>
+        </div>
+        <button id="auth-goto-dashboard-btn" type="button" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl transition text-sm mb-2">Ir a mi Dashboard</button>
+        <button id="auth-logout-btn" type="button" class="w-full border border-slate-600 text-slate-300 hover:text-white py-2.5 rounded-xl transition text-sm font-medium">Cerrar sesión</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PÁGINA 404 — vehículo eliminado, slug viejo o link roto -->
+<div id="not-found-page" class="page-hidden">
+  <div class="nf-box">
+    <i data-lucide="search-x" class="nf-icon"></i>
+    <h1>Vehículo no encontrado</h1>
+    <p>Este vehículo ya no está disponible o el enlace que usaste ya no es válido. Puede que se haya vendido o que la publicación se haya eliminado.</p>
+    <button id="not-found-back-btn" type="button">Ver todo el inventario</button>
+  </div>
+</div>
+
+<!-- ============================================================
+  DASHBOARD PERSONAL — centro de la experiencia del usuario logueado.
+============================================================ -->
+<div id="dashboard-page" class="page-hidden">
+  <nav class="db-topbar">
+    <div class="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
+      <button type="button" id="db-back-btn" class="db-back-btn">
+        <i data-lucide="arrow-left" class="w-4 h-4"></i> Volver al catálogo
+      </button>
+      <div class="flex items-center gap-3">
+        <span class="text-slate-500 text-xs font-bold uppercase tracking-wide hidden sm:inline">Mi Panel</span>
+        <button type="button" id="db-logout-btn" class="db-logout-btn" aria-label="Cerrar sesión">
+          <i data-lucide="log-out" class="w-4 h-4"></i> <span>Cerrar sesión</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+    <section class="db-hero">
+      <div class="db-hero-top">
+        <div class="db-avatar" id="db-avatar">👤</div>
+        <div>
+          <p class="db-greeting" id="db-greeting">Hola,</p>
+          <h1 class="db-name" id="db-name">Cliente</h1>
+          <div class="db-badges">
+            <span class="db-badge db-badge--ok"><i data-lucide="check-circle-2"></i> Cuenta activa</span>
+            <span class="db-badge" id="db-email-badge"><i data-lucide="mail"></i> —</span>
+          </div>
+        </div>
+      </div>
+      <div class="db-progress-wrap">
+        <div class="db-progress-label"><span>Perfil completado</span><span id="db-progress-pct">0%</span></div>
+        <div class="db-progress-track"><div class="db-progress-fill" id="db-progress-fill" style="width:0%"></div></div>
+      </div>
+      <div class="db-meta-row">
+        <div class="db-meta"><i data-lucide="clock"></i><div><p>Último acceso</p><strong id="db-last-access">—</strong></div></div>
+        <div class="db-meta"><i data-lucide="calendar"></i><div><p>Miembro desde</p><strong id="db-since">—</strong></div></div>
+        <div class="db-meta"><i data-lucide="shield"></i><div><p>Nivel</p><strong>Básico</strong></div></div>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="text-slate-100 font-bold text-sm mb-3 flex items-center gap-2"><i data-lucide="zap" class="w-4 h-4 text-sky-400"></i> Accesos rápidos</h2>
+      <div class="db-quick-grid" id="db-quick-grid"></div>
+    </section>
+
+    <div class="db-tabs">
+      <button type="button" class="db-tab active" data-tab="resumen">Resumen</button>
+      <button type="button" class="db-tab" data-tab="historial">Historial</button>
+      <button type="button" class="db-tab" data-tab="favoritos">Favoritos</button>
+      <button type="button" class="db-tab" data-tab="cotizaciones">Cotizaciones</button>
+      <button type="button" class="db-tab" data-tab="perfil">Perfil</button>
+      <button type="button" class="db-tab hidden" data-tab="publicaciones" id="db-tab-publicaciones">Mis Publicaciones</button>
+    </div>
+
+    <section id="db-panel-resumen">
+      <div class="db-grid" id="db-grid"></div>
+    </section>
+
+    <section id="db-panel-historial" class="hidden">
+      <div id="db-history-content"></div>
+    </section>
+
+    <section id="db-panel-favoritos" class="hidden">
+      <div id="db-fav-content"></div>
+    </section>
+
+    <section id="db-panel-cotizaciones" class="hidden">
+      <div id="db-quotes-content"></div>
+    </section>
+
+    <section id="db-panel-perfil" class="hidden">
+      <div class="db-profile-readonly">
+        <div class="db-profile-field"><span>Correo</span><strong id="db-profile-email">—</strong></div>
+        <div class="db-profile-field"><span>UID</span><strong id="db-profile-uid">—</strong></div>
+        <div class="db-profile-field"><span>Proveedor</span><strong id="db-profile-provider">—</strong></div>
+        <div class="db-profile-field"><span>Fecha de registro</span><strong id="db-profile-created">—</strong></div>
+        <div class="db-profile-field"><span>Último acceso</span><strong id="db-profile-lastlogin">—</strong></div>
+      </div>
+
+      <form id="db-profile-form" class="db-profile-form" onsubmit="return false;">
+        <div>
+          <label for="db-profile-name">Nombre</label>
+          <input id="db-profile-name" type="text" maxlength="100" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+        </div>
+        <div>
+          <label for="db-profile-lastname">Apellido</label>
+          <input id="db-profile-lastname" type="text" maxlength="100" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+        </div>
+        <div>
+          <label for="db-profile-username">Nombre de usuario</label>
+          <input id="db-profile-username" type="text" maxlength="30" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+        </div>
+        <div>
+          <label for="db-profile-city">Ciudad</label>
+          <input id="db-profile-city" type="text" maxlength="100" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+        </div>
+        <div>
+          <label for="db-profile-country">País</label>
+          <input id="db-profile-country" type="text" maxlength="100" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+        </div>
+        <div>
+          <label for="db-profile-phone">Teléfono</label>
+          <input id="db-profile-phone" type="tel" maxlength="30" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+        </div>
+        <div class="db-profile-form-full">
+          <label for="db-profile-address">Dirección</label>
+          <input id="db-profile-address" type="text" maxlength="200" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+        </div>
+        <div>
+          <label for="db-profile-photo-file">Foto de perfil</label>
+          <input id="db-profile-photo-file" type="file" accept="image/*" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-sky-500 file:text-white file:text-xs file:font-bold file:cursor-pointer">
+          <p id="db-photo-upload-status" class="text-slate-500 text-[11px] mt-1"></p>
+        </div>
+        <div>
+          <label for="db-profile-photo">O pega un enlace (avanzado)</label>
+          <input id="db-profile-photo" type="url" placeholder="https://..." maxlength="600" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+        </div>
+        <p id="db-profile-error" class="text-red-400 text-xs hidden" role="alert"></p>
+        <button type="button" id="db-profile-save-btn" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 px-5 rounded-xl transition text-sm">
+          <span class="btn-label">Guardar cambios</span>
+        </button>
+      </form>
+
+      <!-- Fase 1.5: cambiar contraseña (solo aplica a cuentas de correo/contraseña) -->
+      <div id="db-password-section" class="db-section-block">
+        <h3 class="db-section-title"><i data-lucide="key-round"></i> Cambiar contraseña</h3>
+        <div class="db-profile-form">
+          <div>
+            <label for="db-current-password">Contraseña actual</label>
+            <input id="db-current-password" type="password" autocomplete="current-password" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+          </div>
+          <div>
+            <label for="db-new-password">Nueva contraseña</label>
+            <input id="db-new-password" type="password" autocomplete="new-password" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+          </div>
+          <div>
+            <label for="db-confirm-password">Confirmar nueva contraseña</label>
+            <input id="db-confirm-password" type="password" autocomplete="new-password" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+          </div>
+          <p id="db-password-error" class="text-red-400 text-xs hidden" role="alert"></p>
+          <button type="button" id="db-change-password-btn" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 px-5 rounded-xl transition text-sm">
+            <span class="btn-label">Cambiar contraseña</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Fase 1.6: preferencias de búsqueda -->
+      <div id="db-preferences-section" class="db-section-block">
+        <h3 class="db-section-title"><i data-lucide="sliders-horizontal"></i> Preferencias de búsqueda</h3>
+        <div class="db-profile-form">
+          <div>
+            <label for="db-pref-brands">Marcas favoritas (separadas por coma)</label>
+            <input id="db-pref-brands" type="text" placeholder="Toyota, Honda, Kia" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+          </div>
+          <div>
+            <label for="db-pref-price-min">Precio mínimo (RD$)</label>
+            <input id="db-pref-price-min" type="number" min="0" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+          </div>
+          <div>
+            <label for="db-pref-price-max">Precio máximo (RD$)</label>
+            <input id="db-pref-price-max" type="number" min="0" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+          </div>
+          <div>
+            <label for="db-pref-vehicle-type">Tipo de vehículo</label>
+            <select id="db-pref-vehicle-type" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+              <option value="">Sin preferencia</option>
+              <option value="sedanes">Sedán</option>
+              <option value="suvs">SUV</option>
+              <option value="pickups">Pickup</option>
+            </select>
+          </div>
+          <div>
+            <label for="db-pref-transmission">Transmisión</label>
+            <select id="db-pref-transmission" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+              <option value="">Sin preferencia</option>
+              <option value="Automático">Automática</option>
+              <option value="Mecánica">Mecánica</option>
+            </select>
+          </div>
+          <div>
+            <label for="db-pref-fuel">Combustible</label>
+            <select id="db-pref-fuel" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+              <option value="">Sin preferencia</option>
+              <option value="Gasolina">Gasolina</option>
+              <option value="Diesel">Diésel</option>
+              <option value="Híbrido">Híbrido</option>
+              <option value="Eléctrico">Eléctrico</option>
+            </select>
+          </div>
+          <button type="button" id="db-pref-save-btn" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 px-5 rounded-xl transition text-sm">
+            <span class="btn-label">Guardar preferencias</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Solo admin/editor (canManageVehicles()) — visibilidad gestionada
+         por dashboard.js/openDashboardPage(). Es únicamente UX: la
+         autorización real de editar/eliminar sigue siendo firestore.rules. -->
+    <section id="db-panel-publicaciones" class="hidden">
+      <div id="db-pub-content"></div>
+    </section>
+  </div>
+</div>
+
+<!-- ============================================================
+  ACCIONES FLOTANTES — contenedor apilable. Cada botón flotante del
+  sitio (calculadora, y futuros como WhatsApp o "volver arriba") debe
+  vivir aquí como .fab-item con su propio --fab-order, para que nunca
+  se superpongan aunque se agreguen nuevos en el futuro.
+============================================================ -->
+<div id="floating-actions" class="fab-stack" aria-hidden="false">
+  <button type="button" id="fab-calc-btn" class="fab-item fab-calc hidden" style="--fab-order:1;" aria-label="Abrir calculadora de financiamiento" aria-haspopup="dialog" aria-controls="calc-modal">
+    <i data-lucide="calculator" class="w-5 h-5" aria-hidden="true"></i>
+    <span class="fab-calc-label">Financiar</span>
+  </button>
+  <button type="button" id="fab-starblex-btn" class="fab-item fab-starblex hidden" style="--fab-order:0;" aria-label="Abrir Starblex IA, asistente automotriz" aria-haspopup="dialog" aria-controls="starblex-panel">
+    <span class="fab-starblex-dot" aria-hidden="true"></span>
+    <img src="/logo-labatalla.png" alt="" class="fab-starblex-avatar" onerror="this.style.display='none'">
+    <span class="fab-starblex-label">
+      <span class="fab-starblex-label-title">Starblex IA</span>
+      <span class="fab-starblex-label-sub">Asistente automotriz</span>
+    </span>
+  </button>
+</div>
+
+<!-- ============================================================
+  MODAL DE CALCULADORA — componente único y reutilizable.
+  Sirve tanto para el home (vehículo libre) como para la ficha de
+  un vehículo (precargado). Pensado para poder alojar a futuro otras
+  mini-herramientas dentro del mismo patrón de modal.
+============================================================ -->
+<div id="calc-modal-overlay" class="calc-modal-overlay hidden">
+  <div id="calc-modal" class="lb-calc calc-modal" role="dialog" aria-modal="true" aria-labelledby="calc-modal-title">
+    <button type="button" id="calc-modal-close" class="calc-modal-close" aria-label="Cerrar calculadora">
+      <i data-lucide="x" class="w-5 h-5" aria-hidden="true"></i>
+    </button>
+    <div class="lb-calc-header">
+      <h3 class="lb-calc-title" id="calc-modal-title"><i data-lucide="calculator" class="w-5 h-5 text-sky-400 shrink-0"></i> Calculadora de Financiamiento</h3>
+      <p class="lb-calc-subtitle" id="calc-modal-subtitle">Calcula tu cuota mensual estimada al instante — sin complicaciones</p>
+    </div>
+
+    <!-- Vehículo fijo (modo ficha de vehículo) -->
+    <div id="calc-modal-vehicle-box" class="lb-calc-vehicle-box hidden">
+      <p class="lb-calc-vehicle-label">Vehículo a financiar</p>
+      <p id="calc-modal-vehicle-name" class="lb-calc-vehicle-name"></p>
+      <p id="calc-modal-vehicle-price" class="lb-calc-vehicle-price"></p>
+    </div>
+
+    <!-- Paso 1 — Vehículo (OBLIGATORIO en modo libre) -->
+    <div id="calc-modal-search-field" class="lb-calc-field">
+      <label class="lb-calc-label" for="calc-modal-vehicle-search">1. ¿Qué vehículo deseas financiar? <span class="lb-calc-label-sub" style="color:#f87171;">(obligatorio)</span></label>
+      <div class="relative">
+        <input type="text" id="calc-modal-vehicle-search" class="lb-calc-text-input" placeholder="Busca un vehículo de nuestro inventario..." autocomplete="off" style="margin-top:6px;" aria-required="true">
+        <div id="calc-modal-vehicle-dropdown" class="hidden absolute z-50 w-full bg-slate-800 border border-slate-600 rounded-lg mt-1 max-h-56 overflow-y-auto shadow-xl"></div>
+      </div>
+      <p id="calc-modal-vehicle-selected" class="text-sky-400 text-xs mt-1.5 hidden"></p>
+      <p id="calc-modal-vehicle-required" class="text-xs mt-1.5" style="color:#94a3b8;">Selecciona un vehículo del inventario para calcular tu cuota.</p>
+    </div>
+
+    <!-- Paso 2 — Institución -->
+    <div class="lb-calc-field">
+      <label class="lb-calc-label" for="calc-modal-institucion">2. Institución financiera</label>
+      <select id="calc-modal-institucion" class="lb-calc-select">
+        <optgroup label="🏦 Bancos">
+          <option value="Banreservas">Banreservas</option>
+          <option value="Banco Popular">Banco Popular Dominicano</option>
+          <option value="Banco BHD">Banco BHD</option>
+          <option value="Scotiabank">Scotiabank República Dominicana</option>
+          <option value="Banco Santa Cruz">Banco Santa Cruz</option>
+          <option value="Banco Caribe">Banco Caribe</option>
+          <option value="Banco Promerica">Banco Promerica</option>
+          <option value="Banesco">Banesco</option>
+          <option value="Banco Ademi">Banco Ademi</option>
+          <option value="Banco Vimenca">Banco Vimenca</option>
+          <option value="Banco BDI">Banco BDI</option>
+          <option value="Banco Lafise">Banco Lafise</option>
+        </optgroup>
+        <optgroup label="🏛️ Asociaciones de Ahorros y Préstamos">
+          <option value="APAP">APAP — Asociación Popular</option>
+          <option value="ACAP">ACAP — Asociación Cibao</option>
+          <option value="ALNAP">La Nacional (ALNAP)</option>
+        </optgroup>
+        <optgroup label="💳 Financieras">
+          <option value="Motor Crédito">Motor Crédito</option>
+          <option value="Confisa">Confisa</option>
+          <option value="Fihogar">Fihogar</option>
+        </optgroup>
+        <optgroup label="🤝 Cooperativas">
+          <option value="Cooperativa San José">Cooperativa San José</option>
+          <option value="Cooperativa Vega Real">Cooperativa Vega Real</option>
+          <option value="Cooperativa La Altagracia">Cooperativa La Altagracia</option>
+        </optgroup>
+      </select>
+    </div>
+
+    <!-- Paso 3 — Condiciones del financiamiento -->
+    <div class="lb-calc-field">
+      <label class="lb-calc-label">3. Tipo de vehículo</label>
+      <div class="lb-toggle-group">
+        <button type="button" class="lb-toggle-btn active" data-tipo="nuevo" id="calc-modal-tipo-nuevo">🚙 Nuevo / 0km</button>
+        <button type="button" class="lb-toggle-btn" data-tipo="usado" id="calc-modal-tipo-usado">🔧 Usado / Seminuevo</button>
+      </div>
+    </div>
+
+    <!-- Inicial -->
+    <div class="lb-calc-field">
+      <div class="lb-calc-field-row">
+        <label class="lb-calc-label">Inicial <span class="lb-calc-label-sub">(mínimo 20%)</span></label>
+        <span class="lb-calc-value-badge" id="calc-modal-inicial-display">20% · RD$ 300,000</span>
+      </div>
+      <input type="range" id="calc-modal-inicial-pct" class="lb-slider" min="20" max="80" step="1" value="20" aria-label="Porcentaje de inicial">
+      <input type="text" id="calc-modal-inicial-input" class="lb-calc-text-input" placeholder="O escribe el monto exacto de tu inicial" inputmode="numeric" aria-label="Monto exacto de inicial">
+    </div>
+
+    <!-- Plazo -->
+    <div class="lb-calc-field">
+      <label class="lb-calc-label">Plazo de financiamiento</label>
+      <div class="lb-plazo-grid" id="calc-modal-plazo-grid">
+        <button type="button" class="lb-plazo-btn" data-plazo="12">12 meses</button>
+        <button type="button" class="lb-plazo-btn" data-plazo="24">24 meses</button>
+        <button type="button" class="lb-plazo-btn" data-plazo="36">36 meses</button>
+        <button type="button" class="lb-plazo-btn" data-plazo="48">48 meses</button>
+        <button type="button" class="lb-plazo-btn active" data-plazo="60">60 meses</button>
+        <button type="button" class="lb-plazo-btn" data-plazo="72">72 meses</button>
+        <button type="button" class="lb-plazo-btn" data-plazo="84">84 meses</button>
+      </div>
+    </div>
+
+    <!-- Resultados -->
+    <div class="lb-calc-results">
+      <div class="lb-result-box">
+        <p class="lb-result-label">Monto a financiar</p>
+        <p class="lb-result-value" id="calc-modal-monto-financiado">RD$ 1,200,000</p>
+      </div>
+      <div class="lb-result-box lb-result-box--highlight">
+        <p class="lb-result-label">Cuota mensual estimada</p>
+        <p class="lb-result-value lb-result-value--big" id="calc-modal-cuota-mensual">RD$ 0</p>
+        <p class="lb-result-sub" id="calc-modal-tasa-info">Tasa estimada 0.0% anual</p>
+      </div>
+    </div>
+
+    <!-- Datos de contacto -->
+    <div class="lb-calc-contact">
+      <input id="calc-modal-nombre" type="text" placeholder="Tu nombre" class="lb-calc-text-input">
+      <input id="calc-modal-telefono" type="tel" placeholder="Tu teléfono (WhatsApp)" class="lb-calc-text-input">
+    </div>
+
+    <button id="calc-modal-submit-btn" class="lb-calc-cta">
+      <svg class="w-5 h-5 fill-current shrink-0"><use href="#icon-whatsapp"/></svg>
+      Solicitar este Financiamiento
+    </button>
+    <p class="lb-calc-disclaimer">* Cálculo referencial sujeto a aprobación y tasa final de la institución. Un asesor te contactará para confirmar condiciones.</p>
+
+    <!-- Acciones posteriores al cálculo -->
+    <div id="calc-modal-actions" class="calc-modal-actions hidden">
+      <a id="calc-modal-action-whatsapp" href="#" target="_blank" rel="noopener noreferrer" class="calc-modal-action-btn calc-modal-action-btn--primary">
+        <svg class="w-4 h-4 fill-current shrink-0"><use href="#icon-whatsapp"/></svg> Contactar por WhatsApp
+      </a>
+      <button type="button" id="calc-modal-action-share" class="calc-modal-action-btn">
+        <i data-lucide="share-2" class="w-4 h-4" aria-hidden="true"></i> Compartir cotización
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Versionado de caché: al modificar app.js, calculadora.js o los CSS,
+     incrementa ?v= en las 4 referencias para invalidar la caché del
+     navegador de inmediato (evita ejecutar JS viejo con HTML nuevo). -->
+<script defer src="/roles.js?v=20260728"></script>
+<script defer src="/app.js?v=20260811"></script>
+<script defer src="/auth.js?v=20260728"></script>
+<script defer src="/auth-ui.js?v=20260728"></script>
+<script defer src="/invite-modal.js?v=20260811"></script>
+<script defer src="/starblex-chat.js?v=20260814"></script>
+<script defer src="/calculadora.js?v=20260813"></script>
+<script defer src="/dashboard.js?v=20260813"></script>
+</body>
+</html>

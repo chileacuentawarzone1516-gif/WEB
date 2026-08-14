@@ -1,0 +1,246 @@
+body { font-family: 'DM Sans', sans-serif; }.slide { opacity: 0; transition: opacity 1s ease-in-out; position: absolute; inset: 0; }.slide.active { opacity: 1; }.scroll-section { display: flex; gap: 1.5rem; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; padding-bottom: 1rem; }.scroll-section::-webkit-scrollbar { height: 6px; }.scroll-section::-webkit-scrollbar-track { background: #1e293b; border-radius: 3px; }.scroll-section::-webkit-scrollbar-thumb { background: #38bdf8; border-radius: 3px; }.scroll-section > * { scroll-snap-align: start; flex-shrink: 0; width: 300px; }.page-hidden { display: none !important; }.img-preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; }.img-preview-grid .preview-item { position: relative; }.img-preview-grid img { width: 100%; height: 80px; object-fit: cover; border-radius: 8px; border: 2px solid #334155; }.img-preview-grid .remove-img { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.7); border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; cursor: pointer; }.gallery-dot { width: 8px; height: 8px; border-radius: 50%; background: #475569; cursor: pointer; transition: background 0.2s; }.gallery-dot.active { background: #38bdf8; }/* Category nav links */ .nav-cat-link { transition: color 0.2s, border-bottom 0.2s; border-bottom: 2px solid transparent; padding-bottom: 3px; text-shadow: 0 1px 3px rgba(0,0,0,0.3); }.nav-cat-link:hover { color: #38bdf8 !important; border-bottom-color: #38bdf8; text-shadow: 0 0 14px rgba(56,189,248,0.5); }/* Active nav indicator */ nav { border-bottom: 1px solid rgba(56,189,248,0.15); }/* Vehicle card hover */ .vehicle-card { transition: transform 0.18s, box-shadow 0.18s; }.vehicle-card:hover { transform: translateY(-4px); box-shadow: 0 8px 32px rgba(56,189,248,0.15); }/* Click en imagen del vehículo — abre la ficha (PC hover + móvil tap) */ .card-image-link { cursor: pointer; overflow: hidden; }.card-image-link img { transition: transform 0.35s ease; }.card-image-link:hover img { transform: scale(1.06); }.card-image-link:focus-visible { outline: 2px solid #38bdf8; outline-offset: -2px; }/* Toast notification */ #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 9999; background: #0f172a; color: #fff; border: 1px solid #38bdf8; border-radius: 12px; padding: 12px 24px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity 0.3s; white-space: nowrap; }#toast.show { opacity: 1; pointer-events: auto; }/* Modal scroll fix */ #publish-modal { overflow-y: auto; }/* Lightbox */ #lightbox { position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;display:none;align-items:center;justify-content:center;padding:16px; }#lightbox.open { display:flex; }#lightbox img, #lightbox video { max-width:100%;max-height:90vh;object-fit:contain;border-radius:12px;box-shadow:0 0 60px rgba(0,0,0,0.8); }#lightbox-close { position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.1);color:#fff;border:none;border-radius:50%;width:40px;height:40px;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center; }#lightbox-prev, #lightbox-next { position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);color:#fff;border:none;border-radius:50%;width:44px;height:44px;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center; }#lightbox-prev { left:12px; }#lightbox-next { right:12px; }/* Brand logo filter */ .brand-logo-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:14px 8px 12px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer; transition:all 0.18s; }.brand-logo-card:hover { background:rgba(56,189,248,0.08); border-color:rgba(56,189,248,0.3); transform:translateY(-2px); }.brand-logo-card.active { background:rgba(56,189,248,0.15); border-color:#38bdf8; box-shadow:0 0 0 1px #38bdf8; }.brand-logo-card img { width:36px; height:36px; object-fit:contain; filter:brightness(0) invert(1); opacity:0.9; }.brand-logo-card.active img { opacity:1; }.brand-logo-card .brand-name { font-size:13px; font-weight:800; color:#e2e8f0; text-align:center; line-height:1.25; letter-spacing:0.1px; }.brand-logo-card.active .brand-name { color:#38bdf8; }.brand-logo-card .brand-count { font-size:10.5px; font-weight:600; color:#64748b; }.brand-logo-card.active .brand-count { color:#7dd3fc; }/* Admin badge */ #admin-badge { display: none; }#admin-badge.show { display: inline-flex; }/* Mi Cuenta — tabs */ .account-tab { color: #94a3b8; border-bottom: 2px solid transparent; }.account-tab.active { color: #38bdf8; border-bottom-color: #38bdf8; background: rgba(56,189,248,0.06); }/* ============================================================ CALCULADORA FINANCIERA — Estilo premium "lb-calc" ============================================================ */ .lb-calc { background: linear-gradient(135deg, rgb(12,20,38) 0%, rgb(18,28,46) 100%); border: 1px solid rgba(56,189,248,0.2); border-radius: 18px; padding: 22px; box-shadow: 0 8px 32px rgba(0,0,0,0.25); }.lb-calc-header { margin-bottom: 18px; }.lb-calc-title { display: flex; align-items: center; gap: 8px; color: #f8fafc; font-weight: 900; font-size: 18px; margin-bottom: 4px; }.lb-calc-subtitle { color: #94a3b8; font-size: 12.5px; }.lb-calc-vehicle-box { background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.22); border-radius: 12px; padding: 12px 14px; margin-bottom: 18px; }.lb-calc-vehicle-label { color: #94a3b8; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }.lb-calc-vehicle-name { color: #fff; font-weight: 800; font-size: 16px; }.lb-calc-vehicle-price { color: #38bdf8; font-weight: 900; font-size: 19px; }.lb-calc-field { margin-bottom: 18px; }.lb-calc-field-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; flex-wrap: wrap; }.lb-calc-label { color: #cbd5e1; font-size: 13.5px; font-weight: 700; }.lb-calc-label-sub { color: #64748b; font-size: 11px; font-weight: 500; }.lb-calc-value-badge { background: rgba(56,189,248,0.15); color: #38bdf8; font-weight: 800; font-size: 12.5px; padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(56,189,248,0.3); white-space: nowrap; }/* Slider estético */ .lb-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 999px; background: linear-gradient(90deg, #38bdf8 0%, #38bdf8 var(--fill, 50%), rgba(255,255,255,0.1) var(--fill, 50%), rgba(255,255,255,0.1) 100%); outline: none; cursor: pointer; margin: 6px 0 4px; }.lb-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 4px solid #38bdf8; box-shadow: 0 2px 8px rgba(56,189,248,0.5); cursor: pointer; transition: transform 0.15s; }.lb-slider::-webkit-slider-thumb:hover { transform: scale(1.15); }.lb-slider::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 4px solid #38bdf8; box-shadow: 0 2px 8px rgba(56,189,248,0.5); cursor: pointer; }.lb-slider::-moz-range-track { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.1); }.lb-calc-text-input { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); color: #fff; border-radius: 10px; padding: 10px 12px; font-size: 13.5px; margin-top: 6px; transition: border-color 0.15s; }.lb-calc-text-input:focus { outline: none; border-color: #38bdf8; }.lb-calc-text-input::placeholder { color: #64748b; }.lb-calc-select { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); color: #fff; border-radius: 10px; padding: 11px 12px; font-size: 13.5px; cursor: pointer; }.lb-calc-select:focus { outline: none; border-color: #38bdf8; }.lb-calc-select optgroup { color: #38bdf8; font-weight: 800; background: rgb(15,23,42); }.lb-calc-select option { color: #fff; background: rgb(30,41,59); font-weight: 500; }/* Toggle Nuevo / Usado */ .lb-toggle-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }.lb-toggle-btn { background: rgba(255,255,255,0.03); border: 1.5px solid rgba(255,255,255,0.1); color: #94a3b8; font-weight: 700; font-size: 13px; padding: 11px 8px; border-radius: 12px; cursor: pointer; transition: all 0.15s; }.lb-toggle-btn:hover { border-color: rgba(56,189,248,0.4); color: #cbd5e1; }.lb-toggle-btn.active { background: rgba(56,189,248,0.15); border-color: #38bdf8; color: #38bdf8; box-shadow: 0 0 0 1px #38bdf8 inset; }/* Plazo grid */ .lb-plazo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }.lb-plazo-btn { background: rgba(255,255,255,0.03); border: 1.5px solid rgba(255,255,255,0.1); color: #94a3b8; font-weight: 700; font-size: 12px; padding: 9px 4px; border-radius: 10px; cursor: pointer; transition: all 0.15s; }.lb-plazo-btn:hover { border-color: rgba(56,189,248,0.4); color: #cbd5e1; }.lb-plazo-btn.active { background: rgba(56,189,248,0.15); border-color: #38bdf8; color: #38bdf8; }/* Resultados */ .lb-calc-results { display: grid; grid-template-columns: 1fr 1.3fr; gap: 10px; margin: 20px 0; }.lb-result-box { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 14px; }.lb-result-box--highlight { background: linear-gradient(135deg, rgba(56,189,248,0.18), rgba(14,165,233,0.08)); border: 1.5px solid rgba(56,189,248,0.45); box-shadow: 0 0 24px rgba(56,189,248,0.12); }.lb-result-label { color: #94a3b8; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }.lb-result-value { color: #fff; font-weight: 800; font-size: 17px; line-height: 1.2; }.lb-result-value--big { color: #38bdf8; font-weight: 900; font-size: 26px; }.lb-result-sub { color: #64748b; font-size: 10.5px; margin-top: 4px; }.lb-calc-contact { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }.lb-calc-contact .lb-calc-text-input { margin-top: 0; }.lb-calc-cta { width: 100%; background: rgb(37,211,102); color: #fff; font-weight: 800; font-size: 14.5px; padding: 14px; border: none; border-radius: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 6px 20px rgba(37,211,102,0.3); transition: transform 0.15s, box-shadow 0.15s; }.lb-calc-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 26px rgba(37,211,102,0.4); }.lb-calc-cta:active { transform: translateY(0); }.lb-calc-cta--disabled, .lb-calc-cta:disabled { background: rgba(148,163,184,0.25); color: #94a3b8; box-shadow: none; cursor: not-allowed; }.lb-calc-cta--disabled:hover, .lb-calc-cta:disabled:hover { transform: none; box-shadow: none; }.lb-calc-results.hidden { display: none; }.lb-calc-disclaimer { color: #64748b; font-size: 10.5px; text-align: center; margin-top: 10px; line-height: 1.5; }@media (max-width: 480px) { .lb-calc-results { grid-template-columns: 1fr; }.lb-calc-contact { grid-template-columns: 1fr; }.lb-plazo-grid { grid-template-columns: repeat(3, 1fr); }
+     }/* ============================================================ ACCESIBILIDAD — foco visible para navegación por teclado ============================================================ */ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }/* Mobile — evita zoom en iOS */ @media (max-width: 640px) { input, select, textarea { font-size: 16px !important; }
+     }/* ============================================================ TABLET — 768px a 1023px. Convierte el scroll horizontal en cuadrícula de 2 columnas (igual que móvil) para aprovechar mejor el espacio, en vez del carrusel pensado para desktop. ============================================================ */ @media (min-width: 768px) and (max-width: 1023px) { .scroll-section { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 16px !important; overflow-x: visible !important; padding-bottom: 4px !important; }.scroll-section > * { width: 100% !important; min-width: 0 !important; flex-shrink: unset !important; scroll-snap-align: unset !important; }main { padding: 16px 20px !important; }#brand-logo-grid { grid-template-columns: repeat(auto-fill, minmax(96px,1fr)) !important; }
+     }/* ============================================================ MOBILE REDESIGN — Solo aplica < 768px. PC/Tablet intacto. ============================================================ */ @media (max-width: 767px) { /* ── NAV ── */ nav .max-w-6xl { padding: 8px 10px !important; gap: 6px !important; }.nav-cat-link { font-size: 12px !important; }#nav-account-btn { padding: 11px !important; min-width: 44px !important; min-height: 44px !important; background: rgba(56,189,248,0.16) !important; border-color: rgba(56,189,248,0.5) !important; }#nav-account-btn svg { width: 22px !important; height: 22px !important; }#nav-account-btn span:not(#nav-fav-count) { display: none !important; }#admin-badge span { display: none !important; }#nav-publish-btn span { display: none !important; }#nav-publish-btn { padding: 11px !important; min-width: 44px !important; min-height: 44px !important; }#nav-publish-btn svg { width: 20px !important; height: 20px !important; }/* ── MI CUENTA MODAL ── */ #account-modal { padding: 6px !important; padding-top: 10px !important; }#account-fav-grid { grid-template-columns: 1fr 1fr !important; }/* ── FILTRO DE MARCAS ── */ #brand-logo-grid { grid-template-columns: repeat(auto-fill, minmax(86px,1fr)) !important; gap: 8px !important; }.brand-logo-card { padding: 10px 6px 9px !important; }.brand-logo-card img, .brand-logo-card > div:first-child { width: 30px !important; height: 30px !important; }.brand-logo-card .brand-name { font-size: 11.5px !important; }.brand-logo-card .brand-count { font-size: 9.5px !important; }/* ── HERO ── */ header { height: 42vh !important; }header h1 { font-size: 26px !important; line-height: 1.15 !important; }header p { font-size: 14.5px !important; }#hero-text-wrap { padding-left: 50px !important; padding-right: 50px !important; }#detail-edit-btn, #detail-delete-btn { min-height: 44px !important; }/* ── FILTER ── */ section.-mt-8 { margin-top: -20px !important; border-radius: 14px !important; padding: 12px !important; }section.-mt-8 h2 { font-size: 15px !important; margin-bottom: 10px !important; }/* ── MAIN ── */ main { padding: 10px 8px !important; }main > section { margin-bottom: 24px !important; }main h2 { font-size: 16px !important; font-weight: 800 !important; margin-bottom: 10px !important; }/* ── SCROLL → GRID de 2 columnas tipo SuperCarros ── */ .scroll-section { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 10px !important; overflow-x: visible !important; overflow-y: visible !important; padding-bottom: 4px !important; scrollbar-width: auto !important; }.scroll-section::-webkit-scrollbar { display: block !important; height: auto !important; }.scroll-section > * { width: 100% !important; min-width: 0 !important; flex-shrink: unset !important; scroll-snap-align: unset !important; }/* ── TARJETA COMPACTA ── */ .vehicle-card { border-radius: 12px !important; overflow: hidden !important; box-shadow: 0 2px 12px rgba(0,0,0,0.3) !important; background: rgb(30,41,59) !important; border: 1px solid rgba(255,255,255,0.06) !important; }.vehicle-card img:first-child { height: 130px !important; object-fit: cover !important; width: 100% !important; border-radius: 0 !important; }.vehicle-card > div:last-child { padding: 8px 10px 10px !important; }.vehicle-card h3 { font-size: 12px !important; font-weight: 700 !important; margin-bottom: 2px !important; color: #f1f5f9 !important; line-height: 1.3 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }.vehicle-card span.font-bold.text-lg { font-size: 14px !important; display: block !important; margin-bottom: 6px !important; font-weight: 800 !important; }/* Badges */ .vehicle-card .flex.gap-1 { flex-wrap: wrap !important; gap: 4px !important; margin-bottom: 8px !important; }.vehicle-card .flex.gap-1 span { font-size: 9px !important; padding: 2px 6px !important; border-radius: 20px !important; font-weight: 600 !important; }/* Botones compactos */ .vehicle-card .flex.gap-2 { flex-direction: column !important; gap: 5px !important; }.vehicle-card .flex.gap-2 button, .vehicle-card .flex.gap-2 a { width: 100% !important; min-height: 34px !important; font-size: 11px !important; font-weight: 700 !important; border-radius: 8px !important; display: flex !important; align-items: center !important; justify-content: center !important; padding: 0 !important; }/* ── DETAIL PAGE ── */ #detail-page .max-w-3xl { padding: 10px !important; }#detail-page h1 { font-size: 18px !important; }#detail-page .flex.flex-wrap.gap-4 { gap: 6px !important; }#detail-page .flex.flex-wrap.gap-4 > div { padding: 8px 10px !important; flex: 1 1 calc(50% - 3px) !important; min-width: 0; }#detail-price { font-size: 14px !important; }#detail-page .bg-slate-800.rounded-xl { border-radius: 12px !important; padding: 12px !important; }/* ── CONTACTO ── */ #contacto { padding: 16px 12px !important; border-radius: 14px !important; }#contacto .grid { grid-template-columns: 1fr !important; gap: 12px !important; }/* ── MODAL ── */ #publish-modal { padding: 6px !important; padding-top: 12px !important; }#publish-modal > div { border-radius: 16px !important; }
+     }
+/* ============================================================
+   HERO — flechas de navegación + indicadores (dots) del carrusel
+============================================================ */
+.hero-arrow {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  z-index: 20; width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+  color: #fff; font-size: 26px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.hero-arrow:hover { background: rgba(56,189,248,0.25); border-color: rgba(56,189,248,0.5); transform: translateY(-50%) scale(1.08); }
+.hero-arrow--prev { left: 16px; }
+.hero-arrow--next { right: 16px; }
+.hero-dots { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 20; display: flex; gap: 8px; }
+.hero-dot { width: 9px; height: 9px; border-radius: 50%; border: none; background: rgba(255,255,255,0.4); cursor: pointer; padding: 0; transition: background 0.2s, transform 0.2s; }
+.hero-dot:hover { background: rgba(255,255,255,0.7); }
+.hero-dot.active { background: #38bdf8; transform: scale(1.25); }
+@media (max-width: 767px) {
+  .hero-arrow { width: 40px; height: 40px; font-size: 22px; }
+  .hero-arrow--prev { left: 8px; }
+  .hero-arrow--next { right: 8px; }
+  .hero-dots { bottom: 12px; gap: 6px; }
+  .hero-dot { width: 7px; height: 7px; }
+}
+
+/* ============================================================ PÁGINA 404 — vehículo no encontrado ============================================================ */ #not-found-page { min-height: 70vh; display: flex; align-items: center; justify-content: center; padding: 24px; }#not-found-page .nf-box { text-align: center; max-width: 420px; }#not-found-page .nf-icon { width: 72px; height: 72px; color: #38bdf8; margin: 0 auto 20px; opacity: 0.85; }#not-found-page h1 { color: #f8fafc; font-size: 22px; font-weight: 800; margin-bottom: 10px; }#not-found-page p { color: #94a3b8; font-size: 14px; margin-bottom: 24px; line-height: 1.6; }#not-found-page button { background: #38bdf8; color: #0f172a; font-weight: 800; padding: 12px 28px; border: none; border-radius: 12px; cursor: pointer; font-size: 14px; transition: transform 0.15s; }#not-found-page button:hover { transform: translateY(-2px); }
+
+/* ============================================================
+   AJUSTES DE SCROLL — anclas con scroll suave y offset para que el
+   contenido no quede tapado por el nav sticky
+============================================================ */
+html { scroll-behavior: smooth; }
+#por-que-elegirnos, #quienes-somos, #mision-vision, #nuestros-valores, #sedanes, #suvs, #pickups, #contacto { scroll-margin-top: 88px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* ============================================================
+   MENÚ "EMPRESA" — dropdown
+============================================================ */
+.nav-empresa { position: relative; }
+.nav-empresa-menu { position: absolute; top: calc(100% + 14px); right: 0; min-width: 230px; background: rgb(30,41,59); border: 1px solid rgba(56,189,248,0.25); border-radius: 12px; padding: 8px; box-shadow: 0 12px 32px rgba(0,0,0,0.45); z-index: 40; }
+.nav-empresa-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; color: #e2e8f0; font-size: 13px; font-weight: 600; text-transform: none; letter-spacing: normal; transition: background 0.15s, color 0.15s; }
+.nav-empresa-item:hover, .nav-empresa-item.is-active { background: rgba(56,189,248,0.1); color: #38bdf8; }
+.nav-empresa-item--secondary { color: #94a3b8; font-weight: 500; }
+.nav-empresa-item--secondary:hover { color: #38bdf8; background: rgba(56,189,248,0.08); }
+.nav-empresa-sep { height: 1px; background: rgba(255,255,255,0.08); margin: 6px 4px; }
+@media (max-width: 767px) {
+  .nav-empresa-menu { right: -8px; min-width: 220px; }
+}
+
+/* ============================================================
+   ACCIONES FLOTANTES
+============================================================ */
+.fab-stack { position: fixed; right: 20px; bottom: 20px; z-index: 45; display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 12px; pointer-events: none; }
+.fab-item { pointer-events: auto; order: var(--fab-order, 0); }
+.fab-calc { display: flex; align-items: center; gap: 8px; background: #38bdf8; color: #042c53; font-weight: 800; font-size: 13.5px; padding: 14px 18px; border: none; border-radius: 999px; box-shadow: 0 8px 24px rgba(56,189,248,0.4); cursor: pointer; transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s; }
+.fab-calc:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(56,189,248,0.5); }
+.fab-calc.hidden { display: none; }
+/* FAB de Starblex IA 1.0 — identidad propia (ámbar), distinta a
+   Financiar (sky) y a los enlaces de WhatsApp del resto del sitio
+   (verde), para que se reconozca de inmediato como asistente de IA y
+   no como un canal de soporte humano más. */
+.fab-starblex { display: flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #ffb020, #ff7a1a); color: #20140a; font-weight: 800; font-size: 13.5px; padding: 12px 16px; border: none; border-radius: 999px; box-shadow: 0 8px 24px rgba(255,122,26,0.4); cursor: pointer; transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s; position: relative; }
+.fab-starblex:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(255,122,26,0.5); }
+.fab-starblex.hidden { display: none; }
+.fab-starblex-avatar { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: rgba(32,20,10,0.15); }
+.fab-starblex-label { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
+.fab-starblex-label-title { font-size: 13.5px; }
+.fab-starblex-label-sub { font-size: 10px; font-weight: 600; opacity: 0.85; }
+.fab-starblex-dot { width: 8px; height: 8px; border-radius: 50%; background: #fff7e6; flex-shrink: 0; box-shadow: 0 0 0 0 rgba(255,247,230,0.7); animation: fabStarblexPulse 2s infinite; }
+@keyframes fabStarblexPulse {
+  0% { box-shadow: 0 0 0 0 rgba(255,247,230,0.6); }
+  70% { box-shadow: 0 0 0 7px rgba(255,247,230,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,247,230,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fab-starblex-dot { animation: none; }
+}
+/* En móvil el botón se compacta pero SIEMPRE conserva icono + texto
+   "Financiar" — nunca se degrada a solo-icono (petición de negocio). */
+@media (max-width: 480px) {
+  .fab-stack { right: 14px; bottom: 14px; }
+  .fab-calc { padding: 11px 14px; font-size: 12.5px; gap: 6px; }
+  .fab-calc svg, .fab-calc i { width: 16px; height: 16px; }
+  .fab-starblex { padding: 10px 13px; gap: 6px; }
+  .fab-starblex svg, .fab-starblex i { width: 16px; height: 16px; }
+  .fab-starblex-avatar { width: 19px; height: 19px; }
+  .fab-starblex-label-title { font-size: 12.5px; }
+  .fab-starblex-label-sub { display: none; }
+}
+
+/* ============================================================
+   STARBLEX IA 1.0 — panel de conversación
+   Identidad: fondo oscuro + ámbar (marca propia) + cian (acento ya
+   usado en el resto del sitio). Ventana flotante en desktop, hoja
+   completa en móvil — igual que el resto de los modales del sitio.
+============================================================ */
+.starblex-scrim { position: absolute; inset: 0; background: rgba(4,7,10,0.7); backdrop-filter: blur(2px); }
+.starblex-window { position: relative; width: 100%; max-width: 420px; background: #10161e; border: 1px solid #243040; border-radius: 20px 20px 0 0; box-shadow: 0 20px 60px rgba(0,0,0,0.6); display: flex; flex-direction: column; overflow: hidden; }
+@media (min-width: 640px) { .starblex-window { border-radius: 20px; max-height: 88vh; } }
+
+.starblex-header { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 16px; border-bottom: 1px solid #243040; background: linear-gradient(135deg, rgba(255,176,32,0.10), rgba(56,189,248,0.06)); flex-shrink: 0; }
+.starblex-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.starblex-avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 2px solid #ffb020; box-shadow: 0 0 0 3px rgba(255,176,32,0.15); flex-shrink: 0; background: #0e141b; }
+.starblex-brand-text h2 { color: #fff; font-weight: 900; font-size: 14.5px; line-height: 1.2; white-space: nowrap; }
+.starblex-brand-text h2 span { color: #ffb020; }
+.starblex-brand-text p { color: #94a3b6; font-size: 11px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.starblex-header-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.starblex-icon-btn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 9px; background: rgba(255,255,255,0.04); border: 1px solid #243040; color: #94a3b6; cursor: pointer; transition: 0.15s; }
+.starblex-icon-btn:hover { color: #ffb020; border-color: rgba(255,176,32,0.4); }
+.starblex-icon-btn:focus-visible { outline: 2px solid #ffb020; outline-offset: 2px; }
+
+.starblex-history-panel { position: absolute; top: 100%; right: 12px; width: min(280px, calc(100% - 24px)); margin-top: 6px; background: #151d28; border: 1px solid #243040; border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,0.5); padding: 6px; max-height: 260px; overflow-y: auto; z-index: 2; }
+.starblex-history-panel.hidden { display: none; }
+.starblex-history-empty { color: #94a3b6; font-size: 12.5px; padding: 10px 8px; text-align: center; }
+.starblex-history-item { display: flex; align-items: center; gap: 4px; border-radius: 8px; padding: 2px; }
+.starblex-history-item.active { background: rgba(255,176,32,0.1); }
+.starblex-history-open { flex: 1; min-width: 0; text-align: left; background: none; border: none; color: #e9eef4; font-size: 12.5px; padding: 8px 8px; border-radius: 6px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.starblex-history-open:hover { background: rgba(255,255,255,0.05); }
+.starblex-history-action { flex-shrink: 0; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; background: none; border: none; color: #94a3b6; font-size: 12px; border-radius: 6px; cursor: pointer; }
+.starblex-history-action:hover { background: rgba(255,255,255,0.06); color: #e9eef4; }
+.starblex-history-action--danger:hover { color: #fca5a5; }
+
+.starblex-ctx-bar { display: flex; align-items: center; gap: 8px; margin: 10px 12px 0; padding: 7px 10px; font-size: 12px; color: #7dd3fc; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.3); border-radius: 10px; flex-shrink: 0; }
+.starblex-ctx-bar.hidden { display: none; }
+.starblex-ctx-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.starblex-ctx-bar button { background: none; border: none; color: #94a3b6; font-size: 15px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.starblex-ctx-bar button:hover { color: #fca5a5; }
+
+.starblex-messages-wrap { flex: 1; overflow-y: auto; padding: 14px; min-height: 240px; }
+.starblex-messages { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.starblex-msg { display: flex; align-items: flex-end; gap: 8px; max-width: 100%; }
+.starblex-msg--user { justify-content: flex-end; }
+.starblex-msg-avatar { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1.5px solid #ffb020; flex-shrink: 0; background: #0e141b; }
+.starblex-bubble { max-width: 78%; padding: 10px 14px; border-radius: 16px; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.starblex-msg--user .starblex-bubble { background: #38bdf8; color: #042c53; font-weight: 600; border-bottom-right-radius: 4px; }
+.starblex-msg--bot .starblex-bubble { background: #151d28; color: #e9eef4; border: 1px solid #243040; border-bottom-left-radius: 4px; }
+.starblex-msg--error .starblex-bubble { background: rgba(248,113,113,0.1); color: #fca5a5; border: 1px solid rgba(248,113,113,0.25); border-bottom-left-radius: 4px; }
+.starblex-feedback { display: flex; gap: 2px; margin-left: 30px; margin-top: -4px; }
+.starblex-feedback-btn { background: none; border: none; font-size: 12px; padding: 3px 5px; border-radius: 6px; cursor: pointer; opacity: 0.55; transition: 0.15s; }
+.starblex-feedback-btn:hover { opacity: 1; background: rgba(255,255,255,0.05); }
+.starblex-feedback-btn[aria-pressed="true"] { opacity: 1; background: rgba(255,176,32,0.12); }
+.starblex-typing { display: inline-flex; align-items: center; gap: 4px; padding: 12px 14px; background: #151d28; border: 1px solid #243040; border-radius: 16px; border-bottom-left-radius: 4px; }
+.starblex-typing span { width: 6px; height: 6px; border-radius: 50%; background: #ffb020; animation: starblexTypingBounce 1.2s infinite; }
+.starblex-typing span:nth-child(2) { animation-delay: 0.15s; }
+.starblex-typing span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes starblexTypingBounce { 0%, 60%, 100% { transform: translateY(0); opacity:0.5; } 30% { transform: translateY(-4px); opacity:1; } }
+@media (prefers-reduced-motion: reduce) { .starblex-typing span { animation: none; } }
+
+.starblex-suggestions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.starblex-suggestion { display: block; width: 100%; text-align: left; background: rgba(255,176,32,0.06); border: 1px solid rgba(255,176,32,0.25); color: #ffd8a3; font-size: 12.5px; font-weight: 600; padding: 9px 12px; border-radius: 10px; cursor: pointer; transition: all 0.15s; }
+.starblex-suggestion:hover { background: rgba(255,176,32,0.14); border-color: rgba(255,176,32,0.4); }
+
+.starblex-inputbar { display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px; border-top: 1px solid #243040; flex-shrink: 0; }
+.starblex-input { flex: 1; resize: none; max-height: 96px; background: rgba(255,255,255,0.04); border: 1px solid #243040; color: #fff; border-radius: 12px; padding: 10px 12px; font-size: 13.5px; line-height: 1.4; }
+.starblex-input:focus { outline: none; border-color: #ffb020; box-shadow: 0 0 0 3px rgba(255,176,32,0.15); }
+.starblex-input::placeholder { color: #64748b; }
+.starblex-send-btn { background: linear-gradient(135deg, #ffb020, #ff7a1a); color: #20140a; border: none; border-radius: 12px; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.15s, opacity 0.15s; flex-shrink: 0; }
+.starblex-send-btn:hover { transform: translateY(-1px); }
+.starblex-send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.starblex-disclaimer { font-size: 10px; color: #64748b; text-align: center; padding: 0 12px 10px; flex-shrink: 0; }
+
+@media (max-width: 480px) {
+  .starblex-window { max-width: 100%; }
+  .starblex-bubble { max-width: 86%; }
+  .starblex-brand-text p { display: none; }
+}
+
+
+/* ============================================================
+   FOOTER — enlaces legales con separador y wrap responsive
+============================================================ */
+.footer-legal-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; column-gap: 14px; row-gap: 6px; margin-bottom: 12px; padding: 0 16px; }
+.footer-legal-link { color: rgb(148,163,184); font-size: 12.5px; padding: 4px 2px; transition: color 0.15s; }
+.footer-legal-link:hover { color: #38bdf8; }
+.footer-legal-sep { color: rgba(148,163,184,0.5); font-size: 11px; user-select: none; }
+@media (max-width: 380px) {
+  .footer-legal-nav { flex-direction: column; row-gap: 4px; }
+  .footer-legal-sep { display: none; }
+  header h1 { font-size: 21px !important; }
+  header p { font-size: 13px !important; }
+  #hero-text-wrap { padding-left: 46px !important; padding-right: 46px !important; }
+  .hero-arrow { width: 34px !important; height: 34px !important; font-size: 19px !important; }
+  /* H1 — el contenedor de categorías (Sedanes/SUVs/Camionetas/Empresa)
+     desborda el nav en anchos muy angostos. Se reduce el gap entre
+     enlaces y se anula el letter-spacing inline solo en este rango. */
+  nav .flex-1.justify-center { gap: 8px !important; }
+  .nav-cat-link { letter-spacing: 0 !important; }
+}
+@media (max-width: 325px) {
+  /* H1 — a 320px el recorte anterior no bastaba (quedaban ~12px de
+     overflow). Se recorta también el padding/gap del propio nav en
+     este rango específico, sin tocar 326px en adelante. */
+  nav .max-w-6xl { padding-left: 8px !important; padding-right: 8px !important; gap: 4px !important; }
+  nav .flex-1.justify-center { gap: 4px !important; }
+}
+
+/* ============================================================
+   MODAL DE CALCULADORA
+============================================================ */
+.calc-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9997; display: flex; align-items: flex-start; justify-content: center; padding: 24px 16px; overflow-y: auto; opacity: 0; transition: opacity 0.2s; }
+.calc-modal-overlay.hidden { display: none; }
+.calc-modal-overlay.open { opacity: 1; }
+.calc-modal { position: relative; width: 100%; max-width: 480px; margin: 24px auto; }
+.calc-modal-close { position: absolute; top: 16px; right: 16px; width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.06); border: none; color: #e2e8f0; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s; }
+.calc-modal-close:hover { background: rgba(255,255,255,0.14); }
+.calc-modal-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.calc-modal-actions.hidden { display: none; }
+.calc-modal-action-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 700; border: 1px solid rgba(255,255,255,0.12); color: #e2e8f0; background: rgba(255,255,255,0.03); cursor: pointer; transition: all 0.15s; }
+.calc-modal-action-btn:hover { border-color: rgba(56,189,248,0.4); color: #38bdf8; }
+.calc-modal-action-btn--primary { background: rgb(37,211,102); color: #fff; border: none; box-shadow: 0 4px 16px rgba(37,211,102,0.3); font-weight: 800; }
+.calc-modal-action-btn--primary:hover { background: rgb(34,197,94); box-shadow: 0 6px 20px rgba(37,211,102,0.4); transform: translateY(-1px); }
+.calc-modal-action-btn--primary:active { transform: translateY(0); }
+
+/* Sobrescribe la utilidad de Tailwind text-slate-500 para cumplir
+   contraste AA (4.5:1) en texto pequeño sobre fondo oscuro.
+   rgb(148,163,184) = slate-400, contraste ~6.98:1 sobre rgb(15,23,42). */
+.text-slate-500 { color: rgb(148, 163, 184) !important; }
+/* ============================================================
+   FAQ — Preguntas frecuentes (subpágina Empresa). Oculta el
+   marcador nativo de <details> en todos los navegadores (Chrome
+   respeta list-style, pero Safari usa ::-webkit-details-marker y
+   Firefox ::marker) y anima el chevron propio al abrir/cerrar.
+   ============================================================ */
+.lb-faq-item summary { list-style: none; }
+.lb-faq-item summary::-webkit-details-marker { display: none; }
+.lb-faq-item summary::marker { content: ""; }
+.lb-faq-item .lb-faq-chevron { transition: transform 0.2s ease; }
+.lb-faq-item[open] .lb-faq-chevron { transform: rotate(180deg); }
+/* ============================================================
+   BOTÓN "CONTINUAR CON GOOGLE" — diseño oficial (Correcciones
+   pre-lanzamiento). Va en CSS puro y no como clases Tailwind
+   porque tailwind.css es un build ESTÁTICO (no JIT): las clases
+   con valores arbitrarios (text-[#3c4043], border-[#dadce0],
+   hover:shadow-md, active:scale-95) no fueron generadas en el
+   build y no aplicarían ningún estilo si se usaran en el HTML.
+   ============================================================ */
+.auth-google-btn { background-color: #ffffff; color: #3c4043; border: 1px solid #dadce0; transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease; }
+.auth-google-btn:hover { background-color: #f8f9fa; box-shadow: 0 1px 2px 0 rgba(60,64,67,0.30), 0 1px 3px 1px rgba(60,64,67,0.15); }
+.auth-google-btn:active { background-color: #f1f3f4; transform: scale(0.98); }
+.auth-google-btn:focus-visible { outline: 2px solid #4285f4; outline-offset: 2px; }

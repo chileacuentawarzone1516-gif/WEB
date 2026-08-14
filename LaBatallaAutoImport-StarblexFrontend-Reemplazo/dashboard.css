@@ -1,0 +1,269 @@
+/* ============================================================
+   DASHBOARD.CSS — Panel personal del usuario
+   Reutiliza la paleta y tipografía ya definidas en styles.css:
+   fondo rgb(15,23,42), tarjetas rgb(30,41,59), acento #38bdf8,
+   fuente 'DM Sans'. Prefijo .db- para no chocar con clases
+   existentes (.lb-*, .account-*, etc).
+============================================================ */
+
+#dashboard-page { background: rgb(15,23,42); min-height: 100vh; }
+
+/* ————— Barra superior ————— */
+.db-topbar {
+  position: sticky; top: 0; z-index: 30;
+  background: rgb(30,41,59);
+  border-bottom: 1px solid rgba(56,189,248,0.15);
+}
+.db-back-btn {
+  display: flex; align-items: center; gap: 6px;
+  color: #94a3b8; font-weight: 700; font-size: 13.5px;
+  background: transparent; border: none; cursor: pointer;
+  transition: color 0.15s;
+}
+.db-back-btn:hover { color: #38bdf8; }
+.db-logout-btn {
+  display: flex; align-items: center; gap: 6px;
+  color: #f87171; font-weight: 700; font-size: 13px;
+  background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25);
+  padding: 7px 12px; border-radius: 10px; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.db-logout-btn:hover { background: rgba(248,113,113,0.16); border-color: rgba(248,113,113,0.45); }
+.db-logout-btn i { pointer-events: none; }
+@media (max-width: 480px) {
+  .db-logout-btn span { display: none; }
+  .db-logout-btn { padding: 9px; }
+}
+
+/* ————— Header / tarjeta de perfil ————— */
+.db-hero {
+  background: linear-gradient(135deg, rgb(12,20,38) 0%, rgb(18,28,46) 100%);
+  border: 1px solid rgba(56,189,248,0.2);
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+}
+.db-hero-top { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.db-avatar {
+  width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(56,189,248,0.15); border: 2px solid rgba(56,189,248,0.4);
+  color: #38bdf8; font-weight: 900; font-size: 22px;
+  display: flex; align-items: center; justify-content: center;
+  letter-spacing: 0.5px;
+}
+.db-greeting { color: #94a3b8; font-size: 13px; font-weight: 600; margin: 0; }
+.db-name { color: #f8fafc; font-size: 22px; font-weight: 900; margin: 2px 0 8px; line-height: 1.15; }
+.db-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+.db-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; font-weight: 700; padding: 4px 10px;
+  border-radius: 20px; background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1); color: #94a3b8;
+}
+.db-badge i, .db-badge svg { width: 12px; height: 12px; }
+.db-badge--ok { background: rgba(52,211,153,0.12); border-color: rgba(52,211,153,0.35); color: #34d399; }
+.db-badge--warn { background: rgba(250,204,21,0.1); border-color: rgba(250,204,21,0.3); color: #facc15; }
+
+.db-progress-wrap { margin-top: 20px; }
+.db-progress-label {
+  display: flex; justify-content: space-between; margin-bottom: 6px;
+  color: #cbd5e1; font-size: 12px; font-weight: 700;
+}
+.db-progress-track {
+  height: 8px; border-radius: 999px; background: rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+.db-progress-fill {
+  height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, #38bdf8, #0ea5e9);
+  transition: width 0.4s ease;
+}
+
+.db-meta-row {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+  margin-top: 20px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,0.08);
+}
+.db-meta { display: flex; align-items: center; gap: 10px; }
+.db-meta i, .db-meta svg { width: 17px; height: 17px; color: #38bdf8; flex-shrink: 0; }
+.db-meta p { color: #64748b; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; margin: 0 0 2px; }
+.db-meta strong { color: #f1f5f9; font-size: 13px; font-weight: 800; }
+
+/* ————— Accesos rápidos ————— */
+.db-quick-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+.db-quick-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  background: rgb(30,41,59); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px; padding: 16px 10px; cursor: pointer;
+  transition: all 0.18s; color: #cbd5e1; font-size: 12px; font-weight: 700; text-align: center;
+}
+.db-quick-btn:hover { border-color: rgba(56,189,248,0.4); background: rgba(56,189,248,0.06); transform: translateY(-2px); }
+.db-quick-btn i, .db-quick-btn svg { width: 20px; height: 20px; color: #38bdf8; }
+
+/* ————— Tabs Resumen / Historial / Favoritos / Cotizaciones / Perfil —————
+   5 pestañas ahora: en pantallas angostas se vuelven scrolleables
+   horizontalmente DENTRO de la barra (no la página) — evita el
+   desbordamiento horizontal exigido en Fase 8. */
+.db-tabs {
+  display: flex; gap: 4px; border-bottom: 1px solid rgba(255,255,255,0.08);
+  overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+}
+.db-tabs::-webkit-scrollbar { display: none; }
+.db-tab {
+  color: #94a3b8; border-bottom: 2px solid transparent; background: transparent; border-top: none; border-left: none; border-right: none;
+  padding: 12px 4px; font-weight: 800; font-size: 13.5px; cursor: pointer; transition: color 0.15s;
+  white-space: nowrap; flex-shrink: 0;
+}
+.db-tab.active { color: #38bdf8; border-bottom-color: #38bdf8; }
+
+/* ————— Grid de tarjetas del panel principal ————— */
+.db-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.db-card {
+  background: rgb(30,41,59); border: 1px solid rgba(56,189,248,0.1);
+  border-radius: 16px; padding: 18px; cursor: pointer;
+  transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+  display: flex; flex-direction: column; gap: 10px; min-height: 150px;
+}
+.db-card:hover { transform: translateY(-3px); box-shadow: 0 8px 26px rgba(56,189,248,0.14); border-color: rgba(56,189,248,0.35); }
+.db-card-head { display: flex; align-items: center; justify-content: space-between; }
+.db-card-icon {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: rgba(56,189,248,0.12); display: flex; align-items: center; justify-content: center;
+}
+.db-card-icon i, .db-card-icon svg { width: 18px; height: 18px; color: #38bdf8; }
+.db-card-count { font-size: 22px; font-weight: 900; color: #f8fafc; }
+.db-card-title { color: #f1f5f9; font-weight: 800; font-size: 14.5px; }
+.db-card-sub { color: #64748b; font-size: 11.5px; line-height: 1.4; flex: 1; }
+.db-card-cta { color: #38bdf8; font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 4px; }
+
+/* Mini-carrusel de vehículos dentro de una tarjeta (recomendados/vistos) */
+.db-card-preview { display: flex; gap: 8px; overflow: hidden; }
+.db-mini-thumb { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; }
+
+/* ————— Estados vacíos ————— */
+.db-empty { text-align: center; padding: 36px 16px; }
+.db-empty i, .db-empty svg { width: 34px; height: 34px; color: #475569; margin: 0 auto 10px; }
+.db-empty p { color: #94a3b8; font-size: 13px; margin: 0 0 4px; }
+.db-empty span { color: #64748b; font-size: 11.5px; }
+
+/* ————— Skeleton loaders ————— */
+.db-skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.09) 37%, rgba(255,255,255,0.04) 63%);
+  background-size: 400% 100%;
+  animation: db-shimmer 1.4s ease infinite;
+  border-radius: 10px;
+}
+@keyframes db-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+
+/* ————— Lista de historial ————— */
+.db-hist-group { margin-bottom: 22px; }
+.db-hist-group h3 { color: #f1f5f9; font-size: 13.5px; font-weight: 800; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.db-hist-group h3 i, .db-hist-group h3 svg { width: 16px; height: 16px; color: #38bdf8; }
+.db-hist-item {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  background: rgb(30,41,59); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px; margin-bottom: 6px;
+}
+.db-hist-item img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+.db-hist-item-name { color: #e2e8f0; font-size: 13px; font-weight: 700; }
+.db-hist-item-meta { color: #64748b; font-size: 11px; }
+
+/* ============================================================
+   PERFIL — pestaña editable (Problema 6). Reutiliza el mismo
+   lenguaje visual de .db-meta (mayúsculas, gris, negrita) para
+   los datos de solo lectura, y clases Tailwind ya existentes
+   (idénticas a las del modal de auth) para los inputs del form.
+   ============================================================ */
+.db-profile-readonly {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px; padding: 18px; margin-bottom: 22px;
+}
+.db-profile-field span { display: block; color: #64748b; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px; }
+.db-profile-field strong { color: #f1f5f9; font-size: 13px; font-weight: 800; word-break: break-all; }
+.db-profile-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; align-items: end; }
+.db-profile-form label { display: block; color: #94a3b8; font-size: 11.5px; font-weight: 600; margin-bottom: 5px; }
+.db-profile-form #db-profile-error { grid-column: 1 / -1; }
+.db-profile-form #db-profile-save-btn { justify-self: start; }
+.db-profile-form-full { grid-column: 1 / -1; }
+
+/* Fase 1 — secciones de "Cambiar contraseña" y "Preferencias" dentro de
+   la pestaña Perfil, visualmente separadas del formulario principal. */
+.db-section-block {
+  margin-top: 28px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08);
+}
+.db-section-title {
+  display: flex; align-items: center; gap: 8px; color: #f1f5f9; font-size: 15px;
+  font-weight: 800; margin-bottom: 16px;
+}
+.db-section-title i, .db-section-title svg { width: 18px; height: 18px; color: #38bdf8; }
+
+/* Fase 1 — botón de eliminar en filas de favoritos/cotizaciones */
+.db-remove-btn {
+  flex-shrink: 0; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+  border-radius: 10px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2);
+  color: #f87171; cursor: pointer; transition: background 0.15s, border-color 0.15s;
+}
+.db-remove-btn:hover { background: rgba(239,68,68,0.18); border-color: rgba(239,68,68,0.4); }
+.db-remove-btn i, .db-remove-btn svg { width: 15px; height: 15px; }
+
+/* Botón "Editar" de "Mis Publicaciones" — mismo tamaño/forma que
+   .db-remove-btn, en el acento sky del sitio en vez de rojo. */
+.db-edit-btn {
+  flex-shrink: 0; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+  border-radius: 10px; background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3);
+  color: #38bdf8; cursor: pointer; transition: background 0.15s, border-color 0.15s;
+}
+.db-edit-btn:hover { background: rgba(56,189,248,0.18); border-color: rgba(56,189,248,0.5); }
+.db-edit-btn i, .db-edit-btn svg { width: 15px; height: 15px; }
+
+.db-quote-icon {
+  width: 40px; height: 40px; flex-shrink: 0; border-radius: 10px; background: rgba(56,189,248,0.1);
+  display: flex; align-items: center; justify-content: center; color: #38bdf8;
+}
+.db-quote-icon i, .db-quote-icon svg { width: 18px; height: 18px; }
+
+/* Fase 9 — skeleton de carga mientras se piden datos de Firestore
+   (favoritos/cotizaciones). Animación sutil, sin depender de JS extra. */
+.db-skeleton { pointer-events: none; }
+.db-skeleton-thumb { width: 40px; height: 40px; border-radius: 8px; background: rgba(148,163,184,0.12); animation: dbShimmer 1.4s ease-in-out infinite; }
+.db-skeleton-line { height: 10px; border-radius: 5px; background: rgba(148,163,184,0.12); animation: dbShimmer 1.4s ease-in-out infinite; }
+@keyframes dbShimmer { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+@media (max-width: 640px) {
+  .db-meta-row { grid-template-columns: 1fr; gap: 10px; }
+  .db-hero-top { align-items: flex-start; }
+}
+
+/* Fase 8 — rediseño responsive del Dashboard completo, 320px→768px.
+   Más aire entre elementos, tarjetas y accesos rápidos en 1 sola
+   columna cómoda para el dedo, tipografía ligeramente reducida,
+   ningún elemento puede forzar scroll horizontal de la página. */
+@media (max-width: 480px) {
+  #dashboard-page { padding-left: 12px; padding-right: 12px; }
+  .db-grid { grid-template-columns: 1fr; gap: 12px; }
+  .db-card { padding: 16px; min-height: unset; gap: 8px; }
+  .db-card-title { font-size: 14px; }
+  .db-card-sub { font-size: 12px; }
+  .db-quick-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px; }
+  .db-quick-btn { padding: 14px 8px !important; }
+  .db-profile-form { grid-template-columns: 1fr; }
+  .db-profile-readonly { grid-template-columns: 1fr 1fr; }
+  .db-tab { font-size: 12.5px; padding: 10px 6px; }
+  .db-hist-item { padding: 12px 10px; gap: 10px; }
+  .db-hist-item img, .db-skeleton-thumb, .db-quote-icon { width: 36px; height: 36px; }
+  .db-section-block { margin-top: 20px; padding-top: 18px; }
+  /* Botones más cómodos al tacto (mínimo ~44px de alto recomendado) */
+  .db-profile-form input, .db-profile-form select { padding-top: 11px; padding-bottom: 11px; font-size: 14px; }
+  #db-profile-save-btn, #db-change-password-btn, #db-pref-save-btn { width: 100%; padding-top: 13px; padding-bottom: 13px; justify-self: stretch; }
+  .db-remove-btn { width: 40px; height: 40px; }
+  .db-edit-btn { width: 40px; height: 40px; }
+  #db-pub-content .db-edit-btn,
+  #db-pub-content .db-remove-btn {
+    width: 44px;
+    height: 44px;
+  }
+  .db-empty { padding: 28px 16px; }
+}
