@@ -45,7 +45,7 @@ function showDataLoadError() {
     <button onclick="window.location.reload()" style="background:#38bdf8;color:#0f172a;font-weight:800;padding:10px 24px;border:none;border-radius:10px;cursor:pointer;font-size:14px;">Recargar página</button>
   </div>`;
   overlay.style.display = 'flex';
-  lucide.createIcons();
+  if (window.lucide) lucide.createIcons();
 }
 // ————— Modo local —————
 // Fallback si Firebase falla. Orden de prioridad:
@@ -66,7 +66,7 @@ function initLocalMode() {
       const overlay = document.getElementById('loading-overlay');
       if (overlay) overlay.style.display = 'none';
       renderSections();
-      lucide.createIcons();
+      if (window.lucide) lucide.createIcons();
       return;
     }
   } catch(e) {}
@@ -82,7 +82,7 @@ function initLocalMode() {
     const overlay = document.getElementById('loading-overlay');
     if (overlay) overlay.style.display = 'none';
     renderSections();
-    lucide.createIcons();
+    if (window.lucide) lucide.createIcons();
   };
   script.onerror = () => showDataLoadError();
   document.head.appendChild(script);
@@ -96,7 +96,7 @@ function renderEmptyInventoryState() {
     if (paginationEl) paginationEl.innerHTML = '';
   });
   renderBrandLogoFilter();
-  lucide.createIcons();
+  if (window.lucide) lucide.createIcons();
 }
 // ————— Backfill de slugs (solo admin, una vez por sesión) —————
 // Persiste el slug de vehículos publicados antes de esta versión.
@@ -247,7 +247,7 @@ function initFirebase() {
       } else {
         renderSections();
       }
-      lucide.createIcons();
+      if (window.lucide) lucide.createIcons();
     }, (err) => {
       console.error('Firestore error:', err);
       initLocalMode();
@@ -274,8 +274,18 @@ function fmtPrice(p, v) {
 // ROUTING REAL — Slugs y URLs por vehículo (reemplaza #auto-id)
 // ============================================================
 // Convierte "BMW 330i 2024" -> "bmw-330i-2024"
+// FASE 8 (auditoría de pre-lanzamiento): unificado con scripts/generar-sitemap.js
+// y netlify/edge-functions/vehicle-og.js — las 3 implementaciones eran
+// idénticas en todos los casos reales (acentos, símbolos, espacios,
+// mayúsculas, unicode) y solo divergían si `text` era null/undefined:
+// antes, `String(null)` producía el slug literal "null" aquí, mientras
+// los otros dos ya devolvían "" (String(text ?? '')). No hay evidencia
+// de que un vehículo real llegue con `name` nulo, pero se corrige para
+// que las 3 funciones sean deterministas y equivalentes byte a byte en
+// TODOS los casos, no solo en los que ocurren hoy. No cambia ningún
+// slug ya generado (mismo resultado para cualquier nombre real).
 function slugify(text) {
-  return String(text).toLowerCase()
+  return String(text ?? '').toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita acentos
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
@@ -752,7 +762,7 @@ function openAccountModal(defaultTab) {
   renderAccountFavorites();
   refreshAuthTabView(); // definida en auth-ui.js
   setAccountTab(defaultTab || (getFavorites().length > 0 ? 'fav' : 'fav'));
-  lucide.createIcons();
+  if (window.lucide) lucide.createIcons();
 }
 function closeAccountModal() {
   document.getElementById('account-modal').classList.add('hidden');
@@ -790,7 +800,7 @@ function renderSections() {
     btn.addEventListener('click', (e) => { e.preventDefault(); openDetail(btn.dataset.id); });
   });
   renderBrandLogoFilter();
-  lucide.createIcons();
+  if (window.lucide) lucide.createIcons();
 }
 function renderCategory(cat, page) {
   if (page !== undefined) pageState[cat] = page;
@@ -1089,7 +1099,7 @@ function openDetail(id) {
   document.getElementById('main-page').classList.add('page-hidden');
   document.getElementById('detail-page').classList.remove('page-hidden');
   window.scrollTo(0,0);
-  lucide.createIcons();
+  if (window.lucide) lucide.createIcons();
 }
 // Botón atrás/adelante del navegador → reconstruye el estado según la URL real.
 // Antes solo revisaba si la ficha estaba abierta; ahora también soporta
@@ -1141,6 +1151,12 @@ function renderGalleryMedia() {
   } else {
     vid.classList.add('hidden'); img.classList.remove('hidden');
     img.src = cldOptimize(typeof item.src === 'string' ? item.src : item.src, 1000);
+    // Fallback si la imagen principal falla (Cloudinary/Pexels caído, URL
+    // rota, etc.) — mismo patrón placehold.co usado en el resto del sitio
+    // (tarjetas de catálogo, avatares, logos). Antes esta imagen, la más
+    // grande y visible de la ficha, era la única sin fallback: mostraba el
+    // ícono de imagen rota del navegador.
+    img.onerror = () => { img.onerror = null; img.src = 'https://placehold.co/800x600/1e293b/38bdf8?text=Sin+imagen'; };
     // Alt descriptivo por vehículo + posición — WCAG 1.1.1
     const vName = (typeof currentDetailVehicle !== 'undefined' && currentDetailVehicle && currentDetailVehicle.name) ? currentDetailVehicle.name : 'Vehículo';
     img.alt = `${vName} — foto ${galleryIdx + 1} de ${galleryMedia.length}`;
@@ -1227,7 +1243,7 @@ function renderSimilarPage(page) {
   if (totalPages > 1 && paginationEl) {
     renderPagination(paginationEl, page, totalPages, (newPage) => renderSimilarPage(newPage));
   }
-  lucide.createIcons();
+  if (window.lucide) lucide.createIcons();
 }
 document.getElementById('gallery-prev').addEventListener('click', () => {
   galleryIdx = (galleryIdx - 1 + galleryMedia.length) % galleryMedia.length;
@@ -1286,7 +1302,7 @@ window.addEventListener('resize', () => {
   resizeTimer = setTimeout(() => {
     Object.keys(pageState).forEach(cat => { pageState[cat] = 1; });
     renderSections();
-    lucide.createIcons();
+    if (window.lucide) lucide.createIcons();
   }, 300);
 });
 function goBackToMain() {
@@ -1312,7 +1328,7 @@ function showNotFound() {
   document.getElementById('not-found-page')?.classList.remove('page-hidden');
   document.title = 'Vehículo no encontrado | La Batalla Auto Import';
   window.scrollTo(0, 0);
-  lucide.createIcons();
+  if (window.lucide) lucide.createIcons();
 }
 document.getElementById('not-found-back-btn')?.addEventListener('click', () => {
   try { if (window.self === window.top) history.pushState(null, '', '/'); } catch(e) {}
@@ -1959,7 +1975,7 @@ function filterByBrand(brand) {
     grid.querySelectorAll('.ver-btn').forEach(btn => {
       btn.addEventListener('click', (e) => { e.preventDefault(); openDetail(btn.dataset.id); });
     });
-    lucide.createIcons();
+    if (window.lucide) lucide.createIcons();
   }
   section.scrollIntoView({ behavior:'smooth', block:'start' });
 }
@@ -2211,7 +2227,7 @@ function showEmpresaPage(sectionId, push = true) {
     canonical: `https://labatallaautoimport.netlify.app/empresa/${sectionId}`
   });
   injectFaqSchema();
-  lucide.createIcons();
+  if (window.lucide) lucide.createIcons();
   // Scroll a la sección una vez visible
   requestAnimationFrame(() => {
     const target = document.getElementById(sectionId);
@@ -2234,7 +2250,7 @@ function hideEmpresaPage(push = true) {
   setPageMeta(DEFAULT_META);
   removeFaqSchema();
   window.scrollTo(0, 0);
-  lucide.createIcons();
+  if (window.lucide) lucide.createIcons();
 }
 
 function initEmpresaRouting() {
@@ -2316,7 +2332,7 @@ window.addEventListener('DOMContentLoaded', () => {
   initEmpresaRouting();
   initScrollSpy();
   updateNavFavCount();
-  lucide.createIcons();
+  if (window.lucide) lucide.createIcons();
   // Si alguien entra con un link directo tipo /vehiculos/bmw-330i-2024,
   // el hosting redirige a index.html (ver _redirects/vercel.json/404.html)
   // y aquí detectamos la ruta real para abrir la ficha correcta.
