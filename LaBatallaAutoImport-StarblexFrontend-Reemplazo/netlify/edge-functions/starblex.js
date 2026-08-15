@@ -39,6 +39,14 @@
 // navegador no puede inventar ni alterar specs de ningún vehículo.
 //
 // NO se modificó firestore.rules — no hizo falta.
+//
+// FASE 8 (auditoría de pre-lanzamiento): el contexto del vehículo
+// seleccionado (vehicleId) YA NO depende de que ese vehículo esté
+// dentro de los primeros MAX_INVENTORY_ITEMS del inventario general.
+// Ver fetchVehicleById() y su uso en el handler — consulta directa
+// por ID a Firestore, independiente de la paginación/tope del
+// inventario general. El tope del inventario general SÍ se mantiene
+// (control de costo cuando no hay vehículo seleccionado).
 // ============================================================
 
 export const config = { path: '/api/starblex' };
@@ -66,6 +74,12 @@ const MAX_INVENTORY_ITEMS = 60;
 const INVENTORY_CACHE_TTL_MS = 60_000; // evita golpear Firestore en cada mensaje del chat
 
 let _inventoryCache = { data: [], fetchedAt: 0 };
+// FASE 8: caché propia para lookups directos por vehicleId, separada
+// de la caché del inventario general (vidas y tamaños distintos: un
+// solo vehículo pesa poco y puede cachearse más tiempo sin afectar
+// el costo de forma apreciable).
+let _vehicleByIdCache = new Map(); // vehicleId -> { data, fetchedAt }
+const VEHICLE_CACHE_TTL_MS = 60_000;
 
 // ------------------------------------------------------------
 // Helpers de respuesta
@@ -170,6 +184,70 @@ async function fetchTrustedInventory() {
   } catch (e) {
     console.error('Starblex: excepción consultando Firestore', e);
     return _inventoryCache.data; // degrada con gracia: el chat sigue funcionando sin inventario fresco
+  }
+}
+
+// ------------------------------------------------------------
+// FASE 8 — CAMBIO 1: lookup directo de UN vehículo por ID.
+//
+// Antes: vehicleContext = inventory.find(v => v.id === requestedVehicleId),
+// donde `inventory` era la lista general limitada a MAX_INVENTORY_ITEMS
+// (60) SIN paginar. Si el inventario real superaba 60 vehículos y el
+// que la persona estaba viendo no caía en esa primera página que
+// Firestore devuelve (orden no garantizado por nombre/fecha), el
+// backend respondía "no tengo información" sobre un vehículo que sí
+// existía — un vehicleId 100% válido, enviado exactamente como el
+// frontend lo manda, fallaba solo por su posición en la colección.
+//
+// Ahora: si hay vehicleId, se hace un GET directo al documento por su
+// ID (una sola lectura, O(1) respecto al tamaño del inventario) — el
+// resultado no depende en absoluto de MAX_INVENTORY_ITEMS ni de en qué
+// posición esté el documento. El inventario general (para preguntas
+// tipo "qué tienen disponible") sigue acotado a 60 para controlar
+// costo — eso no cambia, y esta función no lo toca.
+// ------------------------------------------------------------
+async function fetchVehicleById(vehicleId) {
+  if (!vehicleId) return null;
+
+  const now = Date.now();
+  const cached = _vehicleByIdCache.get(vehicleId);
+  if (cached && now - cached.fetchedAt < VEHICLE_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  const projectId = Deno.env.get('FIREBASE_PROJECT_ID');
+  if (!projectId) {
+    console.error('Starblex: falta FIREBASE_PROJECT_ID en el entorno de Netlify.');
+    return cached ? cached.data : null;
+  }
+  const webApiKey = Deno.env.get('FIREBASE_WEB_API_KEY');
+  // Lectura de UN documento por ID — no es una query, es el endpoint
+  // REST estándar de "get document": .../documents/vehicles/{id}.
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/vehicles/${encodeURIComponent(vehicleId)}` +
+    (webApiKey ? `?key=${encodeURIComponent(webApiKey)}` : '');
+
+  try {
+    const res = await fetch(url);
+    if (res.status === 404) {
+      // Documento no existe de verdad — vehicleId inválido/manipulado.
+      // Se cachea el "null" igual que un hit real, para no repetir la
+      // consulta en cada mensaje si alguien manda un ID inventado.
+      _vehicleByIdCache.set(vehicleId, { data: null, fetchedAt: now });
+      return null;
+    }
+    if (!res.ok) {
+      console.error('Starblex: Firestore (get by id) respondió', res.status);
+      return cached ? cached.data : null;
+    }
+    const doc = await res.json();
+    const plain = firestoreFieldsToJs(doc.fields || {});
+    const id = String(doc.name || '').split('/').pop() || vehicleId;
+    const item = sanitizeInventoryItem({ ...plain, id });
+    _vehicleByIdCache.set(vehicleId, { data: item, fetchedAt: now });
+    return item;
+  } catch (e) {
+    console.error('Starblex: excepción consultando Firestore (get by id)', e);
+    return cached ? cached.data : null;
   }
 }
 
@@ -298,13 +376,20 @@ export default async (request, context) => {
 
   // El cliente SOLO puede pedir "estoy viendo este ID" — nunca mandar
   // los datos del vehículo directamente. El backend valida ese ID
-  // contra su propia lista, obtenida de Firestore más abajo.
+  // contra Firestore, nunca contra lo que mande el navegador.
   const requestedVehicleId = sanitizeText(body.vehicleId, MAX_VEHICLE_ID_CHARS);
 
-  const inventory = await fetchTrustedInventory();
-  const vehicleContext = requestedVehicleId
-    ? inventory.find((v) => v.id === requestedVehicleId) || null
-    : null;
+  // FASE 8 — CAMBIO 1: el inventario general (para "qué tienen
+  // disponible") y el vehículo en contexto (para "explícame este") ya
+  // no comparten la misma fuente acotada a 60. El inventario general
+  // sigue limitado (control de costo); el vehículo en contexto se
+  // busca siempre por lectura directa, sin importar cuántos vehículos
+  // existan ni en qué posición esté el suyo. Ambas llamadas corren en
+  // paralelo — no se duplica latencia por separarlas.
+  const [inventory, vehicleContext] = await Promise.all([
+    fetchTrustedInventory(),
+    requestedVehicleId ? fetchVehicleById(requestedVehicleId) : Promise.resolve(null),
+  ]);
 
   const systemPrompt = buildSystemPrompt(inventory, vehicleContext);
   const messages = [...history, { role: 'user', content: message }];
