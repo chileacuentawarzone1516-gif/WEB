@@ -165,12 +165,12 @@
            (marcado con el mismo aviso) con la URL de la PRIMERA imagen.
         Mientras tanto se usan fotos de stock de Pexels (temporal).
       ════════════════════════════════════════════════════════ -->
-      <img class="slide active w-full h-full object-cover" fetchpriority="high" src="https://images.pexels.com/photos/16176576/pexels-photo-16176576.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Vehículos en exhibición en La Batalla Auto Import" data-title="Tu Próximo Vehículo Te Espera" data-subtitle="Sedanes, SUVs y Camionetas al mejor precio">
-      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/11205815/pexels-photo-11205815.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Sedán deportivo disponible en el inventario" data-title="Sedanes Elegantes Para Cada Trayecto" data-subtitle="Diseño, tecnología y eficiencia en un solo vehículo">
-      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/19908577/pexels-photo-19908577.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="SUV familiar en venta" data-title="SUVs Espaciosas Para Toda la Familia" data-subtitle="Comodidad y seguridad en cada kilómetro">
-      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/16419610/pexels-photo-16419610.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Camioneta pickup de trabajo y aventura" data-title="Camionetas Listas Para el Trabajo y la Aventura" data-subtitle="Potencia y versatilidad cuando más las necesitas">
-      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/395537/pexels-photo-395537.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Patio de vehículos del dealer" data-title="Amplio Inventario, Siempre Actualizado" data-subtitle="Nuevos vehículos cada semana en Santo Domingo">
-      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/29566862/pexels-photo-29566862.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Sedán de lujo exhibido en showroom elegante" data-title="Compra con Confianza y Financiamiento a tu Medida" data-subtitle="Te acompañamos en cada paso de tu compra">
+      <img class="slide active w-full h-full object-cover" fetchpriority="high" src="https://images.pexels.com/photos/16176576/pexels-photo-16176576.jpeg?auto=compress&cs=tinysrgb&w=1280" onerror="this.style.display='none'" alt="Vehículos en exhibición en La Batalla Auto Import" data-title="Tu Próximo Vehículo Te Espera" data-subtitle="Sedanes, SUVs y Camionetas al mejor precio">
+      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/11205815/pexels-photo-11205815.jpeg?auto=compress&cs=tinysrgb&w=1280" onerror="this.style.display='none'" alt="Sedán deportivo disponible en el inventario" data-title="Sedanes Elegantes Para Cada Trayecto" data-subtitle="Diseño, tecnología y eficiencia en un solo vehículo">
+      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/19908577/pexels-photo-19908577.jpeg?auto=compress&cs=tinysrgb&w=1280" onerror="this.style.display='none'" alt="SUV familiar en venta" data-title="SUVs Espaciosas Para Toda la Familia" data-subtitle="Comodidad y seguridad en cada kilómetro">
+      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/16419610/pexels-photo-16419610.jpeg?auto=compress&cs=tinysrgb&w=1280" onerror="this.style.display='none'" alt="Camioneta pickup de trabajo y aventura" data-title="Camionetas Listas Para el Trabajo y la Aventura" data-subtitle="Potencia y versatilidad cuando más las necesitas">
+      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/395537/pexels-photo-395537.jpeg?auto=compress&cs=tinysrgb&w=1280" onerror="this.style.display='none'" alt="Patio de vehículos del dealer" data-title="Amplio Inventario, Siempre Actualizado" data-subtitle="Nuevos vehículos cada semana en Santo Domingo">
+      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/29566862/pexels-photo-29566862.jpeg?auto=compress&cs=tinysrgb&w=1280" onerror="this.style.display='none'" alt="Sedán de lujo exhibido en showroom elegante" data-title="Compra con Confianza y Financiamiento a tu Medida" data-subtitle="Te acompañamos en cada paso de tu compra">
     </div>
     <div class="absolute inset-0 bg-black/50"></div>
     <div class="relative z-10 text-center px-4 flex flex-col items-center gap-6" id="hero-text-wrap" style="transition:opacity 0.5s ease;">
@@ -593,7 +593,7 @@
 <div id="lightbox" role="dialog" aria-modal="true">
   <button id="lightbox-close" aria-label="Cerrar">✕</button>
   <button id="lightbox-prev" aria-label="Anterior">‹</button>
-  <img id="lightbox-img" src="" alt="Foto ampliada" class="hidden">
+  <img id="lightbox-img" src="" alt="Foto ampliada" class="hidden" onerror="this.src='https://placehold.co/800x600/1e293b/38bdf8?text=Sin+imagen'">
   <video id="lightbox-video" controls class="hidden"></video>
   <button id="lightbox-next" aria-label="Siguiente">›</button>
 </div>
