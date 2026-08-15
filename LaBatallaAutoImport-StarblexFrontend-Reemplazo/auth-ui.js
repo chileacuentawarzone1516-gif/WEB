@@ -275,7 +275,7 @@ function togglePasswordVisibility(inputId, btnEl) {
   const isHidden = input.type === 'password';
   input.type = isHidden ? 'text' : 'password';
   btnEl.innerHTML = `<i data-lucide="${isHidden ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>`;
-  lucide.createIcons();
+  if (window.lucide) window.lucide.createIcons();
 }
 function handleCapsLock(e) {
   const warn = document.getElementById('auth-capslock-warn');
