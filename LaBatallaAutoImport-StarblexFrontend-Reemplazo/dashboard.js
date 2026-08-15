@@ -121,7 +121,7 @@ function dbRenderProfile(user, profile, lastAccessPrev) {
 
   document.getElementById('db-last-access').textContent = lastAccessPrev ? dbFormatRelative(lastAccessPrev) : 'Primera visita';
   document.getElementById('db-since').textContent = dbFormatDate(dbToMillis(profile.createdAt));
-  lucide.createIcons();
+  if (window.lucide) window.lucide.createIcons();
 }
 
 function dbRenderPerfil(user, profile) {
@@ -231,7 +231,7 @@ async function dbRenderFavoritos() {
 
   if (favVehicles.length === 0) {
     wrap.innerHTML = `<div class="db-empty"><i data-lucide="heart"></i><p>Aún no tienes favoritos. Toca el corazón en cualquier vehículo para guardarlo aquí.</p></div>`;
-    lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
     return;
   }
 
@@ -259,7 +259,7 @@ async function dbRenderFavoritos() {
       dbRenderCards();
     });
   });
-  lucide.createIcons();
+  if (window.lucide) window.lucide.createIcons();
 }
 
 // ============================================================
@@ -272,7 +272,7 @@ async function dbRenderCotizaciones() {
 
   if (!result.success || result.items.length === 0) {
     wrap.innerHTML = `<div class="db-empty"><i data-lucide="calculator"></i><p>Aún no has guardado ninguna cotización. Usa la calculadora de financiamiento para generar una.</p></div>`;
-    lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
     return;
   }
 
@@ -295,7 +295,7 @@ async function dbRenderCotizaciones() {
       else showToast('❌ No se pudo eliminar');
     });
   });
-  lucide.createIcons();
+  if (window.lucide) window.lucide.createIcons();
 }
 
 // ============================================================
@@ -315,7 +315,7 @@ function dbRenderPublicaciones() {
 
   if (!Array.isArray(vehicles) || vehicles.length === 0) {
     wrap.innerHTML = `<div class="db-empty"><i data-lucide="car"></i><p>Todavía no hay vehículos publicados.</p><span>Usa el botón "Publicar" del menú principal para crear el primero.</span></div>`;
-    lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
     return;
   }
 
@@ -360,7 +360,7 @@ function dbRenderPublicaciones() {
       requestVehicleDelete(btn.dataset.deleteVeh, 'dashboard'); // #delete-modal existente, sin duplicar
     });
   });
-  lucide.createIcons();
+  if (window.lucide) window.lucide.createIcons();
 }
 
 // Skeleton de carga simple, reutilizado por favoritos y cotizaciones
@@ -448,7 +448,7 @@ function dbRenderCards() {
       <span class="db-card-cta">${escapeHtml(c.cta || 'Ver más')} <i data-lucide="arrow-right" style="width:13px;height:13px;"></i></span>
     </div>`).join('');
   grid.querySelectorAll('.db-card').forEach(el => el.addEventListener('click', () => cards[Number(el.dataset.cardIdx)].onClick()));
-  lucide.createIcons();
+  if (window.lucide) window.lucide.createIcons();
 
   // El conteo real de cotizaciones se pide aparte (async) para no bloquear
   // el resto de la vista; se rellena solo el número cuando llega.
@@ -527,7 +527,7 @@ async function dbRenderHistory() {
       dbRenderHistory();
     });
   });
-  lucide.createIcons();
+  if (window.lucide) window.lucide.createIcons();
 }
 
 function dbSetTab(tab) {
@@ -562,7 +562,7 @@ function dbRenderQuickActions() {
   const grid = document.getElementById('db-quick-grid');
   grid.innerHTML = DB_QUICK_ACTIONS.map((a, i) => `<button type="button" class="db-quick-btn" data-qa-idx="${i}"><i data-lucide="${a.icon}"></i><span>${escapeHtml(a.label)}</span></button>`).join('');
   grid.querySelectorAll('.db-quick-btn').forEach(btn => btn.addEventListener('click', () => DB_QUICK_ACTIONS[Number(btn.dataset.qaIdx)].action()));
-  lucide.createIcons();
+  if (window.lucide) window.lucide.createIcons();
 }
 
 let _dbPrevAccessCache = null;
