@@ -389,7 +389,20 @@ function initCalcModalA11y() {
     if (overlay.classList.contains('hidden')) return;
     if (e.key === 'Escape') { closeCalcModal(); return; }
     if (e.key === 'Tab') {
-      const focusables = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      // Filtrar solo elementos realmente enfocables. Dos correcciones sobre
+      // la selección original:
+      // 1. `a[href]` en vez del genérico `[href]` — el selector genérico
+      //    también capturaba los <use href="#icon"> de los iconos SVG
+      //    (share/whatsapp), que NUNCA reciben foco por Tab en un navegador
+      //    real. Con eso en la lista, "last" podía apuntar a un nodo SVG
+      //    inalcanzable y el wrap-around last→first jamás se disparaba.
+      // 2. offsetParent !== null excluye los elementos dentro de un
+      //    ancestro .hidden/display:none (p. ej. #calc-modal-actions antes
+      //    de seleccionar un vehículo) — pero NO es fiable en nodos SVG,
+      //    por eso el filtro solo se aplica ya sin elementos SVG en la lista.
+      const focusables = Array.from(
+        modal.querySelectorAll('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+      ).filter(el => el instanceof HTMLElement && el.offsetParent !== null && !el.disabled);
       if (!focusables.length) return;
       const first = focusables[0], last = focusables[focusables.length - 1];
       if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
