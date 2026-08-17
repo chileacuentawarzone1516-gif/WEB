@@ -12,8 +12,8 @@
 //   3. Armar el system prompt con las reglas de precisión de Starblex
 //      y una separación explícita entre instrucciones y datos.
 //   4. Llamar al proveedor de IA con fetch() puro (sin SDK). Actualmente
-//      Qwen3.7-Max vía la interfaz Anthropic-compatible de Alibaba Cloud
-//      Model Studio — ver el bloque "MIGRACIÓN DE PROVEEDOR" más abajo.
+//      Gemini 2.5 Flash vía la Gemini Developer API de Google — ver el
+//      bloque "MIGRACIÓN DE PROVEEDOR #2" más abajo.
 //   5. Devolver SOLO { reply } o un error tipado — nunca stack
 //      traces, la API key, ni el system prompt.
 //
@@ -68,7 +68,7 @@ export const config = { path: '/api/starblex' };
 //     "parts:[{text}]" en vez de "content" como string plano.
 //   - El rol del asistente NO se llama "assistant" en Gemini, se
 //     llama "model". Se mapea explícitamente al construir "contents"
-//     más abajo (ver "buildGeminiContents").
+//     más abajo (ver "toGeminiContents").
 //   - "max_tokens" vive dentro de "generationConfig", no en la raíz.
 //   - La respuesta viene en candidates[0].content.parts[].text, no
 //     en content[].text. Si el prompt o la respuesta son bloqueados
@@ -87,7 +87,7 @@ export const config = { path: '/api/starblex' };
 // tier gratuito. El manejo de 429 más abajo ya devuelve un mensaje
 // específico al usuario en vez de un error genérico.
 // ------------------------------------------------------------
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODEL = 'gemini-3.6-flash';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 // Se conserva el nombre MODEL como alias para no tocar más líneas de
 // las que hace falta en el resto del archivo (logs, comentarios).
