@@ -11,7 +11,9 @@
 //      que mande el navegador — ver "FUENTE DE INVENTARIO" abajo.
 //   3. Armar el system prompt con las reglas de precisión de Starblex
 //      y una separación explícita entre instrucciones y datos.
-//   4. Llamar a la API de Anthropic con fetch() puro (sin SDK).
+//   4. Llamar al proveedor de IA con fetch() puro (sin SDK). Actualmente
+//      Qwen3.7-Max vía la interfaz Anthropic-compatible de Alibaba Cloud
+//      Model Studio — ver el bloque "MIGRACIÓN DE PROVEEDOR" más abajo.
 //   5. Devolver SOLO { reply } o un error tipado — nunca stack
 //      traces, la API key, ni el system prompt.
 //
@@ -51,11 +53,32 @@
 
 export const config = { path: '/api/starblex' };
 
-const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
-const ANTHROPIC_VERSION = '2023-06-01';
+// ------------------------------------------------------------
+// MIGRACIÓN DE PROVEEDOR (post-lanzamiento, decisión documentada):
+// Anthropic directo -> Qwen3.7-Max vía la interfaz Anthropic-compatible
+// de Alibaba Cloud Model Studio (docs oficiales: "Anthropic-compatible
+// Messages API", alibabacloud.com/help/en/model-studio/anthropic-api-messages).
+// Se eligió esta interfaz -y no la OpenAI-compatible- precisamente
+// porque replica el formato de la Anthropic Messages API (system
+// separado, messages[{role,content}], respuesta en content[].text),
+// así que NO hizo falta tocar buildSystemPrompt(), el array de
+// mensajes, ni el parsing de la respuesta más abajo — únicamente
+// cambian estos 3 valores y el nombre de la variable de entorno de
+// la API key (ver más abajo, "const apiKey").
+//
+// Se usó el endpoint "Global" de US (Virginia) porque no requiere un
+// {WorkspaceId} en la URL (una variable de entorno menos que
+// mantener) y es la región con menor distancia razonable desde
+// República Dominicana entre las opciones documentadas.
+//
+// Se retiró el header 'anthropic-version': la documentación de este
+// endpoint específico no lo menciona como requerido ni soportado, y
+// no se debe enviar un header inventado sin confirmación oficial.
+// ------------------------------------------------------------
+const ANTHROPIC_API_URL = 'https://dashscope-us.aliyuncs.com/apps/anthropic/v1/messages';
 // Único punto de configuración del modelo — cambiar aquí basta para
 // todo el backend. No implementado todavía: Sonnet ni router híbrido.
-const MODEL = 'claude-haiku-4-5-20251001';
+const MODEL = 'qwen3.7-max';
 const MAX_OUTPUT_TOKENS = 700;
 const UPSTREAM_TIMEOUT_MS = 20_000;
 
@@ -327,9 +350,9 @@ export default async (request, context) => {
     return jsonResponse({ error: 'Content-Type debe ser application/json.' }, 415, origin);
   }
 
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+  const apiKey = Deno.env.get('QWEN_API_KEY');
   if (!apiKey) {
-    console.error('Starblex: falta ANTHROPIC_API_KEY en el entorno de Netlify.');
+    console.error('Starblex: falta QWEN_API_KEY en el entorno de Netlify.');
     return jsonResponse({ error: UNAVAILABLE_MSG }, 503, origin);
   }
 
@@ -403,8 +426,7 @@ export default async (request, context) => {
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': ANTHROPIC_VERSION,
+        'x-api-key': apiKey, // autenticación soportada explícitamente por el endpoint Anthropic-compatible de Model Studio
       },
       body: JSON.stringify({
         model: MODEL,
@@ -418,7 +440,7 @@ export default async (request, context) => {
     if (!upstream.ok) {
       const errText = await upstream.text().catch(() => '');
       console.error('Starblex: error del proveedor de IA', upstream.status, errText);
-      // 429 de Anthropic = límite de tasa o crédito agotado — mensaje
+      // 429 del proveedor = límite de tasa o crédito agotado — mensaje
       // igual de genérico hacia el usuario, nunca detalle interno.
       const status = upstream.status === 429 ? 429 : 502;
       const msg = upstream.status === 429
