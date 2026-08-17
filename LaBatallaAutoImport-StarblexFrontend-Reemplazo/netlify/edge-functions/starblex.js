@@ -54,31 +54,55 @@
 export const config = { path: '/api/starblex' };
 
 // ------------------------------------------------------------
-// MIGRACIÓN DE PROVEEDOR (post-lanzamiento, decisión documentada):
-// Anthropic directo -> Qwen3.7-Max vía la interfaz Anthropic-compatible
-// de Alibaba Cloud Model Studio (docs oficiales: "Anthropic-compatible
-// Messages API", alibabacloud.com/help/en/model-studio/anthropic-api-messages).
-// Se eligió esta interfaz -y no la OpenAI-compatible- precisamente
-// porque replica el formato de la Anthropic Messages API (system
-// separado, messages[{role,content}], respuesta en content[].text),
-// así que NO hizo falta tocar buildSystemPrompt(), el array de
-// mensajes, ni el parsing de la respuesta más abajo — únicamente
-// cambian estos 3 valores y el nombre de la variable de entorno de
-// la API key (ver más abajo, "const apiKey").
+// MIGRACIÓN DE PROVEEDOR #2 (decisión documentada, motivo: costo):
+// Qwen3.7-Max (Anthropic-compatible) -> Gemini 2.5 Flash, API nativa
+// de Google (ai.google.dev/api/generate-content — Gemini Developer
+// API con GEMINI_API_KEY, NO Vertex AI, que usa OAuth/proyecto y es
+// otra cosa).
 //
-// Se usó el endpoint "Global" de US (Virginia) porque no requiere un
-// {WorkspaceId} en la URL (una variable de entorno menos que
-// mantener) y es la región con menor distancia razonable desde
-// República Dominicana entre las opciones documentadas.
+// A diferencia de la migración anterior, la API de Gemini NO replica
+// el formato de la Anthropic Messages API, así que sí hubo que tocar
+// más que 3 constantes:
+//   - No existe un campo "system" -> es "systemInstruction.parts[].text".
+//   - No existe "messages" -> es "contents", y cada turno usa
+//     "parts:[{text}]" en vez de "content" como string plano.
+//   - El rol del asistente NO se llama "assistant" en Gemini, se
+//     llama "model". Se mapea explícitamente al construir "contents"
+//     más abajo (ver "buildGeminiContents").
+//   - "max_tokens" vive dentro de "generationConfig", no en la raíz.
+//   - La respuesta viene en candidates[0].content.parts[].text, no
+//     en content[].text. Si el prompt o la respuesta son bloqueados
+//     por los filtros de seguridad de Gemini, candidates puede venir
+//     vacío o sin "content" — se contempla como respuesta vacía y
+//     cae en el mismo camino de UNAVAILABLE_MSG que ya existía.
 //
-// Se retiró el header 'anthropic-version': la documentación de este
-// endpoint específico no lo menciona como requerido ni soportado, y
-// no se debe enviar un header inventado sin confirmación oficial.
+// buildSystemPrompt(), fetchTrustedInventory(), fetchVehicleById(),
+// sanitizeHistory() y toda la validación de entrada NO se tocaron —
+// siguen produciendo exactamente los mismos datos; solo cambia cómo
+// se empaquetan en el body de la request a partir de aquí.
+//
+// Riesgo de costo conocido y documentado (no oculto): la cuota
+// gratuita de Gemini se redujo considerablemente en diciembre de
+// 2025 y 429 (RESOURCE_EXHAUSTED) es hoy un error frecuente en el
+// tier gratuito. El manejo de 429 más abajo ya devuelve un mensaje
+// específico al usuario en vez de un error genérico.
 // ------------------------------------------------------------
-const ANTHROPIC_API_URL = 'https://dashscope-us.aliyuncs.com/apps/anthropic/v1/messages';
-// Único punto de configuración del modelo — cambiar aquí basta para
-// todo el backend. No implementado todavía: Sonnet ni router híbrido.
-const MODEL = 'qwen3.7-max';
+const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+// Se conserva el nombre MODEL como alias para no tocar más líneas de
+// las que hace falta en el resto del archivo (logs, comentarios).
+const MODEL = GEMINI_MODEL;
+
+// Convierte nuestro historial interno {role:'user'|'assistant', content}
+// al formato de "contents" que espera Gemini: {role:'user'|'model', parts:[{text}]}.
+// Gemini no acepta "assistant" como nombre de rol — lo rechazaría.
+function toGeminiContents(history, message) {
+  const turns = [...history, { role: 'user', content: message }];
+  return turns.map((t) => ({
+    role: t.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: t.content }],
+  }));
+}
 const MAX_OUTPUT_TOKENS = 700;
 const UPSTREAM_TIMEOUT_MS = 20_000;
 
@@ -350,9 +374,9 @@ export default async (request, context) => {
     return jsonResponse({ error: 'Content-Type debe ser application/json.' }, 415, origin);
   }
 
-  const apiKey = Deno.env.get('QWEN_API_KEY');
+  const apiKey = Deno.env.get('GEMINI_API_KEY');
   if (!apiKey) {
-    console.error('Starblex: falta QWEN_API_KEY en el entorno de Netlify.');
+    console.error('Starblex: falta GEMINI_API_KEY en el entorno de Netlify.');
     return jsonResponse({ error: UNAVAILABLE_MSG }, 503, origin);
   }
 
@@ -415,24 +439,24 @@ export default async (request, context) => {
   ]);
 
   const systemPrompt = buildSystemPrompt(inventory, vehicleContext);
-  const messages = [...history, { role: 'user', content: message }];
+  // Gemini: "contents" (no "messages"), roles 'user'/'model' (no 'assistant').
+  const contents = toGeminiContents(history, message);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
 
   try {
-    const upstream = await fetch(ANTHROPIC_API_URL, {
+    const upstream = await fetch(GEMINI_API_URL, {
       method: 'POST',
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey, // autenticación soportada explícitamente por el endpoint Anthropic-compatible de Model Studio
+        'x-goog-api-key': apiKey, // header oficial de autenticación de la Gemini Developer API
       },
       body: JSON.stringify({
-        model: MODEL,
-        max_tokens: MAX_OUTPUT_TOKENS,
-        system: systemPrompt,
-        messages,
+        contents,
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS },
       }),
     });
     clearTimeout(timeout);
@@ -450,13 +474,21 @@ export default async (request, context) => {
     }
 
     const data = await upstream.json();
-    const reply = (Array.isArray(data.content) ? data.content : [])
-      .filter((block) => block && block.type === 'text')
-      .map((block) => block.text)
+    // candidates puede venir vacío (prompt bloqueado por los filtros de
+    // seguridad de Gemini -> data.promptFeedback.blockReason) o con un
+    // candidato sin "content" (respuesta bloqueada tras generarse ->
+    // candidates[0].finishReason). Ambos casos se tratan igual que
+    // cualquier respuesta vacía: no se distingue el motivo hacia el
+    // usuario, pero sí queda registrado en el log del servidor.
+    const parts = data?.candidates?.[0]?.content?.parts;
+    const reply = (Array.isArray(parts) ? parts : [])
+      .map((p) => (p && typeof p.text === 'string' ? p.text : ''))
       .join('\n')
       .trim();
 
     if (!reply) {
+      const blockReason = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason || 'desconocido';
+      console.error('Starblex: respuesta vacía o bloqueada por el proveedor', blockReason);
       return jsonResponse({ error: UNAVAILABLE_MSG }, 502, origin);
     }
     return jsonResponse({ reply }, 200, origin);
