@@ -689,23 +689,51 @@ async function sbSendMessage(text) {
     .slice(0, -1) // sin el mensaje que se acaba de agregar
     .slice(-STARBLEX_MAX_HISTORY_TURNS);
 
-  try {
-    const res = await fetch(STARBLEX_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, history: historyToSend, vehicleId }),
-    });
+  // DIAGNÓSTICO (Starblex intermitente, causa raíz confirmada): antes,
+  // CUALQUIER fallo -- falta de API key, error del proveedor, timeout,
+  // respuesta vacía, fallo de red, incluso una respuesta que no era
+  // JSON válido -- terminaba mostrando el mismo texto genérico, sin
+  // dejar rastro de cuál fue la causa real. Ahora se intenta UNA vez
+  // más, solo para los 2 casos que sí son genuinamente transitorios
+  // (timeout del proveedor, fallo de red/fetch) -- nunca para 429
+  // (reintentar de inmediato empeora el rate limit), nunca para falta
+  // de API key ni error del proveedor (reintentar no arregla una
+  // configuración faltante ni un bug real). Máximo 1 reintento, sin
+  // backoff exponencial (ya hay 20s de por medio en el propio timeout
+  // del backend) y sin duplicar el mensaje del usuario en el historial.
+  const RETRYABLE_REASONS = new Set(['timeout', 'network_error']);
+  async function attemptSend() {
+    try {
+      const res = await fetch(STARBLEX_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, history: historyToSend, vehicleId }),
+      });
+      const data = await res.json().catch(() => ({ reason: 'json_parse_error' }));
+      return { ok: res.ok && !!data.reply, data };
+    } catch (e) {
+      console.error('Starblex: fetch rechazado', e.name, e.message);
+      return { ok: false, data: { reason: 'network_error' } };
+    }
+  }
 
-    const data = await res.json().catch(() => ({}));
+  try {
+    let { ok, data } = await attemptSend();
+    if (!ok && RETRYABLE_REASONS.has(data.reason)) {
+      console.warn(`Starblex: reintentando una vez (causa: ${data.reason})`);
+      ({ ok, data } = await attemptSend());
+    }
     sbSetTyping(false);
 
-    if (!res.ok || !data.reply) {
+    if (!ok) {
+      console.error('Starblex: fallo final tras el manejo de errores. Causa:', data.reason || 'desconocida (revisar respuesta HTTP)');
       sbAppendMessage('error', data.error || 'Starblex IA no está disponible en este momento. Inténtalo nuevamente.');
       return;
     }
     sbAppendMessage('bot', data.reply, { vehicleCard: sbVehicleCardFor(conv) });
   } catch (e) {
     sbSetTyping(false);
+    console.error('Starblex: excepción inesperada en sbSendMessage', e);
     sbAppendMessage('error', 'Starblex IA no está disponible en este momento. Inténtalo nuevamente.');
   } finally {
     sbSetBusy(false);
