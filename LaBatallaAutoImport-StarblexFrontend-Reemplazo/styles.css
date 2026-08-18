@@ -277,3 +277,33 @@ html { scroll-behavior: smooth; }
   .starblex-vehicle-card-wrap { margin-left: 0; }
   .starblex-vehicle-card { max-width: 100%; }
 }
+
+/* ============================================================
+   LOGO DE MARCA — esquina superior izquierda del hero.
+   Tamaños calibrados para no superponerse con #hero-prev/#hero-next
+   (flechas del carrusel, ancladas verticalmente al centro) ni con
+   #hero-text-wrap (centrado). z-index 15: encima del overlay oscuro
+   (bg-black/50, sin z-index propio = 0) pero debajo del texto/flechas
+   del hero si compartieran espacio (z-10 les gana solo si se
+   solaparan; en la práctica no se solapan por posición).
+============================================================ */
+#hero-brand-logo {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  z-index: 15;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.45);
+  object-fit: cover;
+}
+@media (min-width: 480px) {
+  #hero-brand-logo { top: 20px; left: 20px; width: 76px; height: 76px; border-radius: 16px; }
+}
+@media (min-width: 768px) {
+  #hero-brand-logo { top: 24px; left: 24px; width: 92px; height: 92px; border-radius: 18px; }
+}
+@media (min-width: 1280px) {
+  #hero-brand-logo { top: 28px; left: 32px; width: 104px; height: 104px; border-radius: 20px; }
+}

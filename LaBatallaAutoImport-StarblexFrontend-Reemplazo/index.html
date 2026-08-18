@@ -62,8 +62,9 @@
   <meta name="twitter:image" content="https://labatallaautoimport.netlify.app/preview.jpg">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="/favicon.png">
-  <link rel="apple-touch-icon" href="/favicon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <!-- Web App Manifest — permite agregar el sitio a pantalla de inicio en móvil -->
   <link rel="manifest" href="/site.webmanifest">
   <meta name="theme-color" content="#38bdf8">
@@ -173,6 +174,15 @@
       <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/29566862/pexels-photo-29566862.jpeg?auto=compress&cs=tinysrgb&w=1280" onerror="this.style.display='none'" alt="Sedán de lujo exhibido en showroom elegante" data-title="Compra con Confianza y Financiamiento a tu Medida" data-subtitle="Te acompañamos en cada paso de tu compra">
     </div>
     <div class="absolute inset-0 bg-black/50"></div>
+    <!-- Logo de marca — esquina superior izquierda del hero. Imagen
+         estática (no forma parte del carrusel de slides), con su propio
+         fondo sólido de marca para garantizar legibilidad sobre
+         cualquiera de las 6 fotos rotativas del fondo. width/height
+         reales para evitar CLS; carga eager (no lazy) por estar
+         siempre visible en la carga inicial. -->
+    <img id="hero-brand-logo" src="/logo-hero.png" width="360" height="360"
+      alt="La Batalla Auto Import" fetchpriority="low"
+      onerror="this.style.display='none'">
     <div class="relative z-10 text-center px-4 flex flex-col items-center gap-6" id="hero-text-wrap" style="transition:opacity 0.5s ease;">
       <h1 id="hero-title" class="font-black mb-4" style="color:#fff; font-size:44px; line-height:1.1; text-shadow:0 2px 20px rgba(0,0,0,0.4); letter-spacing:-0.5px;">Tu Próximo Vehículo Te Espera</h1>
       <p id="hero-subtitle" style="color:rgb(226,232,240); font-size:20px; font-weight:500;">Sedanes, SUVs y Camionetas al mejor precio</p>
