@@ -289,21 +289,21 @@ html { scroll-behavior: smooth; }
 ============================================================ */
 #hero-brand-logo {
   position: absolute;
-  top: 8px;
-  left: 12px;
+  top: 6%;
+  left: 3%;
   z-index: 15;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 10px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.45);
   object-fit: cover;
 }
 @media (min-width: 480px) {
-  #hero-brand-logo { top: 20px; left: 20px; width: 76px; height: 76px; border-radius: 16px; }
+  #hero-brand-logo { width: 76px; height: 76px; border-radius: 16px; }
 }
 @media (min-width: 768px) {
-  #hero-brand-logo { top: 24px; left: 24px; width: 92px; height: 92px; border-radius: 18px; }
+  #hero-brand-logo { width: 92px; height: 92px; border-radius: 18px; }
 }
 @media (min-width: 1280px) {
-  #hero-brand-logo { top: 28px; left: 32px; width: 104px; height: 104px; border-radius: 20px; }
+  #hero-brand-logo { width: 104px; height: 104px; border-radius: 20px; }
 }
