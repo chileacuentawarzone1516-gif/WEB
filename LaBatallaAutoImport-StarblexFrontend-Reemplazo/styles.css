@@ -244,3 +244,36 @@ html { scroll-behavior: smooth; }
 .auth-google-btn:hover { background-color: #f8f9fa; box-shadow: 0 1px 2px 0 rgba(60,64,67,0.30), 0 1px 3px 1px rgba(60,64,67,0.15); }
 .auth-google-btn:active { background-color: #f1f3f4; transform: scale(0.98); }
 .auth-google-btn:focus-visible { outline: 2px solid #4285f4; outline-offset: 2px; }
+
+/* ============================================================
+   STARBLEX — Sub-fase 3: tarjeta visual de vehículo dentro del chat
+   Alineada bajo la burbuja (no bajo el avatar): 22px avatar + 8px gap
+   = 30px de margen izquierdo, calculado contra .starblex-msg-avatar
+   real (styles.css línea 139), no un valor inventado.
+============================================================ */
+.starblex-vehicle-card-wrap { margin-left: 30px; }
+.starblex-vehicle-card { background: rgb(21,29,40); border: 1px solid #243040; border-radius: 14px; overflow: hidden; max-width: 240px; }
+.starblex-vehicle-card-img-wrap { width: 100%; height: 130px; overflow: hidden; background: #0e141b; }
+.starblex-vehicle-card-img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.starblex-vehicle-card-thumbs { display: flex; gap: 6px; padding: 6px 8px 0; overflow-x: auto; }
+.starblex-vehicle-card-thumb { flex-shrink: 0; width: 36px; height: 36px; border-radius: 8px; overflow: hidden; border: 2px solid transparent; padding: 0; background: none; cursor: pointer; }
+.starblex-vehicle-card-thumb.active { border-color: #38bdf8; }
+.starblex-vehicle-card-thumb:focus-visible { outline: 2px solid #38bdf8; outline-offset: 1px; }
+.starblex-vehicle-card-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.starblex-vehicle-card-info { padding: 10px 12px 4px; }
+.starblex-vehicle-card-name { color: #fff; font-weight: 800; font-size: 13px; line-height: 1.3; word-break: break-word; }
+.starblex-vehicle-card-price { color: #38bdf8; font-weight: 900; font-size: 14.5px; margin-top: 2px; }
+.starblex-vehicle-card-meta { color: #94a3b8; font-size: 10.5px; margin-top: 3px; }
+.starblex-vehicle-card-actions { display: flex; gap: 8px; padding: 10px 12px 12px; }
+.starblex-vehicle-card-btn { flex: 1; min-width: 0; text-align: center; padding: 8px 6px; border-radius: 10px; font-size: 11.5px; font-weight: 700; border: 1px solid rgba(255,255,255,0.12); color: #e2e8f0; background: rgba(255,255,255,0.03); cursor: pointer; text-decoration: none; display: block; transition: all 0.15s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.starblex-vehicle-card-btn:hover { border-color: rgba(56,189,248,0.4); color: #38bdf8; }
+.starblex-vehicle-card-btn:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.starblex-vehicle-card-btn--primary { background: #38bdf8; color: #042c53; border-color: transparent; }
+.starblex-vehicle-card-btn--primary:hover { background: #0ea5e9; color: #042c53; }
+/* En pantallas muy angostas, el panel de Starblex ya ocupa ~100% del
+   ancho — la tarjeta no necesita el margen-izquierdo del avatar ahí,
+   se ve mejor a ancho completo. */
+@media (max-width: 400px) {
+  .starblex-vehicle-card-wrap { margin-left: 0; }
+  .starblex-vehicle-card { max-width: 100%; }
+}
