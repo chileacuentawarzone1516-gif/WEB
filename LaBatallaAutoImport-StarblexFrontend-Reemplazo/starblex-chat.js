@@ -38,8 +38,18 @@ const STARBLEX_MAX_MESSAGE_CHARS = 800;
 const STARBLEX_MAX_HISTORY_TURNS = 6; // mismo límite que el backend
 const STARBLEX_LOGO = '/logo-labatalla.png';
 
-const STARBLEX_WELCOME =
-  'Hola, soy Starblex IA 1.0, el asistente de inteligencia artificial de La Batalla Auto Import. Puedo ayudarte a conocer vehículos, resolver dudas, entender posibles problemas, comparar opciones y evaluar una compra.';
+// Varios mensajes de bienvenida genéricos — se elige UNO por sesión de
+// navegador (no uno distinto cada vez que se abre el panel, ni uno por
+// mensaje: eso sería spam). El primero es el original, sin tocar; los
+// demás son variantes cortas al estilo de asistentes modernos.
+const STARBLEX_WELCOME_MESSAGES = [
+  'Hola, soy Starblex IA 1.0, el asistente de inteligencia artificial de La Batalla Auto Import. Puedo ayudarte a conocer vehículos, resolver dudas, entender posibles problemas, comparar opciones y evaluar una compra.',
+  '👋 ¡Hola! Soy Starblex IA. ¿Qué vehículo estás buscando hoy?',
+  '🚗 ¿Buscas un vehículo para uso diario o algo más específico? Puedo ayudarte a elegir.',
+  '💰 ¿Quieres saber cuánto pagarías al mes financiando un vehículo? Pregúntame.',
+  '🔎 ¿Necesitas ayuda para comparar dos vehículos del inventario?',
+  '🛠️ ¿Tienes una duda sobre mantenimiento o algún diagnóstico? Puedo orientarte.',
+];
 
 // ------------------------------------------------------------
 // Estado — varias conversaciones en memoria, ninguna persistida.
@@ -74,12 +84,61 @@ function sbVehicleIdForRequest(conv) {
   return v.id;
 }
 
+// Un mensaje de bienvenida fijo por sesión de navegador — se guarda en
+// sessionStorage para que no cambie entre aperturas del panel dentro de
+// la misma pestaña, pero sí pueda variar en una sesión nueva. Si
+// sessionStorage no está disponible (modo privado estricto, etc.) no
+// rompe nada: simplemente no persiste, elige uno al azar cada vez.
+function sbGetWelcomeMessage() {
+  const KEY = 'starblex_welcome_idx';
+  try {
+    const stored = sessionStorage.getItem(KEY);
+    const parsed = stored !== null ? parseInt(stored, 10) : NaN;
+    if (!Number.isNaN(parsed) && parsed >= 0 && parsed < STARBLEX_WELCOME_MESSAGES.length) {
+      return STARBLEX_WELCOME_MESSAGES[parsed];
+    }
+    const idx = Math.floor(Math.random() * STARBLEX_WELCOME_MESSAGES.length);
+    sessionStorage.setItem(KEY, String(idx));
+    return STARBLEX_WELCOME_MESSAGES[idx];
+  } catch (e) {
+    return STARBLEX_WELCOME_MESSAGES[Math.floor(Math.random() * STARBLEX_WELCOME_MESSAGES.length)];
+  }
+}
+
+// Si hay un vehículo real en pantalla y no fue "quitado" de esta
+// conversación (mismo criterio que ya usa sbUpdateContextBar), saluda
+// mencionándolo por nombre en vez del mensaje genérico rotativo. El
+// nombre viene del mismo objeto currentDetailVehicle que ya se muestra
+// en la barra de contexto — ningún dato nuevo, ninguna fuente distinta.
+function sbWelcomeMessageFor(conv) {
+  const v = sbCurrentVehicle();
+  if (v && conv && conv.dismissedVehicleId !== v.id) {
+    return `👋 Veo que estás viendo el ${v.name || 'vehículo'}. ¿Qué quieres saber?`;
+  }
+  return sbGetWelcomeMessage();
+}
+
 function sbSuggestions() {
   const v = sbCurrentVehicle();
-  const base = ['¿Qué vehículos tienen disponibles?', '¿Cuál SUV me recomiendas?'];
-  if (v) base.splice(1, 0, 'Explícame este vehículo');
-  else base.push('¿Qué diferencia hay entre un sedán y una SUV?');
-  return base;
+  if (v) {
+    const name = v.name || 'este vehículo';
+    // Etiquetas cortas y escaneables en el botón; el mensaje real que se
+    // envía al chat es una pregunta completa y natural — nunca se manda
+    // el label tal cual, para que la respuesta del modelo sea igual de
+    // buena que si la persona la hubiera escrito ella misma.
+    return [
+      { label: 'Motor y rendimiento', query: `¿Cómo es el motor y el rendimiento del ${name}?` },
+      { label: 'Precio y financiamiento', query: `¿Cuánto cuesta el ${name} y cómo puedo financiarlo?` },
+      { label: 'Consumo', query: `¿Cuánto consume el ${name}?` },
+      { label: 'Problemas comunes', query: `¿Qué problemas comunes tiene el ${name}?` },
+      { label: 'Compararla con otra', query: `Compara el ${name} con otras opciones similares del inventario` },
+    ];
+  }
+  return [
+    { label: '¿Qué vehículos tienen disponibles?', query: '¿Qué vehículos tienen disponibles?' },
+    { label: '¿Cuál SUV me recomiendas?', query: '¿Cuál SUV me recomiendas?' },
+    { label: '¿Sedán o SUV, cuál me conviene?', query: '¿Qué diferencia hay entre un sedán y una SUV?' },
+  ];
 }
 
 // ------------------------------------------------------------
@@ -97,7 +156,15 @@ function sbBuildPanel() {
   panel.tabIndex = -1;
   panel.innerHTML = `
     <div class="starblex-scrim" aria-hidden="true"></div>
-    <div class="starblex-window" style="height:min(88vh,640px);">
+    <div class="starblex-window" style="height:min(88vh,640px);height:min(88dvh,640px);">
+      <!-- height se declara dos veces a propósito: vh como fallback universal,
+           dvh después como mejora progresiva. Navegadores sin soporte para dvh
+           ignoran esa segunda línea y se quedan con el vh de arriba — no hay
+           forma de que esto rompa nada donde ya funcionaba. Donde sí hay
+           soporte (iOS Safari 15.4+, Chrome/Android modernos), dvh sigue el
+           viewport visual real y se recalcula cuando aparece el teclado, a
+           diferencia de vh, que queda fijo al alto "completo" y puede dejar
+           el input del chat tapado por el teclado. -->
       <header class="starblex-header">
         <div class="starblex-brand">
           <img src="${STARBLEX_LOGO}" alt="" class="starblex-avatar" onerror="this.style.display='none'">
@@ -293,7 +360,7 @@ function sbRenderMessages() {
   const conv = sbActiveConversation();
   if (!conv) return;
   if (conv.messages.length === 0) {
-    sbAppendMessage('bot', STARBLEX_WELCOME, { persist: false });
+    sbAppendMessage('bot', sbWelcomeMessageFor(conv), { persist: false, vehicleCard: sbVehicleCardFor(conv) });
   } else {
     conv.messages.forEach((m) => sbAppendMessage(m.role, m.content, { persist: false }));
   }
@@ -310,10 +377,173 @@ function sbRenderSuggestions() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'starblex-suggestion';
-    btn.textContent = s; // textContent — nunca HTML
-    btn.addEventListener('click', () => sbSendMessage(s));
+    btn.textContent = s.label; // textContent — nunca HTML
+    btn.addEventListener('click', () => sbSendMessage(s.query));
     wrap.appendChild(btn);
   });
+}
+
+// ------------------------------------------------------------
+// SUB-FASE 3 — Tarjeta visual del vehículo (100% frontend)
+// ------------------------------------------------------------
+// Ni escapeHtml() ni cldOptimize() (definidas en app.js, reutilizadas
+// aquí) validan el ESQUEMA de una URL — escapeHtml solo escapa
+// caracteres HTML, cldOptimize solo reconoce URLs de Cloudinary y
+// devuelve cualquier otra cosa intacta. Si img/media trajera algo como
+// "javascript:alert(1)", ninguna de las dos lo filtraría. Este chequeo
+// es nuevo y específico para esta tarjeta: solo se aceptan esquemas
+// http/https/data; cualquier otra cosa cae al fallback.
+function sbSafeImageUrl(url) {
+  if (typeof url !== 'string' || !url.trim()) return null;
+  try {
+    const resolved = new URL(url, window.location.origin);
+    return (resolved.protocol === 'http:' || resolved.protocol === 'https:' || resolved.protocol === 'data:')
+      ? url : null;
+  } catch (e) {
+    return null; // URL malformada — mismo trato que una URL peligrosa: se descarta
+  }
+}
+const STARBLEX_CARD_FALLBACK_IMG = 'https://placehold.co/400x240/1e293b/38bdf8?text=Sin+imagen';
+const STARBLEX_CARD_MAX_THUMBS = 4; // "cantidad razonable", no carrusel enorme
+
+// Mismo criterio que app.js: v.media[] son {type,src} o strings; sin
+// media válido cae a v.img; sin nada válido, fallback. Sin duplicados.
+function sbBuildVehicleMediaList(v) {
+  const list = [];
+  if (Array.isArray(v.media)) {
+    v.media.forEach((m) => {
+      const src = typeof m === 'string' ? m : (m && m.src);
+      const safe = sbSafeImageUrl(src);
+      if (safe) list.push(safe);
+    });
+  }
+  if (list.length === 0) {
+    const safeImg = sbSafeImageUrl(v.img);
+    if (safeImg) list.push(safeImg);
+  }
+  const unique = [...new Set(list)];
+  return unique.length ? unique : [STARBLEX_CARD_FALLBACK_IMG];
+}
+
+// Única fuente de verdad de "hay vehículo válido en contexto para esta
+// conversación" — mismo criterio exacto que ya usan sbWelcomeMessageFor
+// y sbUpdateContextBar (vehículo real + no retirado). Se centraliza
+// aquí para no duplicar la condición una tercera vez.
+function sbVehicleCardFor(conv) {
+  const v = sbCurrentVehicle();
+  if (v && conv && v.id && conv.dismissedVehicleId !== v.id) return v;
+  return null;
+}
+
+function sbBuildVehicleCard(v) {
+  const media = sbBuildVehicleMediaList(v);
+  const name = (typeof v.name === 'string' && v.name.trim()) ? v.name : 'Vehículo';
+  const priceText = (typeof v.price === 'number' && Number.isFinite(v.price) && typeof fmtPrice === 'function')
+    ? fmtPrice(v.price, v) : 'Precio a consultar';
+
+  const card = document.createElement('div');
+  card.className = 'starblex-vehicle-card';
+
+  // Imagen principal
+  const imgWrap = document.createElement('div');
+  imgWrap.className = 'starblex-vehicle-card-img-wrap';
+  const img = document.createElement('img');
+  img.src = typeof cldOptimize === 'function' ? cldOptimize(media[0], 500) : media[0];
+  img.alt = name; // propiedad .alt — nunca innerHTML
+  img.loading = 'lazy';
+  img.onerror = function () { this.onerror = null; this.src = STARBLEX_CARD_FALLBACK_IMG; };
+  imgWrap.appendChild(img);
+  card.appendChild(imgWrap);
+
+  // Miniaturas — solo si hay más de 1 imagen válida
+  if (media.length > 1) {
+    const thumbs = document.createElement('div');
+    thumbs.className = 'starblex-vehicle-card-thumbs';
+    thumbs.setAttribute('role', 'tablist');
+    thumbs.setAttribute('aria-label', `Fotos de ${name}`);
+    media.slice(0, STARBLEX_CARD_MAX_THUMBS).forEach((src, i) => {
+      const thumbBtn = document.createElement('button');
+      thumbBtn.type = 'button';
+      thumbBtn.className = 'starblex-vehicle-card-thumb' + (i === 0 ? ' active' : '');
+      thumbBtn.setAttribute('role', 'tab');
+      thumbBtn.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+      thumbBtn.setAttribute('aria-label', `Foto ${i + 1} de ${name}`);
+      const thumbImg = document.createElement('img');
+      thumbImg.src = typeof cldOptimize === 'function' ? cldOptimize(src, 100) : src;
+      thumbImg.alt = '';
+      thumbImg.loading = 'lazy';
+      thumbImg.onerror = function () { this.onerror = null; this.src = STARBLEX_CARD_FALLBACK_IMG; };
+      thumbBtn.appendChild(thumbImg);
+      thumbBtn.addEventListener('click', () => {
+        img.src = typeof cldOptimize === 'function' ? cldOptimize(src, 500) : src;
+        thumbs.querySelectorAll('.starblex-vehicle-card-thumb').forEach((t) => {
+          t.classList.remove('active'); t.setAttribute('aria-selected', 'false');
+        });
+        thumbBtn.classList.add('active');
+        thumbBtn.setAttribute('aria-selected', 'true');
+      });
+      thumbs.appendChild(thumbBtn);
+    });
+    card.appendChild(thumbs);
+  }
+
+  // Info — solo campos reales, nada inventado
+  const info = document.createElement('div');
+  info.className = 'starblex-vehicle-card-info';
+  const nameEl = document.createElement('p');
+  nameEl.className = 'starblex-vehicle-card-name';
+  nameEl.textContent = name;
+  const priceEl = document.createElement('p');
+  priceEl.className = 'starblex-vehicle-card-price';
+  priceEl.textContent = priceText;
+  info.appendChild(nameEl);
+  info.appendChild(priceEl);
+
+  const metaBits = [];
+  if (v.year) metaBits.push(String(v.year));
+  if (v.transmission) metaBits.push(v.transmission);
+  if (v.mileage) metaBits.push(`${v.mileage} km`);
+  if (v.condition) metaBits.push(v.condition === 'nuevo' ? 'Nuevo' : v.condition === 'importado' ? 'Recién importado' : 'Usado');
+  if (metaBits.length) {
+    const metaEl = document.createElement('p');
+    metaEl.className = 'starblex-vehicle-card-meta';
+    metaEl.textContent = metaBits.join(' · ');
+    info.appendChild(metaEl);
+  }
+  card.appendChild(info);
+
+  // Botones — funcionales, reutilizan las funciones reales del sitio
+  const actions = document.createElement('div');
+  actions.className = 'starblex-vehicle-card-actions';
+
+  const viewBtn = document.createElement('a');
+  viewBtn.className = 'starblex-vehicle-card-btn';
+  viewBtn.href = typeof getVehiclePath === 'function' ? getVehiclePath(v) : '#';
+  viewBtn.textContent = 'Ver vehículo';
+  viewBtn.addEventListener('click', (e) => {
+    if (typeof openDetail === 'function' && v.id) {
+      e.preventDefault();
+      closeStarblexPanel();
+      window.scrollTo(0, 0);
+      openDetail(v.id);
+    }
+    // si openDetail no está disponible por algún motivo, el href real
+    // de arriba sigue funcionando como navegación normal de respaldo
+  });
+  actions.appendChild(viewBtn);
+
+  const financeBtn = document.createElement('button');
+  financeBtn.type = 'button';
+  financeBtn.className = 'starblex-vehicle-card-btn starblex-vehicle-card-btn--primary';
+  financeBtn.textContent = 'Financiar';
+  financeBtn.setAttribute('aria-label', `Financiar ${name}`);
+  financeBtn.addEventListener('click', () => {
+    if (typeof openCalcModal === 'function') openCalcModal(v);
+  });
+  actions.appendChild(financeBtn);
+
+  card.appendChild(actions);
+  return card;
 }
 
 function sbAppendMessage(role, text, opts) {
@@ -363,6 +593,20 @@ function sbAppendMessage(role, text, opts) {
   }
 
   list.appendChild(li);
+
+  // Tarjeta visual del vehículo — <li> hermano, no hijo del mensaje
+  // (.starblex-msg es flex-row: meterla adentro la pondría al lado de
+  // la burbuja, no debajo). Solo en respuestas del bot, y solo cuando
+  // el llamador decide explícitamente que corresponde (ver
+  // sbVehicleCardFor) — nunca se decide aquí adentro para mantener una
+  // sola fuente de verdad del criterio "vehículo en contexto".
+  if (role === 'bot' && opts && opts.vehicleCard) {
+    const cardLi = document.createElement('li');
+    cardLi.className = 'starblex-vehicle-card-wrap';
+    cardLi.appendChild(sbBuildVehicleCard(opts.vehicleCard));
+    list.appendChild(cardLi);
+  }
+
   if (persist) {
     const conv = sbActiveConversation();
     if (conv && role !== 'error') conv.messages.push({ role: role === 'user' ? 'user' : 'assistant', content: text });
@@ -459,7 +703,7 @@ async function sbSendMessage(text) {
       sbAppendMessage('error', data.error || 'Starblex IA no está disponible en este momento. Inténtalo nuevamente.');
       return;
     }
-    sbAppendMessage('bot', data.reply);
+    sbAppendMessage('bot', data.reply, { vehicleCard: sbVehicleCardFor(conv) });
   } catch (e) {
     sbSetTyping(false);
     sbAppendMessage('error', 'Starblex IA no está disponible en este momento. Inténtalo nuevamente.');
