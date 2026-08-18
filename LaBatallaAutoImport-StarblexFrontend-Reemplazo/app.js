@@ -2195,6 +2195,22 @@ function setPageMeta({ title, description, canonical }) {
   if (descTag && description) descTag.setAttribute('content', description);
   const canonicalTag = document.querySelector('link[rel="canonical"]');
   if (canonicalTag && canonical) canonicalTag.setAttribute('href', canonical);
+  // FASE Empresa (SEO, gap real encontrado en auditoría): antes solo se
+  // actualizaban title/description/canonical -- compartir /empresa/* en
+  // WhatsApp, Facebook o Twitter mostraba la tarjeta genérica de la home
+  // ("La Batalla Auto Import" para las 4 páginas por igual). og:image y
+  // twitter:image NO se tocan a propósito: no existe un asset dedicado
+  // por sección, y reutilizar la imagen de marca general es correcto.
+  const ogTitle = document.querySelector('meta[property="og:title"]');
+  if (ogTitle && title) ogTitle.setAttribute('content', title);
+  const ogDesc = document.querySelector('meta[property="og:description"]');
+  if (ogDesc && description) ogDesc.setAttribute('content', description);
+  const ogUrl = document.querySelector('meta[property="og:url"]');
+  if (ogUrl && canonical) ogUrl.setAttribute('content', canonical);
+  const twTitle = document.querySelector('meta[name="twitter:title"]');
+  if (twTitle && title) twTitle.setAttribute('content', title);
+  const twDesc = document.querySelector('meta[name="twitter:description"]');
+  if (twDesc && description) twDesc.setAttribute('content', description);
 }
 
 // FAQPage structured data — se inyecta SOLO mientras el usuario está en
@@ -2281,7 +2297,7 @@ function hideEmpresaPage(push = true) {
 
 function initEmpresaRouting() {
   // Interceptar los enlaces del dropdown que apuntan a /empresa/*
-  document.querySelectorAll('#nav-empresa-menu [data-nav-target]').forEach(a => {
+  document.querySelectorAll('[data-nav-target]').forEach(a => {
     a.addEventListener('click', e => {
       e.preventDefault();
       showEmpresaPage(a.dataset.navTarget);
