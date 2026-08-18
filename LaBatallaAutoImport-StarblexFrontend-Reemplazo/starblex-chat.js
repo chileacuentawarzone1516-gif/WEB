@@ -61,7 +61,7 @@ let _sbBusy = false;
 
 function sbNewConversation() {
   const id = 'c' + Date.now() + Math.random().toString(36).slice(2, 7);
-  const conv = { id, title: 'Nueva conversación', renamed: false, messages: [], dismissedVehicleId: null };
+  const conv = { id, title: 'Nueva conversación', renamed: false, messages: [], dismissedVehicleId: null, contextVehicleId: null };
   _sbConversations.unshift(conv);
   _sbActiveId = id;
   return conv;
@@ -360,9 +360,12 @@ function sbRenderMessages() {
   const conv = sbActiveConversation();
   if (!conv) return;
   if (conv.messages.length === 0) {
-    sbAppendMessage('bot', sbWelcomeMessageFor(conv), { persist: false, vehicleCard: sbVehicleCardFor(conv) });
+    const cardV = sbVehicleCardFor(conv);
+    conv.contextVehicleId = cardV ? cardV.id : null;
+    sbAppendMessage('bot', sbWelcomeMessageFor(conv), { persist: false, vehicleCard: cardV });
   } else {
     conv.messages.forEach((m) => sbAppendMessage(m.role, m.content, { persist: false }));
+    sbMaybeAnnounceContextChange(conv);
   }
   sbRenderSuggestions();
   sbScrollToBottom();
@@ -433,6 +436,34 @@ function sbVehicleCardFor(conv) {
   const v = sbCurrentVehicle();
   if (v && conv && v.id && conv.dismissedVehicleId !== v.id) return v;
   return null;
+}
+
+// PUNTO 5 (mensajes proactivos, causa raíz confirmada): si una
+// conversación YA tiene mensajes, sbRenderMessages() nunca volvía a
+// mostrar contexto -- sin importar si el vehículo cambió desde el
+// último mensaje. Reproducido: vehículo A con conversación -> volver
+// (SPA) -> vehículo B -> reabrir Starblex mostraba el historial viejo
+// de A, sin ningún aviso de que ahora se está viendo B (aunque la
+// barra de contexto sí se actualizaba correctamente).
+//
+// Estado explícito (conv.contextVehicleId), no un flag adicional: es
+// el id del vehículo del que trató el último anuncio de contexto
+// mostrado en ESTA conversación. Se compara contra sbVehicleCardFor()
+// (misma función ya existente, sin duplicar su lógica de
+// dismissedVehicleId). Si cambió de verdad, se agrega UN mensaje
+// nuevo -- persistido en el historial, no reemplaza nada. Si no
+// cambió, no hace nada (sin spam). Si el usuario volvió a Home
+// (currentId null), tampoco anuncia nada -- un mensaje tipo "ya no
+// estás viendo nada" no aporta valor y sería ruido.
+function sbMaybeAnnounceContextChange(conv) {
+  if (!conv || conv.messages.length === 0) return; // caso ya cubierto por la bienvenida inicial
+  const v = sbVehicleCardFor(conv);
+  const currentId = v ? v.id : null;
+  if (currentId === conv.contextVehicleId) return; // sin cambio real
+  conv.contextVehicleId = currentId;
+  if (v) {
+    sbAppendMessage('bot', `👋 Ahora estás viendo el ${v.name || 'vehículo'}. ¿Qué quieres saber sobre este?`, { vehicleCard: v });
+  }
 }
 
 function sbBuildVehicleCard(v) {
