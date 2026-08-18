@@ -56,7 +56,7 @@ html { scroll-behavior: smooth; }
 /* ============================================================
    ACCIONES FLOTANTES
 ============================================================ */
-.fab-stack { position: fixed; right: 20px; bottom: 20px; z-index: 45; display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 12px; pointer-events: none; }
+.fab-stack { position: fixed; right: 20px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 45; display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 12px; pointer-events: none; }
 .fab-item { pointer-events: auto; order: var(--fab-order, 0); }
 .fab-calc { display: flex; align-items: center; gap: 8px; background: #38bdf8; color: #042c53; font-weight: 800; font-size: 13.5px; padding: 14px 18px; border: none; border-radius: 999px; box-shadow: 0 8px 24px rgba(56,189,248,0.4); cursor: pointer; transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s; }
 .fab-calc:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(56,189,248,0.5); }
@@ -84,7 +84,7 @@ html { scroll-behavior: smooth; }
 /* En móvil el botón se compacta pero SIEMPRE conserva icono + texto
    "Financiar" — nunca se degrada a solo-icono (petición de negocio). */
 @media (max-width: 480px) {
-  .fab-stack { right: 14px; bottom: 14px; }
+  .fab-stack { right: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
   .fab-calc { padding: 11px 14px; font-size: 12.5px; gap: 6px; }
   .fab-calc svg, .fab-calc i { width: 16px; height: 16px; }
   .fab-starblex { padding: 10px 13px; gap: 6px; }
@@ -132,7 +132,7 @@ html { scroll-behavior: smooth; }
 .starblex-ctx-bar button { background: none; border: none; color: #94a3b6; font-size: 15px; line-height: 1; cursor: pointer; padding: 0 2px; }
 .starblex-ctx-bar button:hover { color: #fca5a5; }
 
-.starblex-messages-wrap { flex: 1; overflow-y: auto; padding: 14px; min-height: 240px; }
+.starblex-messages-wrap { flex: 1; overflow-y: auto; padding: 14px; min-height: 0; }
 .starblex-messages { list-style: none; display: flex; flex-direction: column; gap: 12px; }
 .starblex-msg { display: flex; align-items: flex-end; gap: 8px; max-width: 100%; }
 .starblex-msg--user { justify-content: flex-end; }
@@ -163,7 +163,7 @@ html { scroll-behavior: smooth; }
 .starblex-send-btn { background: linear-gradient(135deg, #ffb020, #ff7a1a); color: #20140a; border: none; border-radius: 12px; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.15s, opacity 0.15s; flex-shrink: 0; }
 .starblex-send-btn:hover { transform: translateY(-1px); }
 .starblex-send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-.starblex-disclaimer { font-size: 10px; color: #64748b; text-align: center; padding: 0 12px 10px; flex-shrink: 0; }
+.starblex-disclaimer { font-size: 10px; color: #64748b; text-align: center; padding: 0 12px calc(10px + env(safe-area-inset-bottom, 0px)); flex-shrink: 0; }
 
 @media (max-width: 480px) {
   .starblex-window { max-width: 100%; }
