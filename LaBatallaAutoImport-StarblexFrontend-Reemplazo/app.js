@@ -1625,6 +1625,22 @@ document.getElementById('pub-images').addEventListener('change', function() {
   renderImgPreview();
   this.value = '';
 });
+// Detecta formatos que Chromium/Firefox NO pueden decodificar en un
+// <img> (confirmado con prueba real: naturalWidth=0, dispara onerror).
+// HEIC/HEIF es el caso real y frecuente: es el formato por defecto de
+// la cámara del iPhone desde iOS 11 ("Alta Eficiencia"). Esto NO
+// significa que la foto esté dañada ni que la subida vaya a fallar —
+// Cloudinary sí decodifica y convierte HEIC correctamente en el
+// servidor (resolvePublishMedia sube item.file, el archivo original,
+// nunca esta preview). El problema era puramente de la vista previa
+// local, mostrando un "?" que parecía un error real.
+function isPreviewUnrenderable(file) {
+  if (!file) return false;
+  const type = (file.type || '').toLowerCase();
+  const name = (file.name || '').toLowerCase();
+  return type === 'image/heic' || type === 'image/heif' ||
+    name.endsWith('.heic') || name.endsWith('.heif');
+}
 function renderImgPreview() {
   const container = document.getElementById('img-preview');
   container.innerHTML = '';
@@ -1640,6 +1656,15 @@ function renderImgPreview() {
       wrap.innerHTML = `<video src="${escapeAttr(src)}" class="w-full h-20 object-cover rounded-lg border-2 ${border}" muted></video>
         ${portadaBadge}
         <button class="remove-img" data-idx="${i}">✕</button>`;
+    } else if (!item.cloudUrl && isPreviewUnrenderable(item.file)) {
+      // HEIC/HEIF sin subir todavía: no intentar <img>, mostrar estado
+      // neutral en vez del placeholder de error "?".
+      wrap.innerHTML = `<div class="w-full h-20 rounded-lg border-2 ${border} bg-slate-800 flex flex-col items-center justify-center gap-0.5 px-1 text-center">
+          <i data-lucide="image" class="w-4 h-4 text-sky-400"></i>
+          <span class="text-[9px] text-slate-400 leading-tight">Se convertirá al subir</span>
+        </div>
+        ${portadaBadge}
+        <button class="remove-img" data-idx="${i}">✕</button>`;
     } else {
       wrap.innerHTML = `<img src="${escapeAttr(src)}" class="w-full h-20 object-cover rounded-lg border-2 ${border}" alt="preview"
         onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=?'">
@@ -1648,6 +1673,7 @@ function renderImgPreview() {
     }
     container.appendChild(wrap);
   });
+  if (typeof lucide !== 'undefined' && window.lucide) window.lucide.createIcons();
   container.querySelectorAll('.remove-img').forEach(btn => {
     btn.addEventListener('click', () => {
       const idx = Number(btn.dataset.idx);
