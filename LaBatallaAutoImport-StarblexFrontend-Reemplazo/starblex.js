@@ -308,8 +308,17 @@ function sanitizeHistory(history) {
 
 // Quita el "id" interno antes de mandar el inventario al modelo — el
 // modelo no necesita el ID de Firestore para responder.
-function stripIdForPrompt(item) {
+// Quita el "id" interno antes de mandar el inventario al modelo — el
+// modelo no necesita el ID de Firestore para responder. compactFeatures
+// recorta "features" a 3 elementos -- se usa SOLO para el listado
+// general de fondo (ver buildSystemPrompt); el vehículo específico en
+// pantalla (vehicleContext) siempre llama con compactFeatures=false,
+// conservando su lista completa de características.
+function stripIdForPrompt(item, { compactFeatures = false } = {}) {
   const { id, ...rest } = item;
+  if (compactFeatures && Array.isArray(rest.features)) {
+    return { ...rest, features: rest.features.slice(0, 3) };
+  }
   return rest;
 }
 
@@ -318,8 +327,20 @@ function stripIdForPrompt(item) {
 // instrucciones (esto) y datos (inventario/historial/mensaje, que se
 // tratan siempre como DATA, nunca como instrucciones nuevas).
 // ------------------------------------------------------------
+// PUNTO 3 (velocidad) — recorte justificado por medición real: en un
+// inventario de 60 vehículos, "features" pesaba el 39% del bloque de
+// inventario (8.6 KB de 22.2 KB) y el inventario es el 93% del system
+// prompt completo (25 KB / ~6271 tokens). Se recorta a 3 features SOLO
+// en el listado general de fondo -- el modelo mayormente necesita
+// nombre/marca/precio/categoría/condición para responder "qué tienen
+// disponible", "cuál me recomiendas" o comparaciones generales, no la
+// lista completa de equipamiento de las otras 59 unidades que no están
+// en pantalla. El vehículo específico que el usuario SÍ está viendo
+// (vehicleContext) conserva sus features completas sin cambios -- ahí
+// es donde "características completas" realmente importa. Ningún otro
+// campo ni la cantidad de vehículos se redujo.
 function buildSystemPrompt(inventory, vehicleContext) {
-  const inventoryJson = JSON.stringify(inventory.map(stripIdForPrompt));
+  const inventoryJson = JSON.stringify(inventory.map((v) => stripIdForPrompt(v, { compactFeatures: true })));
   const vehicleJson = vehicleContext ? JSON.stringify(stripIdForPrompt(vehicleContext)) : 'null';
 
   return `Eres Starblex IA 1.0, el asistente automotriz de La Batalla Auto Import. Respondes siempre en español.
