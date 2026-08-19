@@ -345,7 +345,7 @@ function cldOptimize(url, width) {
 // de WhatsApp/Facebook y ayuda a Google a entender el contenido)
 // ============================================================
 const SEO_DEFAULT = {
-  title: 'La Batalla Auto Import | Sedanes, SUVs y Camionetas en RD',
+  title: 'La Batalla Auto Import | Sedanes, SUVs y Camionetas en República Dominicana',
   description: 'Compra tu próximo vehículo en La Batalla Auto Import. Sedanes, SUVs y camionetas nuevas, usadas e importadas en Santo Domingo, San Francisco de Macorís y Nagua. Financiamiento disponible.'
 };
 function setMetaTag(selector, attr, value) { const el = document.querySelector(selector); if (el) el.setAttribute(attr, value); }
@@ -2226,6 +2226,19 @@ const FAQ_ENTRIES = [
   ['¿Cuánto tiempo toma todo el proceso?', 'Depende de la aprobación de la institución financiera, pero la simulación y la solicitud inicial toman solo minutos.']
 ];
 
+// H1 contextual por sección — el <h1> real de la página (compartido con
+// el hero de la Home) decía siempre "Tu Próximo Vehículo Te Espera"
+// incluso mientras se mostraba contenido de Empresa: un H1 que no
+// correspondía al contenido real (hallazgo de la auditoría SEO). Se
+// reutiliza el mismo texto ya usado en EMPRESA_META.title, sin el sufijo
+// de marca, para no inventar redacción nueva.
+const EMPRESA_HERO_H1 = {
+  'por-que-elegirnos': '¿Por qué elegirnos?',
+  'quienes-somos': 'Quiénes somos',
+  'mision-vision': 'Misión y Visión',
+  'nuestros-valores': 'Nuestros Valores',
+};
+
 function injectFaqSchema() {
   if (document.getElementById(FAQ_JSONLD_ID)) return;
   const script = document.createElement('script');
@@ -2257,6 +2270,13 @@ function showEmpresaPage(sectionId, push = true) {
   document.getElementById('main-page')?.classList.remove('page-hidden');
   catalog.classList.add('hidden');
   empresa.classList.remove('hidden');
+  // H1 contextual — ver EMPRESA_HERO_H1. heroTitleEl/heroSubtitleEl son
+  // el <h1>/<p> compartidos del hero, declarados más abajo en este mismo
+  // archivo (disponibles aquí porque solo se leen cuando esta función se
+  // EJECUTA, no cuando se define -- para entonces el script ya corrió
+  // completo).
+  if (typeof heroTitleEl !== 'undefined' && heroTitleEl) heroTitleEl.textContent = EMPRESA_HERO_H1[sectionId] || heroTitleEl.textContent;
+  if (typeof heroSubtitleEl !== 'undefined' && heroSubtitleEl) heroSubtitleEl.style.display = 'none';
   try {
     if (push && window.self === window.top && window.location.pathname !== `/empresa/${sectionId}`) {
       history.pushState({ empresa: sectionId }, '', `/empresa/${sectionId}`);
@@ -2284,6 +2304,18 @@ function hideEmpresaPage(push = true) {
   if (!empresa || !catalog) return;
   empresa.classList.add('hidden');
   catalog.classList.remove('hidden');
+  // Restaurar H1/subtítulo del hero al slide REALMENTE activo (no un
+  // texto fijo): el carrusel tiene 6 slides con título/subtítulo propio
+  // que rotan solos vía autoplay -- si el usuario pasó tiempo en Empresa,
+  // el slide activo pudo cambiar mientras tanto.
+  if (typeof slides !== 'undefined' && slides.length > 0) {
+    const active = slides[slideIdx];
+    if (heroTitleEl && active?.dataset.title) heroTitleEl.textContent = active.dataset.title;
+    if (heroSubtitleEl) {
+      if (active?.dataset.subtitle) heroSubtitleEl.textContent = active.dataset.subtitle;
+      heroSubtitleEl.style.display = '';
+    }
+  }
   try {
     if (push && window.self === window.top && /^\/empresa\//.test(window.location.pathname)) {
       history.pushState(null, '', '/');
