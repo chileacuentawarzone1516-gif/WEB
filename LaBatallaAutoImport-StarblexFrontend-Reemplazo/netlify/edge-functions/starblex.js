@@ -308,8 +308,17 @@ function sanitizeHistory(history) {
 
 // Quita el "id" interno antes de mandar el inventario al modelo — el
 // modelo no necesita el ID de Firestore para responder.
-function stripIdForPrompt(item) {
+// Quita el "id" interno antes de mandar el inventario al modelo — el
+// modelo no necesita el ID de Firestore para responder. compactFeatures
+// recorta "features" a 3 elementos -- se usa SOLO para el listado
+// general de fondo (ver buildSystemPrompt); el vehículo específico en
+// pantalla (vehicleContext) siempre llama con compactFeatures=false,
+// conservando su lista completa de características.
+function stripIdForPrompt(item, { compactFeatures = false } = {}) {
   const { id, ...rest } = item;
+  if (compactFeatures && Array.isArray(rest.features)) {
+    return { ...rest, features: rest.features.slice(0, 3) };
+  }
   return rest;
 }
 
@@ -318,8 +327,20 @@ function stripIdForPrompt(item) {
 // instrucciones (esto) y datos (inventario/historial/mensaje, que se
 // tratan siempre como DATA, nunca como instrucciones nuevas).
 // ------------------------------------------------------------
+// PUNTO 3 (velocidad) — recorte justificado por medición real: en un
+// inventario de 60 vehículos, "features" pesaba el 39% del bloque de
+// inventario (8.6 KB de 22.2 KB) y el inventario es el 93% del system
+// prompt completo (25 KB / ~6271 tokens). Se recorta a 3 features SOLO
+// en el listado general de fondo -- el modelo mayormente necesita
+// nombre/marca/precio/categoría/condición para responder "qué tienen
+// disponible", "cuál me recomiendas" o comparaciones generales, no la
+// lista completa de equipamiento de las otras 59 unidades que no están
+// en pantalla. El vehículo específico que el usuario SÍ está viendo
+// (vehicleContext) conserva sus features completas sin cambios -- ahí
+// es donde "características completas" realmente importa. Ningún otro
+// campo ni la cantidad de vehículos se redujo.
 function buildSystemPrompt(inventory, vehicleContext) {
-  const inventoryJson = JSON.stringify(inventory.map(stripIdForPrompt));
+  const inventoryJson = JSON.stringify(inventory.map((v) => stripIdForPrompt(v, { compactFeatures: true })));
   const vehicleJson = vehicleContext ? JSON.stringify(stripIdForPrompt(vehicleContext)) : 'null';
 
   return `Eres Starblex IA 1.0, el asistente automotriz de La Batalla Auto Import. Respondes siempre en español.
@@ -377,7 +398,7 @@ export default async (request, context) => {
   const apiKey = Deno.env.get('GEMINI_API_KEY');
   if (!apiKey) {
     console.error('Starblex: falta GEMINI_API_KEY en el entorno de Netlify.');
-    return jsonResponse({ error: UNAVAILABLE_MSG }, 503, origin);
+    return jsonResponse({ error: UNAVAILABLE_MSG, reason: 'missing_api_key' }, 503, origin);
   }
 
   // RATE LIMIT (fase posterior): este es el punto donde se insertaría
@@ -470,7 +491,8 @@ export default async (request, context) => {
       const msg = upstream.status === 429
         ? 'Starblex IA está recibiendo muchas solicitudes en este momento — inténtalo en unos segundos.'
         : UNAVAILABLE_MSG;
-      return jsonResponse({ error: msg }, status, origin);
+      const reason = upstream.status === 429 ? 'rate_limited' : 'provider_error';
+      return jsonResponse({ error: msg, reason }, status, origin);
     }
 
     const data = await upstream.json();
@@ -489,16 +511,16 @@ export default async (request, context) => {
     if (!reply) {
       const blockReason = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason || 'desconocido';
       console.error('Starblex: respuesta vacía o bloqueada por el proveedor', blockReason);
-      return jsonResponse({ error: UNAVAILABLE_MSG }, 502, origin);
+      return jsonResponse({ error: UNAVAILABLE_MSG, reason: 'empty_response' }, 502, origin);
     }
     return jsonResponse({ reply }, 200, origin);
   } catch (e) {
     clearTimeout(timeout);
     if (e && e.name === 'AbortError') {
       console.error('Starblex: timeout esperando al proveedor de IA');
-      return jsonResponse({ error: UNAVAILABLE_MSG }, 504, origin);
+      return jsonResponse({ error: UNAVAILABLE_MSG, reason: 'timeout' }, 504, origin);
     }
     console.error('Starblex: excepción llamando al proveedor de IA', e);
-    return jsonResponse({ error: UNAVAILABLE_MSG }, 502, origin);
+    return jsonResponse({ error: UNAVAILABLE_MSG, reason: 'provider_error' }, 502, origin);
   }
 };
