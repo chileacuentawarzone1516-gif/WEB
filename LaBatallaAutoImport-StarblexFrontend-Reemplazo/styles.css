@@ -17,7 +17,7 @@ body { font-family: 'DM Sans', sans-serif; }.slide { opacity: 0; transition: opa
 .hero-arrow:hover { background: rgba(56,189,248,0.25); border-color: rgba(56,189,248,0.5); transform: translateY(-50%) scale(1.08); }
 .hero-arrow--prev { left: 16px; }
 .hero-arrow--next { right: 16px; }
-.hero-dots { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 20; display: flex; gap: 8px; }
+.hero-dots { position: absolute; bottom: 42px; left: 50%; transform: translateX(-50%); z-index: 20; display: flex; gap: 8px; }
 .hero-dot { width: 9px; height: 9px; border-radius: 50%; border: none; background: rgba(255,255,255,0.4); cursor: pointer; padding: 0; transition: background 0.2s, transform 0.2s; }
 .hero-dot:hover { background: rgba(255,255,255,0.7); }
 .hero-dot.active { background: #38bdf8; transform: scale(1.25); }
@@ -25,7 +25,7 @@ body { font-family: 'DM Sans', sans-serif; }.slide { opacity: 0; transition: opa
   .hero-arrow { width: 40px; height: 40px; font-size: 22px; }
   .hero-arrow--prev { left: 8px; }
   .hero-arrow--next { right: 8px; }
-  .hero-dots { bottom: 12px; gap: 6px; }
+  .hero-dots { bottom: 38px; gap: 6px; }
   .hero-dot { width: 7px; height: 7px; }
 }
 
