@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://labatallaautoimport.netlify.app/sitemap.xml
