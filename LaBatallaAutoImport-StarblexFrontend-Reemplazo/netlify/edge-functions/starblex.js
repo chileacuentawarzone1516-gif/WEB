@@ -103,8 +103,17 @@ function toGeminiContents(history, message) {
     parts: [{ text: t.content }],
   }));
 }
-const MAX_OUTPUT_TOKENS = 700;
+const MAX_OUTPUT_TOKENS = 1024; // subido de 700: reducía la frecuencia de respuestas cortadas a mitad de frase sin encarecer de forma apreciable (Gemini cobra por tokens realmente generados, no por el tope).
 const UPSTREAM_TIMEOUT_MS = 20_000;
+// Tolerancia a fallos transitorios (auditoría de pre-lanzamiento): un
+// solo reintento server-side, con un backoff corto, SOLO para errores
+// genuinamente transitorios del proveedor (timeout, fallo de red, o un
+// 5xx del upstream). NUNCA se reintenta un 429 (reintentar de inmediato
+// empeora el rate limit) ni ningún otro 4xx (son errores permanentes de
+// configuración/entrada — reintentar no los arregla y duplica el costo).
+const UPSTREAM_MAX_RETRIES = 1;
+const UPSTREAM_RETRY_BACKOFF_MS = 600;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ------------------------------------------------------------
 // Límites de entrada — control de costo básico de esta fase.
@@ -463,64 +472,109 @@ export default async (request, context) => {
   // Gemini: "contents" (no "messages"), roles 'user'/'model' (no 'assistant').
   const contents = toGeminiContents(history, message);
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  const upstreamBody = JSON.stringify({
+    contents,
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS },
+  });
 
-  try {
-    const upstream = await fetch(GEMINI_API_URL, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey, // header oficial de autenticación de la Gemini Developer API
-      },
-      body: JSON.stringify({
-        contents,
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS },
-      }),
-    });
-    clearTimeout(timeout);
-
-    if (!upstream.ok) {
-      const errText = await upstream.text().catch(() => '');
-      console.error('Starblex: error del proveedor de IA', upstream.status, errText);
-      // 429 del proveedor = límite de tasa o crédito agotado — mensaje
-      // igual de genérico hacia el usuario, nunca detalle interno.
-      const status = upstream.status === 429 ? 429 : 502;
-      const msg = upstream.status === 429
-        ? 'Starblex IA está recibiendo muchas solicitudes en este momento — inténtalo en unos segundos.'
-        : UNAVAILABLE_MSG;
-      const reason = upstream.status === 429 ? 'rate_limited' : 'provider_error';
-      return jsonResponse({ error: msg, reason }, status, origin);
+  // Un intento aislado contra el proveedor. Cada intento tiene su propio
+  // AbortController/timeout (un timeout no debe "gastarse" para los dos
+  // intentos). Devuelve un resultado tipado; NO lanza — así el
+  // orquestador de reintentos decide con datos, no con excepciones.
+  async function attemptUpstream() {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+    try {
+      const upstream = await fetch(GEMINI_API_URL, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey, // header oficial de autenticación de la Gemini Developer API
+        },
+        body: upstreamBody,
+      });
+      clearTimeout(timeout);
+      if (!upstream.ok) {
+        const errText = await upstream.text().catch(() => '');
+        return { kind: 'http', status: upstream.status, errText };
+      }
+      const data = await upstream.json().catch(() => null);
+      return { kind: 'ok', data };
+    } catch (e) {
+      clearTimeout(timeout);
+      if (e && e.name === 'AbortError') return { kind: 'timeout' };
+      return { kind: 'network', error: e };
     }
+  }
 
-    const data = await upstream.json();
-    // candidates puede venir vacío (prompt bloqueado por los filtros de
-    // seguridad de Gemini -> data.promptFeedback.blockReason) o con un
-    // candidato sin "content" (respuesta bloqueada tras generarse ->
-    // candidates[0].finishReason). Ambos casos se tratan igual que
-    // cualquier respuesta vacía: no se distingue el motivo hacia el
-    // usuario, pero sí queda registrado en el log del servidor.
-    const parts = data?.candidates?.[0]?.content?.parts;
-    const reply = (Array.isArray(parts) ? parts : [])
-      .map((p) => (p && typeof p.text === 'string' ? p.text : ''))
-      .join('\n')
-      .trim();
+  // Solo timeout, fallo de red y 5xx son transitorios. 429 y demás 4xx
+  // NO se reintentan (ver constantes arriba).
+  const isTransient = (r) =>
+    r.kind === 'timeout' || r.kind === 'network' ||
+    (r.kind === 'http' && r.status >= 500 && r.status <= 599);
 
-    if (!reply) {
-      const blockReason = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason || 'desconocido';
-      console.error('Starblex: respuesta vacía o bloqueada por el proveedor', blockReason);
-      return jsonResponse({ error: UNAVAILABLE_MSG, reason: 'empty_response' }, 502, origin);
-    }
-    return jsonResponse({ reply }, 200, origin);
-  } catch (e) {
-    clearTimeout(timeout);
-    if (e && e.name === 'AbortError') {
-      console.error('Starblex: timeout esperando al proveedor de IA');
-      return jsonResponse({ error: UNAVAILABLE_MSG, reason: 'timeout' }, 504, origin);
-    }
-    console.error('Starblex: excepción llamando al proveedor de IA', e);
+  let result = await attemptUpstream();
+  for (let attempt = 0; attempt < UPSTREAM_MAX_RETRIES && isTransient(result); attempt++) {
+    console.warn(`Starblex: reintento ${attempt + 1}/${UPSTREAM_MAX_RETRIES} tras fallo transitorio (${result.kind}${result.status ? ' ' + result.status : ''})`);
+    await sleep(UPSTREAM_RETRY_BACKOFF_MS * (attempt + 1));
+    result = await attemptUpstream();
+  }
+
+  if (result.kind === 'timeout') {
+    console.error('Starblex: timeout esperando al proveedor de IA (tras reintentos)');
+    return jsonResponse({ error: UNAVAILABLE_MSG, reason: 'timeout' }, 504, origin);
+  }
+  if (result.kind === 'network') {
+    console.error('Starblex: excepción llamando al proveedor de IA', result.error);
     return jsonResponse({ error: UNAVAILABLE_MSG, reason: 'provider_error' }, 502, origin);
   }
+  if (result.kind === 'http') {
+    console.error('Starblex: error del proveedor de IA', result.status, result.errText);
+    // 429 del proveedor = límite de tasa o crédito agotado — mensaje
+    // igual de genérico hacia el usuario, nunca detalle interno.
+    const status = result.status === 429 ? 429 : 502;
+    const msg = result.status === 429
+      ? 'Starblex IA está recibiendo muchas solicitudes en este momento — inténtalo en unos segundos.'
+      : UNAVAILABLE_MSG;
+    const reason = result.status === 429 ? 'rate_limited' : 'provider_error';
+    return jsonResponse({ error: msg, reason }, status, origin);
+  }
+
+  const data = result.data;
+  // candidates puede venir vacío (prompt bloqueado por los filtros de
+  // seguridad de Gemini -> data.promptFeedback.blockReason) o con un
+  // candidato sin "content" (respuesta bloqueada tras generarse ->
+  // candidates[0].finishReason). Ambos casos se tratan igual que
+  // cualquier respuesta vacía: no se distingue el motivo hacia el
+  // usuario, pero sí queda registrado en el log del servidor.
+  const parts = data?.candidates?.[0]?.content?.parts;
+  let reply = (Array.isArray(parts) ? parts : [])
+    .map((p) => (p && typeof p.text === 'string' ? p.text : ''))
+    .join('\n')
+    .trim();
+
+  if (!reply) {
+    const blockReason = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason || 'desconocido';
+    console.error('Starblex: respuesta vacía o bloqueada por el proveedor', blockReason);
+    return jsonResponse({ error: UNAVAILABLE_MSG, reason: 'empty_response' }, 502, origin);
+  }
+
+  // MAX_TOKENS: la respuesta se cortó por el tope de salida y puede
+  // quedar a mitad de frase. Si es posible, se recorta hasta la última
+  // oración COMPLETA para no entregar un final colgando. Solo se aplica
+  // cuando finishReason === 'MAX_TOKENS' y el recorte conserva la mayor
+  // parte del texto (>60%): nunca se toca una respuesta normal (STOP),
+  // ni se destruye una respuesta corta que legítimamente no lleva punto.
+  if (data?.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
+    const lastEnd = Math.max(reply.lastIndexOf('. '), reply.lastIndexOf('.\n'),
+      reply.lastIndexOf('! '), reply.lastIndexOf('? '), reply.lastIndexOf('…'));
+    const endIdx = reply.search(/[.!?…]\s*$/) !== -1 ? reply.length : (lastEnd !== -1 ? lastEnd + 1 : -1);
+    if (endIdx > 0 && endIdx >= reply.length * 0.6) {
+      reply = reply.slice(0, endIdx).trim();
+    }
+  }
+
+  return jsonResponse({ reply }, 200, origin);
 };

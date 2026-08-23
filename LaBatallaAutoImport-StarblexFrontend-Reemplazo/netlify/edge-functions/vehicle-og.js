@@ -138,9 +138,25 @@ async function fetchAllVehicles() {
   }
 }
 
+// Mismo criterio que cldOptimize() en app.js: inserta la transformación
+// de Cloudinary en cualquier URL de Cloudinary; cualquier otra URL se
+// devuelve intacta. Crítico para og:image: si la portada se subió en
+// HEIC (formato por defecto del iPhone), el secure_url crudo termina en
+// .heic y NI WhatsApp NI Facebook NI Twitter saben renderizarlo — el
+// preview del enlace saldría roto/vacío. f_auto hace que Cloudinary
+// entregue un formato que el bot sí sabe leer (JPEG/WebP) desde la misma
+// fuente HEIC. El SPA ya hacía esto (app.js:380); esta función no, y por
+// eso los previews sociales de vehículos con portada HEIC salían rotos.
+function cldOptimize(url, width) {
+  if (!url || typeof url !== 'string') return url;
+  if (!url.includes('res.cloudinary.com') || !url.includes('/upload/')) return url;
+  return url.replace('/upload/', `/upload/f_auto,q_auto,c_fill,w_${width}/`);
+}
+
 function pickImage(vehicle) {
   const candidate = vehicle.media[0] || vehicle.img || `${SITE_URL}/preview.jpg`;
-  return /^https?:\/\//i.test(candidate) ? candidate : `${SITE_URL}/preview.jpg`;
+  if (!/^https?:\/\//i.test(candidate)) return `${SITE_URL}/preview.jpg`;
+  return cldOptimize(candidate, 1200);
 }
 
 function formatPrice(vehicle) {
