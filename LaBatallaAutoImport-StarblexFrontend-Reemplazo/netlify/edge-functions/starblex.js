@@ -103,7 +103,27 @@ function toGeminiContents(history, message) {
     parts: [{ text: t.content }],
   }));
 }
-const MAX_OUTPUT_TOKENS = 1024; // subido de 700: reducía la frecuencia de respuestas cortadas a mitad de frase sin encarecer de forma apreciable (Gemini cobra por tokens realmente generados, no por el tope).
+const MAX_OUTPUT_TOKENS = 2048; // ver THINKING_BUDGET: con "thinking" apagado, este tope es de texto VISIBLE, no se lo comen tokens de razonamiento.
+// ------------------------------------------------------------
+// CAUSA RAÍZ de la respuesta cortada + latencia alta (evidencia real de
+// producción: una respuesta larga volvió HTTP 200 con solo 99 caracteres
+// visibles, cortada en "### 1. Document", pese a maxOutputTokens=1024).
+// Firma clásica de un modelo Gemini con "thinking" activado por defecto:
+// el presupuesto de salida se consume en tokens de razonamiento INVISIBLES
+// antes de emitir texto, así que el usuario recibe una fracción minúscula
+// del límite y finishReason=MAX_TOKENS. Ese mismo razonamiento explica la
+// latencia de ~7,6 s y acelera el 429 (los tokens de pensamiento cuentan
+// para la cuota).
+//
+// thinkingBudget: 0 apaga el pensamiento para este caso de uso (chat de
+// preguntas/respuestas automotriz, no requiere cadena de razonamiento
+// larga). Efecto esperado: respuestas completas, menor latencia y menor
+// consumo de tokens (menos 429). Si el modelo desplegado NO soporta este
+// campo, la API respondería 400 (no transitorio -> sin reintento, visible
+// de inmediato en la próxima corrida del validador) — es trivial de
+// revertir. Ver GEMINI_MODEL: debe ser un modelo válido para la key real.
+// ------------------------------------------------------------
+const THINKING_BUDGET = 0;
 const UPSTREAM_TIMEOUT_MS = 20_000;
 // Tolerancia a fallos transitorios (auditoría de pre-lanzamiento): un
 // solo reintento server-side, con un backoff corto, SOLO para errores
@@ -331,6 +351,29 @@ function stripIdForPrompt(item, { compactFeatures = false } = {}) {
   return rest;
 }
 
+// FASE 9 (optimización de contexto, medida sobre el inventario real de
+// producción): el listado GENERAL de fondo se reduce a los campos que el
+// asistente realmente necesita para "qué tienen disponible", "cuál me
+// recomiendas" y comparaciones por tipo/precio. Medición real (37
+// vehículos): el bloque completo pesaba 9.617 chars (~2.404 tokens) por
+// mensaje; con solo estos campos baja a ~4.199 chars (~1.050 tokens), un
+// 56% menos de tokens de ENTRADA en CADA request — menos latencia, menos
+// consumo y menor probabilidad de 429. NO se pierde precisión: el prompt
+// prohíbe inventar datos, así que a lo sumo el modelo dirá "no tengo ese
+// detalle del inventario general" para un campo omitido de fondo. El
+// vehículo EN PANTALLA (vehicleContext) sigue enviándose COMPLETO (todos
+// los campos + features), que es donde el detalle sí importa.
+function backgroundInventoryItem(item) {
+  return {
+    name: item.name,
+    brand: item.brand,
+    year: item.year,
+    price: item.price,
+    category: item.category,
+    condition: item.condition,
+  };
+}
+
 // ------------------------------------------------------------
 // System prompt — reglas de precisión + separación explícita entre
 // instrucciones (esto) y datos (inventario/historial/mensaje, que se
@@ -349,7 +392,7 @@ function stripIdForPrompt(item, { compactFeatures = false } = {}) {
 // es donde "características completas" realmente importa. Ningún otro
 // campo ni la cantidad de vehículos se redujo.
 function buildSystemPrompt(inventory, vehicleContext) {
-  const inventoryJson = JSON.stringify(inventory.map((v) => stripIdForPrompt(v, { compactFeatures: true })));
+  const inventoryJson = JSON.stringify(inventory.map(backgroundInventoryItem));
   const vehicleJson = vehicleContext ? JSON.stringify(stripIdForPrompt(vehicleContext)) : 'null';
 
   return `Eres Starblex IA 1.0, el asistente automotriz de La Batalla Auto Import. Respondes siempre en español.
@@ -475,7 +518,11 @@ export default async (request, context) => {
   const upstreamBody = JSON.stringify({
     contents,
     systemInstruction: { parts: [{ text: systemPrompt }] },
-    generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS },
+    generationConfig: {
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
+      // Apaga el "thinking" de Gemini — ver bloque CAUSA RAÍZ arriba.
+      thinkingConfig: { thinkingBudget: THINKING_BUDGET },
+    },
   });
 
   // Un intento aislado contra el proveedor. Cada intento tiene su propio
