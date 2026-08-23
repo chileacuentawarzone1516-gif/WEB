@@ -4,6 +4,8 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 
 **Producción:** https://labatallaautoimport.netlify.app
 
+<!-- PR #1 (rama claude/verify-write-access-liuxym) listo para validación en Deploy Preview — nota de documentación, sin cambios de lógica. -->
+
 ## Estructura
 
 ```
