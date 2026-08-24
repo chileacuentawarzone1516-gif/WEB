@@ -604,9 +604,19 @@ export default async (request, context) => {
     const reason = result.status === 429 ? 'rate_limited' : 'provider_error';
     const payload = { error: msg, reason };
     // [DIAGNÓSTICO TEMPORAL] — expone SOLO el status HTTP del proveedor
-    // (un número: 400/403/404/429), y SOLO en el contexto deploy-preview.
-    // NUNCA se expone provider_error_message al navegador. REMOVER luego.
-    if (Deno.env.get('CONTEXT') === 'deploy-preview') {
+    // (un número: 400/403/404/429), y SOLO en un Deploy Preview. NUNCA se
+    // expone provider_error_message al navegador. REMOVER luego.
+    //
+    // Por qué NO Deno.env.get('CONTEXT'): esa variable la inyecta Netlify
+    // en el build y en las Functions serverless, pero NO está disponible
+    // en el runtime de Edge Functions (Deno) — ahí devuelve undefined, por
+    // eso el intento anterior nunca añadió el campo. Señal fiable y sin
+    // adivinar: el HOST real de la request, que en un preview siempre es
+    // deploy-preview-<n>--<sitio>.netlify.app. Nunca coincide en producción,
+    // así que el campo jamás se filtra en el dominio productivo.
+    let isDeployPreview = false;
+    try { isDeployPreview = new URL(request.url).hostname.includes('deploy-preview-'); } catch (_) { /* url malformada */ }
+    if (isDeployPreview) {
       payload.provider_status = result.status;
     }
     return jsonResponse(payload, status, origin);
