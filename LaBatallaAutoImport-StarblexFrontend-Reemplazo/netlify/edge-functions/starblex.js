@@ -578,7 +578,23 @@ export default async (request, context) => {
     return jsonResponse({ error: UNAVAILABLE_MSG, reason: 'provider_error' }, 502, origin);
   }
   if (result.kind === 'http') {
-    console.error('Starblex: error del proveedor de IA', result.status, result.errText);
+    // ============================================================
+    // [DIAGNÓSTICO TEMPORAL] — REMOVER tras identificar la causa del 502.
+    // Registra SOLO campos seguros del error de Gemini (status + su
+    // objeto "error" tipado). NO se registra apiKey, body, systemPrompt,
+    // inventario, historial ni el mensaje del usuario. El error.message
+    // de Google es su propio texto de error (p.ej. "model ... is not
+    // found", "Unknown name thinkingConfig"), no un secreto nuestro.
+    let providerError = {};
+    try { providerError = (JSON.parse(result.errText) || {}).error || {}; } catch (_) { /* body no-JSON */ }
+    console.error('Starblex [DIAG] provider_error ' + JSON.stringify({
+      provider_status: result.status,
+      provider_error_code: providerError.code ?? null,
+      provider_error_status: providerError.status ?? null,
+      provider_error_message: providerError.message ?? null,
+      model: MODEL,
+    }));
+    // ============================================================
     // 429 del proveedor = límite de tasa o crédito agotado — mensaje
     // igual de genérico hacia el usuario, nunca detalle interno.
     const status = result.status === 429 ? 429 : 502;
@@ -586,7 +602,14 @@ export default async (request, context) => {
       ? 'Starblex IA está recibiendo muchas solicitudes en este momento — inténtalo en unos segundos.'
       : UNAVAILABLE_MSG;
     const reason = result.status === 429 ? 'rate_limited' : 'provider_error';
-    return jsonResponse({ error: msg, reason }, status, origin);
+    const payload = { error: msg, reason };
+    // [DIAGNÓSTICO TEMPORAL] — expone SOLO el status HTTP del proveedor
+    // (un número: 400/403/404/429), y SOLO en el contexto deploy-preview.
+    // NUNCA se expone provider_error_message al navegador. REMOVER luego.
+    if (Deno.env.get('CONTEXT') === 'deploy-preview') {
+      payload.provider_status = result.status;
+    }
+    return jsonResponse(payload, status, origin);
   }
 
   const data = result.data;
