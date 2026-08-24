@@ -104,42 +104,60 @@ function toGeminiContents(history, message) {
   }));
 }
 // ------------------------------------------------------------
-// RESPUESTA CORTADA + 502: causa raíz determinada con evidencia real de
-// producción (dos corridas del validador del propietario).
+// LATENCIA + 429: causa raíz determinada con evidencia real de producción
+// del Deploy Preview (commit 78a2b68), no por inferencia.
 //
-// 1) Truncado. Una respuesta larga volvió HTTP 200 con solo 99 caracteres
-//    visibles ("… ### 1. Document") pese a maxOutputTokens=1024. 99 chars
-//    ≈ 25 tokens de 1024: el resto del presupuesto se consumió ANTES de
-//    emitir texto (tokens de razonamiento internos del modelo, que en
-//    Gemini cuentan contra el límite de salida y terminan en
-//    finishReason=MAX_TOKENS).
+// Cinco llamadas dieron: 8.0s, "0 en 35.0s", 16.7s, 6.4s, "0 en 35.0s".
+// El "0 en 35.00Xs" NO es una respuesta del servidor: es el propio
+// validador (curl.exe --max-time 35) cortando la conexión a los 35s
+// exactos. Con UPSTREAM_TIMEOUT_MS=20s y 1 reintento SOBRE TIMEOUT, el
+// peor caso real era 20s + 600ms de backoff + otros 20s ≈ 40,6s — el
+// cliente corta antes, a los 35s, y eso es justo lo que se vio. Además,
+// reintentar un timeout NO cancela la llamada en Gemini (nuestro
+// AbortController solo cancela nuestro propio fetch): si la primera
+// llamada seguía viva del lado del proveedor, el reintento la duplicaba,
+// pagando dos veces por la misma respuesta y acelerando el 429 de
+// pickup1. Esto era un bug de nuestro propio backend, no "cuota real"
+// per se — cuota real más gasto duplicado innecesario.
 //
-// 2) 502. Se intentó apagar ese razonamiento con
-//    generationConfig.thinkingConfig.thinkingBudget = 0. RESULTADO REAL:
-//    el 100% de las llamadas pasó a fallar con 502 en ~0,3 s — un rechazo
-//    inmediato del proveedor (4xx, no transitorio: por eso no se reintenta
-//    y por eso es tan rápido). Antes de introducir ese campo, el MISMO
-//    modelo respondía 5/5 con HTTP 200. Conclusión inequívoca: el modelo/
-//    endpoint en uso NO acepta thinkingConfig; el campo se retira.
+// Corrección: un deadline DURO para toda la fase de Gemini (intento +
+// posible reintento), y el timeout deja de reintentarse — un timeout ya
+// NO desencadena una segunda llamada idéntica. Solo se reintenta un fallo
+// de red o un 5xx (fallos que SÍ suelen fallar rápido, antes de que
+// Gemini empiece a procesar), y solo si queda presupuesto real dentro del
+// deadline. Así el peor caso pasa de ~40,6s a, como mucho,
+// REQUEST_DEADLINE_MS (~14s) + un backoff corto — muy por debajo del
+// techo de ~15s pedido, sin nunca duplicar una llamada cara.
 //
-// Corrección aplicada: se retira thinkingConfig (restaura 200) y se sube
-// el tope de salida para que, aun descontando los tokens de razonamiento,
-// quede espacio de sobra para una respuesta larga COMPLETA. Gemini cobra
-// por tokens realmente generados, no por el tope, así que subirlo no
-// encarece las respuestas cortas. La protección de MAX_TOKENS (recorte a
-// la última oración completa, con guarda del 60%) se mantiene como red de
-// seguridad para el caso límite.
+// Nota honesta: esto significa que una respuesta que hubiera tardado más
+// de ~14s en completarse (como el caso real de 16.7s) ahora corta antes y
+// devuelve un error controlado en vez de esperar y eventualmente tener
+// éxito. Es la decisión correcta dado el objetivo explícito de latencia
+// acotada — no es un efecto oculto, queda documentado aquí.
 // ------------------------------------------------------------
-const MAX_OUTPUT_TOKENS = 4096;
-const UPSTREAM_TIMEOUT_MS = 20_000;
-// Tolerancia a fallos transitorios (auditoría de pre-lanzamiento): un
-// solo reintento server-side, con un backoff corto, SOLO para errores
-// genuinamente transitorios del proveedor (timeout, fallo de red, o un
-// 5xx del upstream). NUNCA se reintenta un 429 (reintentar de inmediato
-// empeora el rate limit) ni ningún otro 4xx (son errores permanentes de
-// configuración/entrada — reintentar no los arregla y duplica el costo).
-const UPSTREAM_MAX_RETRIES = 1;
-const UPSTREAM_RETRY_BACKOFF_MS = 600;
+// maxOutputTokens: se pidió evaluar 1536-2048. Se elige el techo (2048),
+// no el piso, por el riesgo YA demostrado en este mismo modelo: con un
+// tope de 1024, el razonamiento interno (no desactivable — thinkingConfig
+// es rechazado por este modelo/endpoint, ver historial de commits) llegó
+// a consumir ~999 de esos 1024 tokens, dejando solo ~25 tokens de texto
+// visible y truncando la respuesta a mitad de frase. Bajar a 1536 reduce
+// el margen de sobra frente a ese mismo riesgo; 2048 conserva margen
+// razonable para una respuesta larga estructurada (p.ej. una guía de
+// inspección con 8 secciones) sin volver al techo de 4096, que no
+// aportaba nada una vez retirado thinkingConfig (Gemini cobra por tokens
+// generados, no por el tope — un tope más alto no "arregla" el truncado
+// si el problema es cuánto se gasta en pensar, solo posterga el límite).
+const MAX_OUTPUT_TOKENS = 2048;
+// Ceiling DURO para toda la fase de Gemini (intento inicial + el único
+// reintento posible), no por intento. ~14s deja margen bajo el techo de
+// ~15s pedido para el request completo, una vez sumado Firestore
+// (paralelo, cacheado 60s, típicamente sub-segundo) y el armado del
+// prompt (síncrono, milisegundos).
+const REQUEST_DEADLINE_MS = 14_000;
+// No tiene sentido reintentar con menos de esto: no alcanzaría ni para un
+// intento razonable antes de topar el deadline.
+const MIN_RETRY_BUDGET_MS = 2_000;
+const RETRY_BACKOFF_MS = 250;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ------------------------------------------------------------
@@ -381,6 +399,24 @@ function backgroundInventoryItem(item) {
   };
 }
 
+// FASE 10 (reducción de contexto por consulta): cuando SÍ hay un vehículo
+// en pantalla, el caso más común es una pregunta sobre ESE vehículo — ahí
+// el listado general de fondo no aporta nada y solo cuesta tokens de
+// entrada (más latencia, más presión de cuota). Se omite salvo que el
+// propio mensaje sugiera que hace falta: comparar, ver otras opciones, o
+// preguntar por el inventario/catálogo en general. Es una heurística de
+// palabras clave, no NLP — puede tener falsos negativos (una pregunta de
+// comparación redactada sin ninguna de estas palabras), pero el prompt ya
+// exige no inventar datos de inventario que no están, así que el peor
+// caso es que el modelo pida aclarar en vez de inventar. Sin vehículo en
+// pantalla, el listado general SIEMPRE se envía — ahí sí es la única
+// fuente de contexto disponible.
+const GENERAL_INVENTORY_KEYWORDS = /\b(compar|otro|otra|otros|otras|opcion|opciones|disponible|disponibles|inventario|catalogo|catálogo|recomiendas|recomendar|recomiendame|recomiéndame)\b/i;
+function needsGeneralInventory(message, hasVehicleContext) {
+  if (!hasVehicleContext) return true;
+  return GENERAL_INVENTORY_KEYWORDS.test(message);
+}
+
 // ------------------------------------------------------------
 // System prompt — reglas de precisión + separación explícita entre
 // instrucciones (esto) y datos (inventario/historial/mensaje, que se
@@ -398,8 +434,10 @@ function backgroundInventoryItem(item) {
 // (vehicleContext) conserva sus features completas sin cambios -- ahí
 // es donde "características completas" realmente importa. Ningún otro
 // campo ni la cantidad de vehículos se redujo.
-function buildSystemPrompt(inventory, vehicleContext) {
-  const inventoryJson = JSON.stringify(inventory.map(backgroundInventoryItem));
+function buildSystemPrompt(inventory, vehicleContext, includeInventory) {
+  const inventoryJson = includeInventory
+    ? JSON.stringify(inventory.map(backgroundInventoryItem))
+    : '"omitido en este mensaje — hay un vehículo en pantalla y la pregunta no pidió comparar ni ver otras opciones; si el usuario sí pregunta por el resto del inventario, dilo y pide que lo repita"';
   const vehicleJson = vehicleContext ? JSON.stringify(stripIdForPrompt(vehicleContext)) : 'null';
 
   return `Eres Starblex IA 1.0, el asistente automotriz de La Batalla Auto Import. Respondes siempre en español.
@@ -506,38 +544,59 @@ export default async (request, context) => {
   // contra Firestore, nunca contra lo que mande el navegador.
   const requestedVehicleId = sanitizeText(body.vehicleId, MAX_VEHICLE_ID_CHARS);
 
+  // MEDICIÓN INTERNA (solo tiempos, nunca contenido): total_ms arranca
+  // aquí, justo después de validar la entrada y antes de tocar Firestore.
+  const phaseStart = Date.now();
+
   // FASE 8 — CAMBIO 1: el inventario general (para "qué tienen
   // disponible") y el vehículo en contexto (para "explícame este") ya
   // no comparten la misma fuente acotada a 60. El inventario general
   // sigue limitado (control de costo); el vehículo en contexto se
   // busca siempre por lectura directa, sin importar cuántos vehículos
   // existan ni en qué posición esté el suyo. Ambas llamadas corren en
-  // paralelo — no se duplica latencia por separarlas.
-  const [inventory, vehicleContext] = await Promise.all([
-    fetchTrustedInventory(),
-    requestedVehicleId ? fetchVehicleById(requestedVehicleId) : Promise.resolve(null),
+  // paralelo — no se duplica latencia por separarlas. Se sigue
+  // consultando el inventario general aunque este mensaje no lo vaya a
+  // usar en el prompt (ver needsGeneralInventory): ya está cacheado 60s,
+  // así que consultarlo es barato, y sigue haciendo falta como fuente
+  // para el fallback "sin vehículo en pantalla". Revisado: ninguna de las
+  // dos consultas se repite dentro de este request — cada una se llama
+  // exactamente una vez, cacheada por su propio TTL independiente.
+  async function timed(promise) {
+    const start = Date.now();
+    const value = await promise;
+    return { value, ms: Date.now() - start };
+  }
+  const [invTimed, vehTimed] = await Promise.all([
+    timed(fetchTrustedInventory()),
+    timed(requestedVehicleId ? fetchVehicleById(requestedVehicleId) : Promise.resolve(null)),
   ]);
+  const inventory = invTimed.value;
+  const vehicleContext = vehTimed.value;
+  const inventory_ms = invTimed.ms;
+  const vehicle_ms = vehTimed.ms;
 
-  const systemPrompt = buildSystemPrompt(inventory, vehicleContext);
+  const promptBuildStart = Date.now();
+  const includeInventory = needsGeneralInventory(message, !!vehicleContext);
+  const systemPrompt = buildSystemPrompt(inventory, vehicleContext, includeInventory);
   // Gemini: "contents" (no "messages"), roles 'user'/'model' (no 'assistant').
   const contents = toGeminiContents(history, message);
-
   const upstreamBody = JSON.stringify({
     contents,
     systemInstruction: { parts: [{ text: systemPrompt }] },
     // Sin thinkingConfig: este modelo/endpoint lo rechaza con 4xx — ver el
-    // bloque "RESPUESTA CORTADA + 502" arriba. No volver a añadirlo sin
-    // comprobar antes contra la API real que el modelo lo acepta.
+    // bloque "LATENCIA + 429" arriba. No volver a añadirlo sin comprobar
+    // antes contra la API real que el modelo lo acepta.
     generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS },
   });
+  const prompt_build_ms = Date.now() - promptBuildStart;
 
-  // Un intento aislado contra el proveedor. Cada intento tiene su propio
-  // AbortController/timeout (un timeout no debe "gastarse" para los dos
-  // intentos). Devuelve un resultado tipado; NO lanza — así el
-  // orquestador de reintentos decide con datos, no con excepciones.
-  async function attemptUpstream() {
+  // Un intento aislado contra el proveedor, con SU PROPIO timeout (pasado
+  // como parámetro — ver el orquestador de deadline más abajo). Devuelve
+  // un resultado tipado; NO lanza — así el orquestador decide con datos,
+  // no con excepciones.
+  async function attemptUpstream(timeoutMs) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const upstream = await fetch(GEMINI_API_URL, {
         method: 'POST',
@@ -562,21 +621,40 @@ export default async (request, context) => {
     }
   }
 
-  // Solo timeout, fallo de red y 5xx son transitorios. 429 y demás 4xx
-  // NO se reintentan (ver constantes arriba).
-  const isTransient = (r) =>
-    r.kind === 'timeout' || r.kind === 'network' ||
-    (r.kind === 'http' && r.status >= 500 && r.status <= 599);
+  // Orquestador con DEADLINE DURO — ver el bloque "LATENCIA + 429" arriba
+  // para la evidencia que justifica este diseño. Reglas:
+  //   - 429: nunca se reintenta (se corta en la rama result.kind==='http'
+  //     más abajo, antes de considerar cualquier retry).
+  //   - timeout: nunca se reintenta (evita duplicar una llamada cara que
+  //     puede seguir viva del lado del proveedor).
+  //   - network / 5xx: se reintenta COMO MUCHO una vez, y solo si queda
+  //     presupuesto real dentro de REQUEST_DEADLINE_MS.
+  //   - cada intento (incluido el reintento) usa como timeout el
+  //     presupuesto que quede, nunca más — así el peor caso total nunca
+  //     supera REQUEST_DEADLINE_MS + un backoff corto.
+  const geminiPhaseStart = Date.now();
+  const remainingBudget = () => REQUEST_DEADLINE_MS - (Date.now() - geminiPhaseStart);
+  const isRetryableNonTimeout = (r) =>
+    r.kind === 'network' || (r.kind === 'http' && r.status >= 500 && r.status <= 599);
 
-  let result = await attemptUpstream();
-  for (let attempt = 0; attempt < UPSTREAM_MAX_RETRIES && isTransient(result); attempt++) {
-    console.warn(`Starblex: reintento ${attempt + 1}/${UPSTREAM_MAX_RETRIES} tras fallo transitorio (${result.kind}${result.status ? ' ' + result.status : ''})`);
-    await sleep(UPSTREAM_RETRY_BACKOFF_MS * (attempt + 1));
-    result = await attemptUpstream();
+  let result = await attemptUpstream(Math.max(remainingBudget(), 1000));
+  if (isRetryableNonTimeout(result) && remainingBudget() > MIN_RETRY_BUDGET_MS) {
+    console.warn(`Starblex: reintento tras fallo transitorio (${result.kind}${result.status ? ' ' + result.status : ''})`);
+    await sleep(RETRY_BACKOFF_MS);
+    result = await attemptUpstream(Math.max(remainingBudget(), 1000));
   }
+  const gemini_ms = Date.now() - geminiPhaseStart;
+  const total_ms = Date.now() - phaseStart;
+  console.info('Starblex: métricas ' + JSON.stringify({
+    inventory_ms, vehicle_ms, prompt_build_ms, gemini_ms, total_ms,
+    included_general_inventory: includeInventory,
+  }));
 
   if (result.kind === 'timeout') {
-    console.error('Starblex: timeout esperando al proveedor de IA (tras reintentos)');
+    // Nunca se reintenta un timeout — ver el bloque "LATENCIA + 429" al
+    // inicio del archivo: reintentar aquí duplicaba el gasto contra una
+    // llamada que podía seguir viva del lado del proveedor.
+    console.error(`Starblex: timeout esperando al proveedor de IA (deadline de ${REQUEST_DEADLINE_MS}ms agotado, sin reintento)`);
     return jsonResponse({ error: UNAVAILABLE_MSG, reason: 'timeout' }, 504, origin);
   }
   if (result.kind === 'network') {
