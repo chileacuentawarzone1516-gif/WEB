@@ -103,27 +103,34 @@ function toGeminiContents(history, message) {
     parts: [{ text: t.content }],
   }));
 }
-const MAX_OUTPUT_TOKENS = 2048; // ver THINKING_BUDGET: con "thinking" apagado, este tope es de texto VISIBLE, no se lo comen tokens de razonamiento.
 // ------------------------------------------------------------
-// CAUSA RAÍZ de la respuesta cortada + latencia alta (evidencia real de
-// producción: una respuesta larga volvió HTTP 200 con solo 99 caracteres
-// visibles, cortada en "### 1. Document", pese a maxOutputTokens=1024).
-// Firma clásica de un modelo Gemini con "thinking" activado por defecto:
-// el presupuesto de salida se consume en tokens de razonamiento INVISIBLES
-// antes de emitir texto, así que el usuario recibe una fracción minúscula
-// del límite y finishReason=MAX_TOKENS. Ese mismo razonamiento explica la
-// latencia de ~7,6 s y acelera el 429 (los tokens de pensamiento cuentan
-// para la cuota).
+// RESPUESTA CORTADA + 502: causa raíz determinada con evidencia real de
+// producción (dos corridas del validador del propietario).
 //
-// thinkingBudget: 0 apaga el pensamiento para este caso de uso (chat de
-// preguntas/respuestas automotriz, no requiere cadena de razonamiento
-// larga). Efecto esperado: respuestas completas, menor latencia y menor
-// consumo de tokens (menos 429). Si el modelo desplegado NO soporta este
-// campo, la API respondería 400 (no transitorio -> sin reintento, visible
-// de inmediato en la próxima corrida del validador) — es trivial de
-// revertir. Ver GEMINI_MODEL: debe ser un modelo válido para la key real.
+// 1) Truncado. Una respuesta larga volvió HTTP 200 con solo 99 caracteres
+//    visibles ("… ### 1. Document") pese a maxOutputTokens=1024. 99 chars
+//    ≈ 25 tokens de 1024: el resto del presupuesto se consumió ANTES de
+//    emitir texto (tokens de razonamiento internos del modelo, que en
+//    Gemini cuentan contra el límite de salida y terminan en
+//    finishReason=MAX_TOKENS).
+//
+// 2) 502. Se intentó apagar ese razonamiento con
+//    generationConfig.thinkingConfig.thinkingBudget = 0. RESULTADO REAL:
+//    el 100% de las llamadas pasó a fallar con 502 en ~0,3 s — un rechazo
+//    inmediato del proveedor (4xx, no transitorio: por eso no se reintenta
+//    y por eso es tan rápido). Antes de introducir ese campo, el MISMO
+//    modelo respondía 5/5 con HTTP 200. Conclusión inequívoca: el modelo/
+//    endpoint en uso NO acepta thinkingConfig; el campo se retira.
+//
+// Corrección aplicada: se retira thinkingConfig (restaura 200) y se sube
+// el tope de salida para que, aun descontando los tokens de razonamiento,
+// quede espacio de sobra para una respuesta larga COMPLETA. Gemini cobra
+// por tokens realmente generados, no por el tope, así que subirlo no
+// encarece las respuestas cortas. La protección de MAX_TOKENS (recorte a
+// la última oración completa, con guarda del 60%) se mantiene como red de
+// seguridad para el caso límite.
 // ------------------------------------------------------------
-const THINKING_BUDGET = 0;
+const MAX_OUTPUT_TOKENS = 4096;
 const UPSTREAM_TIMEOUT_MS = 20_000;
 // Tolerancia a fallos transitorios (auditoría de pre-lanzamiento): un
 // solo reintento server-side, con un backoff corto, SOLO para errores
@@ -518,11 +525,10 @@ export default async (request, context) => {
   const upstreamBody = JSON.stringify({
     contents,
     systemInstruction: { parts: [{ text: systemPrompt }] },
-    generationConfig: {
-      maxOutputTokens: MAX_OUTPUT_TOKENS,
-      // Apaga el "thinking" de Gemini — ver bloque CAUSA RAÍZ arriba.
-      thinkingConfig: { thinkingBudget: THINKING_BUDGET },
-    },
+    // Sin thinkingConfig: este modelo/endpoint lo rechaza con 4xx — ver el
+    // bloque "RESPUESTA CORTADA + 502" arriba. No volver a añadirlo sin
+    // comprobar antes contra la API real que el modelo lo acepta.
+    generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS },
   });
 
   // Un intento aislado contra el proveedor. Cada intento tiene su propio
@@ -578,23 +584,20 @@ export default async (request, context) => {
     return jsonResponse({ error: UNAVAILABLE_MSG, reason: 'provider_error' }, 502, origin);
   }
   if (result.kind === 'http') {
-    // ============================================================
-    // [DIAGNÓSTICO TEMPORAL] — REMOVER tras identificar la causa del 502.
-    // Registra SOLO campos seguros del error de Gemini (status + su
-    // objeto "error" tipado). NO se registra apiKey, body, systemPrompt,
-    // inventario, historial ni el mensaje del usuario. El error.message
-    // de Google es su propio texto de error (p.ej. "model ... is not
-    // found", "Unknown name thinkingConfig"), no un secreto nuestro.
+    // Log seguro y permanente: status + el objeto "error" tipado que
+    // devuelve el proveedor (su propio texto de error, útil para
+    // diagnosticar un modelo o un campo inválido sin volver a instrumentar
+    // el código). NUNCA se registra la apiKey, el body de la request, el
+    // system prompt, el inventario, el historial ni el mensaje del usuario.
     let providerError = {};
     try { providerError = (JSON.parse(result.errText) || {}).error || {}; } catch (_) { /* body no-JSON */ }
-    console.error('Starblex [DIAG] provider_error ' + JSON.stringify({
+    console.error('Starblex: error del proveedor de IA ' + JSON.stringify({
       provider_status: result.status,
       provider_error_code: providerError.code ?? null,
       provider_error_status: providerError.status ?? null,
       provider_error_message: providerError.message ?? null,
       model: MODEL,
     }));
-    // ============================================================
     // 429 del proveedor = límite de tasa o crédito agotado — mensaje
     // igual de genérico hacia el usuario, nunca detalle interno.
     const status = result.status === 429 ? 429 : 502;
@@ -602,24 +605,9 @@ export default async (request, context) => {
       ? 'Starblex IA está recibiendo muchas solicitudes en este momento — inténtalo en unos segundos.'
       : UNAVAILABLE_MSG;
     const reason = result.status === 429 ? 'rate_limited' : 'provider_error';
-    const payload = { error: msg, reason };
-    // [DIAGNÓSTICO TEMPORAL] — expone SOLO el status HTTP del proveedor
-    // (un número: 400/403/404/429), y SOLO en un Deploy Preview. NUNCA se
-    // expone provider_error_message al navegador. REMOVER luego.
-    //
-    // Por qué NO Deno.env.get('CONTEXT'): esa variable la inyecta Netlify
-    // en el build y en las Functions serverless, pero NO está disponible
-    // en el runtime de Edge Functions (Deno) — ahí devuelve undefined, por
-    // eso el intento anterior nunca añadió el campo. Señal fiable y sin
-    // adivinar: el HOST real de la request, que en un preview siempre es
-    // deploy-preview-<n>--<sitio>.netlify.app. Nunca coincide en producción,
-    // así que el campo jamás se filtra en el dominio productivo.
-    let isDeployPreview = false;
-    try { isDeployPreview = new URL(request.url).hostname.includes('deploy-preview-'); } catch (_) { /* url malformada */ }
-    if (isDeployPreview) {
-      payload.provider_status = result.status;
-    }
-    return jsonResponse(payload, status, origin);
+    // Al cliente solo llega el mensaje genérico y el motivo tipado — nunca
+    // el detalle interno del proveedor (eso vive solo en el log de arriba).
+    return jsonResponse({ error: msg, reason }, status, origin);
   }
 
   const data = result.data;
