@@ -1641,6 +1641,13 @@ function isPreviewUnrenderable(file) {
   return type === 'image/heic' || type === 'image/heif' ||
     name.endsWith('.heic') || name.endsWith('.heif');
 }
+// Placeholder profesional para la vista previa cuando un <img> no puede
+// decodificarse. Es un data-URI SVG (sin red, sin depender de placehold.co)
+// y — CRÍTICO — NUNCA muestra un "?": muestra un icono de imagen + "Sin
+// vista previa". Reemplaza el antiguo onerror que ponía `?text=?`, que era
+// exactamente el "?" que aparecía junto al badge PORTADA.
+const PREVIEW_FALLBACK_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='%231e293b'/%3E%3Cg fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='24' y='24' width='32' height='24' rx='3'/%3E%3Ccircle cx='33' cy='33' r='3'/%3E%3Cpath d='M26 46l9-8 6 5 7-7 6 6'/%3E%3C/g%3E%3Ctext x='40' y='63' fill='%2394a3b8' font-family='sans-serif' font-size='7' text-anchor='middle'%3ESin vista previa%3C/text%3E%3C/svg%3E";
+
 function renderImgPreview() {
   const container = document.getElementById('img-preview');
   container.innerHTML = '';
@@ -1650,10 +1657,10 @@ function renderImgPreview() {
     const portadaBadge = i === 0
       ? `<span style="position:absolute;bottom:2px;left:2px;background:rgba(14,165,233,0.9);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;letter-spacing:.5px;">PORTADA</span>`
       : '';
-    const src = item.cloudUrl || item.localUrl;
+    const rawSrc = item.cloudUrl || item.localUrl;
     const border = i === 0 ? 'border-sky-400' : 'border-slate-600';
     if (item.type === 'video') {
-      wrap.innerHTML = `<video src="${escapeAttr(src)}" class="w-full h-20 object-cover rounded-lg border-2 ${border}" muted></video>
+      wrap.innerHTML = `<video src="${escapeAttr(rawSrc)}" class="w-full h-20 object-cover rounded-lg border-2 ${border}" muted></video>
         ${portadaBadge}
         <button class="remove-img" data-idx="${i}">✕</button>`;
     } else if (!item.cloudUrl && isPreviewUnrenderable(item.file)) {
@@ -1666,12 +1673,26 @@ function renderImgPreview() {
         ${portadaBadge}
         <button class="remove-img" data-idx="${i}">✕</button>`;
     } else {
-      wrap.innerHTML = `<img src="${escapeAttr(src)}" class="w-full h-20 object-cover rounded-lg border-2 ${border}" alt="preview"
-        onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=?'">
+      // Ya subida (cloudUrl): pásala por cldOptimize -> f_auto entrega un
+      // formato que el navegador SÍ decodifica (JPEG/WebP) aunque la
+      // portada se haya subido en HEIC — misma razón por la que el catálogo
+      // no se rompe. Antes se usaba la secure_url cruda: un .heic crudo no
+      // se decodifica y disparaba el onerror con el "?". Los blobs locales
+      // (aún sin subir) no son de Cloudinary y se dejan tal cual.
+      const imgSrc = (item.cloudUrl && typeof cldOptimize === 'function')
+        ? cldOptimize(item.cloudUrl, 160)
+        : rawSrc;
+      wrap.innerHTML = `<img src="${escapeAttr(imgSrc)}" class="w-full h-20 object-cover rounded-lg border-2 ${border}" alt="preview">
         ${portadaBadge}
         <button class="remove-img" data-idx="${i}">✕</button>`;
     }
     container.appendChild(wrap);
+    // onerror en JS (no inline) para evitar conflictos de comillas con el
+    // data-URI y garantizar que jamás aparezca un "?".
+    const previewImg = wrap.querySelector('img');
+    if (previewImg) {
+      previewImg.onerror = function () { this.onerror = null; this.src = PREVIEW_FALLBACK_IMG; };
+    }
   });
   if (typeof lucide !== 'undefined' && window.lucide) window.lucide.createIcons();
   container.querySelectorAll('.remove-img').forEach(btn => {

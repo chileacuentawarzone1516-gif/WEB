@@ -4,6 +4,8 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 
 **Producción:** https://labatallaautoimport.netlify.app
 
+<!-- PR #1 (rama claude/verify-write-access-liuxym) listo para validación en Deploy Preview — nota de documentación, sin cambios de lógica. -->
+
 ## Estructura
 
 ```
@@ -36,7 +38,7 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
     └── actualizar-sitemap.yml  Cron diario que regenera y commitea el sitemap
 ```
 
-⚠️ **Nota sobre un archivo huérfano**: existe también un `/starblex.js` en la **raíz** del repositorio (fuera de `netlify/edge-functions/`). Está confirmado que no tiene ninguna referencia real en `netlify.toml`, workflows ni el resto del código — es un duplicado sin uso, pendiente de limpieza manual (`ORPHANED — PENDING MANUAL CLEANUP`). La implementación real y activa es exclusivamente `netlify/edge-functions/starblex.js`.
+✅ **Archivo huérfano eliminado** (auditoría de pre-lanzamiento): existía un `/starblex.js` en la **raíz** del repositorio, duplicado byte-a-byte de `netlify/edge-functions/starblex.js` y sin ninguna referencia real. Como `publish = "."`, Netlify lo servía como archivo estático público en `/starblex.js`, filtrando innecesariamente la lógica del backend. Ya fue removido. La implementación real y activa es exclusivamente `netlify/edge-functions/starblex.js`.
 
 ## Reglas de sincronización crítica
 
@@ -79,9 +81,9 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
    devolver `405` (no `404`), y un `POST` con un mensaje simple debe devolver
    `{ reply: "..." }` con una respuesta real de Gemini. Ver "Estado de
    producción" más abajo.
-7. **Limpieza opcional:** eliminar el `/starblex.js` huérfano de la raíz (ver
-   nota en "Estructura" arriba) — confirmado sin referencias, pero no
-   bloqueante para el funcionamiento del sitio.
+7. ~~**Limpieza opcional:** eliminar el `/starblex.js` huérfano de la raíz.~~
+   ✅ Hecho en la auditoría de pre-lanzamiento (era un duplicado servido
+   públicamente por `publish = "."`).
 
 ## Versionado de caché
 
@@ -246,8 +248,8 @@ ruta bajo `/empresa/*` vía redirect en `netlify.toml`.
   `<img>` (SVG no ejecuta scripts ahí) y el CSP tiene `object-src 'none'`. El
   fix vive en `cloudinary-sign-worker.js`, que corre en Cloudflare Workers —
   fuera de este repositorio, pendiente de despliegue manual.
-- **`/starblex.js`** en la raíz del proyecto: `ORPHANED — PENDING MANUAL
-  CLEANUP` (ver nota en "Estructura" arriba).
+- ~~**`/starblex.js`** en la raíz del proyecto: `ORPHANED — PENDING MANUAL
+  CLEANUP`.~~ ✅ Resuelto: archivo eliminado en la auditoría de pre-lanzamiento.
 
 # Estado del proyecto
 

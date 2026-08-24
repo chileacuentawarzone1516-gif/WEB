@@ -103,8 +103,62 @@ function toGeminiContents(history, message) {
     parts: [{ text: t.content }],
   }));
 }
-const MAX_OUTPUT_TOKENS = 700;
-const UPSTREAM_TIMEOUT_MS = 20_000;
+// ------------------------------------------------------------
+// LATENCIA + 429: causa raíz determinada con evidencia real de producción
+// del Deploy Preview (commit 78a2b68), no por inferencia.
+//
+// Cinco llamadas dieron: 8.0s, "0 en 35.0s", 16.7s, 6.4s, "0 en 35.0s".
+// El "0 en 35.00Xs" NO es una respuesta del servidor: es el propio
+// validador (curl.exe --max-time 35) cortando la conexión a los 35s
+// exactos. Con UPSTREAM_TIMEOUT_MS=20s y 1 reintento SOBRE TIMEOUT, el
+// peor caso real era 20s + 600ms de backoff + otros 20s ≈ 40,6s — el
+// cliente corta antes, a los 35s, y eso es justo lo que se vio. Además,
+// reintentar un timeout NO cancela la llamada en Gemini (nuestro
+// AbortController solo cancela nuestro propio fetch): si la primera
+// llamada seguía viva del lado del proveedor, el reintento la duplicaba,
+// pagando dos veces por la misma respuesta y acelerando el 429 de
+// pickup1. Esto era un bug de nuestro propio backend, no "cuota real"
+// per se — cuota real más gasto duplicado innecesario.
+//
+// Corrección: un deadline DURO para toda la fase de Gemini (intento +
+// posible reintento), y el timeout deja de reintentarse — un timeout ya
+// NO desencadena una segunda llamada idéntica. Solo se reintenta un fallo
+// de red o un 5xx (fallos que SÍ suelen fallar rápido, antes de que
+// Gemini empiece a procesar), y solo si queda presupuesto real dentro del
+// deadline. Así el peor caso pasa de ~40,6s a, como mucho,
+// REQUEST_DEADLINE_MS (~14s) + un backoff corto — muy por debajo del
+// techo de ~15s pedido, sin nunca duplicar una llamada cara.
+//
+// Nota honesta: esto significa que una respuesta que hubiera tardado más
+// de ~14s en completarse (como el caso real de 16.7s) ahora corta antes y
+// devuelve un error controlado en vez de esperar y eventualmente tener
+// éxito. Es la decisión correcta dado el objetivo explícito de latencia
+// acotada — no es un efecto oculto, queda documentado aquí.
+// ------------------------------------------------------------
+// maxOutputTokens: se pidió evaluar 1536-2048. Se elige el techo (2048),
+// no el piso, por el riesgo YA demostrado en este mismo modelo: con un
+// tope de 1024, el razonamiento interno (no desactivable — thinkingConfig
+// es rechazado por este modelo/endpoint, ver historial de commits) llegó
+// a consumir ~999 de esos 1024 tokens, dejando solo ~25 tokens de texto
+// visible y truncando la respuesta a mitad de frase. Bajar a 1536 reduce
+// el margen de sobra frente a ese mismo riesgo; 2048 conserva margen
+// razonable para una respuesta larga estructurada (p.ej. una guía de
+// inspección con 8 secciones) sin volver al techo de 4096, que no
+// aportaba nada una vez retirado thinkingConfig (Gemini cobra por tokens
+// generados, no por el tope — un tope más alto no "arregla" el truncado
+// si el problema es cuánto se gasta en pensar, solo posterga el límite).
+const MAX_OUTPUT_TOKENS = 2048;
+// Ceiling DURO para toda la fase de Gemini (intento inicial + el único
+// reintento posible), no por intento. ~14s deja margen bajo el techo de
+// ~15s pedido para el request completo, una vez sumado Firestore
+// (paralelo, cacheado 60s, típicamente sub-segundo) y el armado del
+// prompt (síncrono, milisegundos).
+const REQUEST_DEADLINE_MS = 14_000;
+// No tiene sentido reintentar con menos de esto: no alcanzaría ni para un
+// intento razonable antes de topar el deadline.
+const MIN_RETRY_BUDGET_MS = 2_000;
+const RETRY_BACKOFF_MS = 250;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ------------------------------------------------------------
 // Límites de entrada — control de costo básico de esta fase.
@@ -322,6 +376,47 @@ function stripIdForPrompt(item, { compactFeatures = false } = {}) {
   return rest;
 }
 
+// FASE 9 (optimización de contexto, medida sobre el inventario real de
+// producción): el listado GENERAL de fondo se reduce a los campos que el
+// asistente realmente necesita para "qué tienen disponible", "cuál me
+// recomiendas" y comparaciones por tipo/precio. Medición real (37
+// vehículos): el bloque completo pesaba 9.617 chars (~2.404 tokens) por
+// mensaje; con solo estos campos baja a ~4.199 chars (~1.050 tokens), un
+// 56% menos de tokens de ENTRADA en CADA request — menos latencia, menos
+// consumo y menor probabilidad de 429. NO se pierde precisión: el prompt
+// prohíbe inventar datos, así que a lo sumo el modelo dirá "no tengo ese
+// detalle del inventario general" para un campo omitido de fondo. El
+// vehículo EN PANTALLA (vehicleContext) sigue enviándose COMPLETO (todos
+// los campos + features), que es donde el detalle sí importa.
+function backgroundInventoryItem(item) {
+  return {
+    name: item.name,
+    brand: item.brand,
+    year: item.year,
+    price: item.price,
+    category: item.category,
+    condition: item.condition,
+  };
+}
+
+// FASE 10 (reducción de contexto por consulta): cuando SÍ hay un vehículo
+// en pantalla, el caso más común es una pregunta sobre ESE vehículo — ahí
+// el listado general de fondo no aporta nada y solo cuesta tokens de
+// entrada (más latencia, más presión de cuota). Se omite salvo que el
+// propio mensaje sugiera que hace falta: comparar, ver otras opciones, o
+// preguntar por el inventario/catálogo en general. Es una heurística de
+// palabras clave, no NLP — puede tener falsos negativos (una pregunta de
+// comparación redactada sin ninguna de estas palabras), pero el prompt ya
+// exige no inventar datos de inventario que no están, así que el peor
+// caso es que el modelo pida aclarar en vez de inventar. Sin vehículo en
+// pantalla, el listado general SIEMPRE se envía — ahí sí es la única
+// fuente de contexto disponible.
+const GENERAL_INVENTORY_KEYWORDS = /\b(compar|otro|otra|otros|otras|opcion|opciones|disponible|disponibles|inventario|catalogo|catálogo|recomiendas|recomendar|recomiendame|recomiéndame)\b/i;
+function needsGeneralInventory(message, hasVehicleContext) {
+  if (!hasVehicleContext) return true;
+  return GENERAL_INVENTORY_KEYWORDS.test(message);
+}
+
 // ------------------------------------------------------------
 // System prompt — reglas de precisión + separación explícita entre
 // instrucciones (esto) y datos (inventario/historial/mensaje, que se
@@ -339,8 +434,10 @@ function stripIdForPrompt(item, { compactFeatures = false } = {}) {
 // (vehicleContext) conserva sus features completas sin cambios -- ahí
 // es donde "características completas" realmente importa. Ningún otro
 // campo ni la cantidad de vehículos se redujo.
-function buildSystemPrompt(inventory, vehicleContext) {
-  const inventoryJson = JSON.stringify(inventory.map((v) => stripIdForPrompt(v, { compactFeatures: true })));
+function buildSystemPrompt(inventory, vehicleContext, includeInventory) {
+  const inventoryJson = includeInventory
+    ? JSON.stringify(inventory.map(backgroundInventoryItem))
+    : '"omitido en este mensaje — hay un vehículo en pantalla y la pregunta no pidió comparar ni ver otras opciones; si el usuario sí pregunta por el resto del inventario, dilo y pide que lo repita"';
   const vehicleJson = vehicleContext ? JSON.stringify(stripIdForPrompt(vehicleContext)) : 'null';
 
   return `Eres Starblex IA 1.0, el asistente automotriz de La Batalla Auto Import. Respondes siempre en español.
@@ -447,80 +544,183 @@ export default async (request, context) => {
   // contra Firestore, nunca contra lo que mande el navegador.
   const requestedVehicleId = sanitizeText(body.vehicleId, MAX_VEHICLE_ID_CHARS);
 
+  // MEDICIÓN INTERNA (solo tiempos, nunca contenido): total_ms arranca
+  // aquí, justo después de validar la entrada y antes de tocar Firestore.
+  const phaseStart = Date.now();
+
   // FASE 8 — CAMBIO 1: el inventario general (para "qué tienen
   // disponible") y el vehículo en contexto (para "explícame este") ya
   // no comparten la misma fuente acotada a 60. El inventario general
   // sigue limitado (control de costo); el vehículo en contexto se
   // busca siempre por lectura directa, sin importar cuántos vehículos
   // existan ni en qué posición esté el suyo. Ambas llamadas corren en
-  // paralelo — no se duplica latencia por separarlas.
-  const [inventory, vehicleContext] = await Promise.all([
-    fetchTrustedInventory(),
-    requestedVehicleId ? fetchVehicleById(requestedVehicleId) : Promise.resolve(null),
+  // paralelo — no se duplica latencia por separarlas. Se sigue
+  // consultando el inventario general aunque este mensaje no lo vaya a
+  // usar en el prompt (ver needsGeneralInventory): ya está cacheado 60s,
+  // así que consultarlo es barato, y sigue haciendo falta como fuente
+  // para el fallback "sin vehículo en pantalla". Revisado: ninguna de las
+  // dos consultas se repite dentro de este request — cada una se llama
+  // exactamente una vez, cacheada por su propio TTL independiente.
+  async function timed(promise) {
+    const start = Date.now();
+    const value = await promise;
+    return { value, ms: Date.now() - start };
+  }
+  const [invTimed, vehTimed] = await Promise.all([
+    timed(fetchTrustedInventory()),
+    timed(requestedVehicleId ? fetchVehicleById(requestedVehicleId) : Promise.resolve(null)),
   ]);
+  const inventory = invTimed.value;
+  const vehicleContext = vehTimed.value;
+  const inventory_ms = invTimed.ms;
+  const vehicle_ms = vehTimed.ms;
 
-  const systemPrompt = buildSystemPrompt(inventory, vehicleContext);
+  const promptBuildStart = Date.now();
+  const includeInventory = needsGeneralInventory(message, !!vehicleContext);
+  const systemPrompt = buildSystemPrompt(inventory, vehicleContext, includeInventory);
   // Gemini: "contents" (no "messages"), roles 'user'/'model' (no 'assistant').
   const contents = toGeminiContents(history, message);
+  const upstreamBody = JSON.stringify({
+    contents,
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    // Sin thinkingConfig: este modelo/endpoint lo rechaza con 4xx — ver el
+    // bloque "LATENCIA + 429" arriba. No volver a añadirlo sin comprobar
+    // antes contra la API real que el modelo lo acepta.
+    generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS },
+  });
+  const prompt_build_ms = Date.now() - promptBuildStart;
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
-
-  try {
-    const upstream = await fetch(GEMINI_API_URL, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey, // header oficial de autenticación de la Gemini Developer API
-      },
-      body: JSON.stringify({
-        contents,
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS },
-      }),
-    });
-    clearTimeout(timeout);
-
-    if (!upstream.ok) {
-      const errText = await upstream.text().catch(() => '');
-      console.error('Starblex: error del proveedor de IA', upstream.status, errText);
-      // 429 del proveedor = límite de tasa o crédito agotado — mensaje
-      // igual de genérico hacia el usuario, nunca detalle interno.
-      const status = upstream.status === 429 ? 429 : 502;
-      const msg = upstream.status === 429
-        ? 'Starblex IA está recibiendo muchas solicitudes en este momento — inténtalo en unos segundos.'
-        : UNAVAILABLE_MSG;
-      const reason = upstream.status === 429 ? 'rate_limited' : 'provider_error';
-      return jsonResponse({ error: msg, reason }, status, origin);
+  // Un intento aislado contra el proveedor, con SU PROPIO timeout (pasado
+  // como parámetro — ver el orquestador de deadline más abajo). Devuelve
+  // un resultado tipado; NO lanza — así el orquestador decide con datos,
+  // no con excepciones.
+  async function attemptUpstream(timeoutMs) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const upstream = await fetch(GEMINI_API_URL, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey, // header oficial de autenticación de la Gemini Developer API
+        },
+        body: upstreamBody,
+      });
+      clearTimeout(timeout);
+      if (!upstream.ok) {
+        const errText = await upstream.text().catch(() => '');
+        return { kind: 'http', status: upstream.status, errText };
+      }
+      const data = await upstream.json().catch(() => null);
+      return { kind: 'ok', data };
+    } catch (e) {
+      clearTimeout(timeout);
+      if (e && e.name === 'AbortError') return { kind: 'timeout' };
+      return { kind: 'network', error: e };
     }
+  }
 
-    const data = await upstream.json();
-    // candidates puede venir vacío (prompt bloqueado por los filtros de
-    // seguridad de Gemini -> data.promptFeedback.blockReason) o con un
-    // candidato sin "content" (respuesta bloqueada tras generarse ->
-    // candidates[0].finishReason). Ambos casos se tratan igual que
-    // cualquier respuesta vacía: no se distingue el motivo hacia el
-    // usuario, pero sí queda registrado en el log del servidor.
-    const parts = data?.candidates?.[0]?.content?.parts;
-    const reply = (Array.isArray(parts) ? parts : [])
-      .map((p) => (p && typeof p.text === 'string' ? p.text : ''))
-      .join('\n')
-      .trim();
+  // Orquestador con DEADLINE DURO — ver el bloque "LATENCIA + 429" arriba
+  // para la evidencia que justifica este diseño. Reglas:
+  //   - 429: nunca se reintenta (se corta en la rama result.kind==='http'
+  //     más abajo, antes de considerar cualquier retry).
+  //   - timeout: nunca se reintenta (evita duplicar una llamada cara que
+  //     puede seguir viva del lado del proveedor).
+  //   - network / 5xx: se reintenta COMO MUCHO una vez, y solo si queda
+  //     presupuesto real dentro de REQUEST_DEADLINE_MS.
+  //   - cada intento (incluido el reintento) usa como timeout el
+  //     presupuesto que quede, nunca más — así el peor caso total nunca
+  //     supera REQUEST_DEADLINE_MS + un backoff corto.
+  const geminiPhaseStart = Date.now();
+  const remainingBudget = () => REQUEST_DEADLINE_MS - (Date.now() - geminiPhaseStart);
+  const isRetryableNonTimeout = (r) =>
+    r.kind === 'network' || (r.kind === 'http' && r.status >= 500 && r.status <= 599);
 
-    if (!reply) {
-      const blockReason = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason || 'desconocido';
-      console.error('Starblex: respuesta vacía o bloqueada por el proveedor', blockReason);
-      return jsonResponse({ error: UNAVAILABLE_MSG, reason: 'empty_response' }, 502, origin);
-    }
-    return jsonResponse({ reply }, 200, origin);
-  } catch (e) {
-    clearTimeout(timeout);
-    if (e && e.name === 'AbortError') {
-      console.error('Starblex: timeout esperando al proveedor de IA');
-      return jsonResponse({ error: UNAVAILABLE_MSG, reason: 'timeout' }, 504, origin);
-    }
-    console.error('Starblex: excepción llamando al proveedor de IA', e);
+  let result = await attemptUpstream(Math.max(remainingBudget(), 1000));
+  if (isRetryableNonTimeout(result) && remainingBudget() > MIN_RETRY_BUDGET_MS) {
+    console.warn(`Starblex: reintento tras fallo transitorio (${result.kind}${result.status ? ' ' + result.status : ''})`);
+    await sleep(RETRY_BACKOFF_MS);
+    result = await attemptUpstream(Math.max(remainingBudget(), 1000));
+  }
+  const gemini_ms = Date.now() - geminiPhaseStart;
+  const total_ms = Date.now() - phaseStart;
+  console.info('Starblex: métricas ' + JSON.stringify({
+    inventory_ms, vehicle_ms, prompt_build_ms, gemini_ms, total_ms,
+    included_general_inventory: includeInventory,
+  }));
+
+  if (result.kind === 'timeout') {
+    // Nunca se reintenta un timeout — ver el bloque "LATENCIA + 429" al
+    // inicio del archivo: reintentar aquí duplicaba el gasto contra una
+    // llamada que podía seguir viva del lado del proveedor.
+    console.error(`Starblex: timeout esperando al proveedor de IA (deadline de ${REQUEST_DEADLINE_MS}ms agotado, sin reintento)`);
+    return jsonResponse({ error: UNAVAILABLE_MSG, reason: 'timeout' }, 504, origin);
+  }
+  if (result.kind === 'network') {
+    console.error('Starblex: excepción llamando al proveedor de IA', result.error);
     return jsonResponse({ error: UNAVAILABLE_MSG, reason: 'provider_error' }, 502, origin);
   }
+  if (result.kind === 'http') {
+    // Log seguro y permanente: status + el objeto "error" tipado que
+    // devuelve el proveedor (su propio texto de error, útil para
+    // diagnosticar un modelo o un campo inválido sin volver a instrumentar
+    // el código). NUNCA se registra la apiKey, el body de la request, el
+    // system prompt, el inventario, el historial ni el mensaje del usuario.
+    let providerError = {};
+    try { providerError = (JSON.parse(result.errText) || {}).error || {}; } catch (_) { /* body no-JSON */ }
+    console.error('Starblex: error del proveedor de IA ' + JSON.stringify({
+      provider_status: result.status,
+      provider_error_code: providerError.code ?? null,
+      provider_error_status: providerError.status ?? null,
+      provider_error_message: providerError.message ?? null,
+      model: MODEL,
+    }));
+    // 429 del proveedor = límite de tasa o crédito agotado — mensaje
+    // igual de genérico hacia el usuario, nunca detalle interno.
+    const status = result.status === 429 ? 429 : 502;
+    const msg = result.status === 429
+      ? 'Starblex IA está recibiendo muchas solicitudes en este momento — inténtalo en unos segundos.'
+      : UNAVAILABLE_MSG;
+    const reason = result.status === 429 ? 'rate_limited' : 'provider_error';
+    // Al cliente solo llega el mensaje genérico y el motivo tipado — nunca
+    // el detalle interno del proveedor (eso vive solo en el log de arriba).
+    return jsonResponse({ error: msg, reason }, status, origin);
+  }
+
+  const data = result.data;
+  // candidates puede venir vacío (prompt bloqueado por los filtros de
+  // seguridad de Gemini -> data.promptFeedback.blockReason) o con un
+  // candidato sin "content" (respuesta bloqueada tras generarse ->
+  // candidates[0].finishReason). Ambos casos se tratan igual que
+  // cualquier respuesta vacía: no se distingue el motivo hacia el
+  // usuario, pero sí queda registrado en el log del servidor.
+  const parts = data?.candidates?.[0]?.content?.parts;
+  let reply = (Array.isArray(parts) ? parts : [])
+    .map((p) => (p && typeof p.text === 'string' ? p.text : ''))
+    .join('\n')
+    .trim();
+
+  if (!reply) {
+    const blockReason = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason || 'desconocido';
+    console.error('Starblex: respuesta vacía o bloqueada por el proveedor', blockReason);
+    return jsonResponse({ error: UNAVAILABLE_MSG, reason: 'empty_response' }, 502, origin);
+  }
+
+  // MAX_TOKENS: la respuesta se cortó por el tope de salida y puede
+  // quedar a mitad de frase. Si es posible, se recorta hasta la última
+  // oración COMPLETA para no entregar un final colgando. Solo se aplica
+  // cuando finishReason === 'MAX_TOKENS' y el recorte conserva la mayor
+  // parte del texto (>60%): nunca se toca una respuesta normal (STOP),
+  // ni se destruye una respuesta corta que legítimamente no lleva punto.
+  if (data?.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
+    const lastEnd = Math.max(reply.lastIndexOf('. '), reply.lastIndexOf('.\n'),
+      reply.lastIndexOf('! '), reply.lastIndexOf('? '), reply.lastIndexOf('…'));
+    const endIdx = reply.search(/[.!?…]\s*$/) !== -1 ? reply.length : (lastEnd !== -1 ? lastEnd + 1 : -1);
+    if (endIdx > 0 && endIdx >= reply.length * 0.6) {
+      reply = reply.slice(0, endIdx).trim();
+    }
+  }
+
+  return jsonResponse({ reply }, 200, origin);
 };
