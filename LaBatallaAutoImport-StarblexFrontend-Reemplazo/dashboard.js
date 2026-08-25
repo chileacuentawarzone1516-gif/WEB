@@ -432,7 +432,7 @@ function dbRenderCards() {
       preview: recent.slice(0, 3), cta: 'Ver historial',
       onClick: () => { dbSetTab('historial'); document.getElementById('db-hist-vistos')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } },
     { icon: 'car', title: 'Recomendados para ti', count: recommended.length,
-      sub: 'Según tus marcas y categorías de interés (reglas de negocio, sin IA)',
+      sub: 'Según tus marcas y categorías de interés',
       preview: recommended.slice(0, 3), cta: 'Explorar',
       onClick: () => { closeDashboardPage(); window.scrollTo(0, 0); scrollToSection(recommended[0]?.category || 'sedanes'); } },
     { icon: 'file-text', title: 'Cotizaciones guardadas', count: _dbQuoteCountCache, sub: 'Simulaciones de la calculadora de financiamiento', onClick: () => dbSetTab('cotizaciones') },
@@ -500,7 +500,7 @@ async function dbRenderHistory() {
   wrap.innerHTML = `
     <div class="db-hist-group" id="db-hist-vistos"><h3><i data-lucide="eye"></i> Vehículos vistos</h3>${recent.length ? recent.map(x => histItem(x.v, dbFormatRelative(x.ts), true)).join('') : emptyBlock('Aún no has visto ningún vehículo')}</div>
     <div class="db-hist-group"><h3><i data-lucide="heart"></i> Favoritos agregados</h3>${favVehicles.length ? favVehicles.map(v => histItem(v, 'En tus favoritos', false)).join('') : emptyBlock('Aún no tienes favoritos')}</div>
-    <div class="db-hist-group"><h3><i data-lucide="file-text"></i> Cotizaciones realizadas</h3><p style="color:#64748b;font-size:12px;">Ver detalle completo en la pestaña "Cotizaciones".</p></div>`;
+    <div class="db-hist-group"><h3><i data-lucide="file-text"></i> Cotizaciones realizadas</h3><p style="color:#8b99ad;font-size:12px;">Ver detalle completo en la pestaña "Cotizaciones".</p></div>`;
   wrap.querySelectorAll('.db-hist-item').forEach((el, idx) => {
     const allClickable = [...recent.map(x => x.v), ...favVehicles];
     const v = allClickable[idx];
@@ -555,7 +555,6 @@ const DB_QUICK_ACTIONS = [
   { icon: 'heart', label: 'Ver favoritos', action: () => dbSetTab('favoritos') },
   { icon: 'file-text', label: 'Ver cotizaciones', action: () => dbSetTab('cotizaciones') },
   { icon: 'eye', label: 'Vehículos vistos', action: () => { dbSetTab('historial'); document.getElementById('db-hist-vistos')?.scrollIntoView({ behavior: 'smooth' }); } },
-  { icon: 'bot', label: 'Hablar con Starblex IA', action: () => document.getElementById('fab-starblex-btn')?.click() },
   { icon: 'car', label: 'Explorar inventario', action: () => { closeDashboardPage(); window.scrollTo(0, 0); } }
 ];
 function dbRenderQuickActions() {

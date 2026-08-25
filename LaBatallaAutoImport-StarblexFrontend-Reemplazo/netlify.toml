@@ -63,15 +63,6 @@
   path = "/vehiculos/*"
   function = "vehicle-og"
 
-# Starblex IA 1.0 — backend seguro del chat automotriz. La API key del
-# proveedor de IA vive SOLO como variable de entorno de esta función
-# (ANTHROPIC_API_KEY, ALLOWED_ORIGINS) — nunca en el cliente. Mismo
-# dominio que el resto del sitio, así que no requiere cambios de CSP
-# ni de CORS externo.
-[[edge_functions]]
-  path = "/api/starblex"
-  function = "starblex"
-
 [[headers]]
   for = "/styles.css"
   [headers.values]
@@ -143,6 +134,14 @@
 # jsDelivr, imágenes de Pexels/placehold.co). Si agregas un nuevo
 # servicio externo más adelante, tendrás que sumarlo aquí o el
 # navegador lo bloqueará silenciosamente.
+#
+# `blob:` en img-src y media-src NO es opcional: el formulario de
+# publicación genera la vista previa de cada foto/vídeo elegido con
+# URL.createObjectURL(file) (app.js), que produce una URL `blob:`.
+# Sin este permiso el navegador bloquea la miniatura y el admin
+# publica a ciegas — verificado en navegador con esta misma política.
+# Un `blob:` solo puede crearlo la propia página desde un archivo que
+# la persona ya seleccionó; no abre la puerta a ningún origen externo.
 # ============================================================
 [[headers]]
   for = "/*"
@@ -152,7 +151,7 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "geolocation=(), microphone=(), camera=()"
     Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
-    Content-Security-Policy = "default-src 'self'; base-uri 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdn.jsdelivr.net https://www.google.com https://www.googletagmanager.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; media-src https:; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.gstatic.com https://api.cloudinary.com https://res.cloudinary.com https://labatalla-cloudinary-sign.chileacuentawarzone1516.workers.dev https://www.googletagmanager.com https://www.google-analytics.com https://region1.google-analytics.com; frame-src https://www.google.com https://la-batalla-auto-import.firebaseapp.com; frame-ancestors 'none'; object-src 'none'; form-action 'self'; manifest-src 'self'"
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdn.jsdelivr.net https://www.google.com https://www.googletagmanager.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src blob: https:; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.gstatic.com https://api.cloudinary.com https://res.cloudinary.com https://labatalla-cloudinary-sign.chileacuentawarzone1516.workers.dev https://www.googletagmanager.com https://www.google-analytics.com https://region1.google-analytics.com; frame-src https://www.google.com https://la-batalla-auto-import.firebaseapp.com; frame-ancestors 'none'; object-src 'none'; form-action 'self'; manifest-src 'self'"
 
 # Archivos nuevos de la Fase 1 (auth + dashboard) — mismo patrón de caché
 # que app.js: corto con revalidación, el versionado ?v= fuerza el refresh.
@@ -180,12 +179,6 @@
 # los demás JS propios.
 [[headers]]
   for = "/invite-modal.js"
-  [headers.values]
-    Cache-Control = "public, max-age=3600, must-revalidate"
-
-# Interfaz de Starblex IA 1.0 — mismo patrón que los demás JS propios.
-[[headers]]
-  for = "/starblex-chat.js"
   [headers.values]
     Cache-Control = "public, max-age=3600, must-revalidate"
 

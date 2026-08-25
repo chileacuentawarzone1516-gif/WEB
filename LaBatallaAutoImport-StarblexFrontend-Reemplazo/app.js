@@ -331,6 +331,19 @@ function escapeHtml(str) {
 }
 // Escapa para usar dentro de un atributo entre comillas (src, alt, data-id, href)
 function escapeAttr(str) { return escapeHtml(str); }
+// Resuelve la foto de portada de un vehículo desde el esquema real de
+// `media` ({type, src} o string suelto de registros antiguos), cayendo a
+// `img` y por último al placeholder que se le indique. Antes cada punto
+// de render resolvía esto por su cuenta con criterios distintos: uno caía
+// al propio objeto de media (renderizaba src="[object Object]", petición
+// 404 real) y dos caían a cadena vacía (<img src=""> vuelve a pedir el
+// documento HTML completo). Un solo criterio para todos.
+function getVehicleCover(v, placeholder) {
+  const first = v && Array.isArray(v.media) && v.media.length > 0 ? v.media[0] : null;
+  if (typeof first === 'string' && first) return first;
+  if (first && typeof first.src === 'string' && first.src) return first.src;
+  return (v && typeof v.img === 'string' && v.img) ? v.img : placeholder;
+}
 // Inserta una transformación de Cloudinary (f_auto,q_auto + ancho) en
 // cualquier URL que provenga de Cloudinary. Si la URL no es de
 // Cloudinary (ej. placehold.co, Pexels demo), la devuelve intacta.
@@ -376,7 +389,7 @@ function updateSeoForVehicle(v) {
   setMetaTag('meta[name="twitter:title"]', 'content', title);
   setMetaTag('meta[name="twitter:description"]', 'content', desc);
   setCanonical(url);
-  const rawImg = v.media?.[0] ? (typeof v.media[0] === 'string' ? v.media[0] : v.media[0].src) : v.img;
+  const rawImg = getVehicleCover(v, '');
   const img = cldOptimize(rawImg, 1200); // mismo criterio que la Edge Function vehicle-og.js
   if (img) { setMetaTag('meta[property="og:image"]', 'content', img); setMetaTag('meta[name="twitter:image"]', 'content', img); }
   injectVehicleJsonLd(v);
@@ -397,7 +410,7 @@ function resetSeoToDefault() {
 // Datos estructurados — le indican a Google explícitamente "esto es un vehículo en venta"
 function injectVehicleJsonLd(v) {
   document.getElementById('vehicle-jsonld')?.remove();
-  const img = v.media?.[0] ? (typeof v.media[0] === 'string' ? v.media[0] : v.media[0].src) : v.img;
+  const img = getVehicleCover(v, '');
   const keywords = Array.isArray(v.seoTags) ? v.seoTags : [];
   const data = {
     "@context": "https://schema.org", "@type": "Vehicle", "name": v.name,
@@ -450,14 +463,7 @@ function scrollToSection(id) {
 // RENDER VEHICLE CARD
 // ============================================================
 function renderCard(v) {
-  // media[0] es {type, src} — extraer .src correctamente
-  let imgSrc = 'https://placehold.co/300x176/1e293b/38bdf8?text=Auto';
-  if (v.media && v.media.length > 0) {
-    const first = v.media[0];
-    imgSrc = typeof first === 'string' ? first : (first.src || first);
-  } else if (v.img) {
-    imgSrc = v.img;
-  }
+  const imgSrc = getVehicleCover(v, 'https://placehold.co/300x176/1e293b/38bdf8?text=Auto');
   const div = document.createElement('div');
   div.className = 'vehicle-card rounded-xl overflow-hidden shadow-lg relative';
   div.style.background = 'rgb(30,41,59)';
@@ -499,10 +505,10 @@ function renderCard(v) {
       ${activeTags.length > 0 ? `<div class="flex gap-1 mb-3 flex-wrap">${activeTags.map(t => `<span class="text-xs px-2 py-1 rounded-full font-semibold" style="background:${tagDefs[t].bg};color:${tagDefs[t].color};">${tagDefs[t].label}</span>`).join('')}</div>` : '<div class="mb-1"></div>'}
       <div class="flex gap-2">
         <a href="${vehiclePath}" class="ver-btn flex-1 px-3 py-2 rounded-lg font-medium text-sm text-center" data-id="${v.id}"
-          style="background:rgb(14,165,233); color:#fff;">Ver Características</a>
+          style="background:rgb(14,165,233); color:#042c53; font-weight:700;">Ver Características</a>
         <a href="https://wa.me/18097759771?text=${encodeURIComponent('Hola, estoy interesado en el ' + v.name + ' (' + fmtPrice(v.price, v) + ') de La Batalla Auto Import. ¿Está disponible?\n\n🔗 ' + vehicleUrl)}" target="_blank" rel="noopener noreferrer"
           class="px-3 py-2 rounded-lg font-medium text-center text-sm flex items-center justify-center"
-          style="background:rgb(34,197,94); color:#fff;" title="WhatsApp">
+          style="background:rgb(34,197,94); color:#052e16;" title="WhatsApp">
           <svg class="w-4 h-4 fill-current"><use href="#icon-whatsapp"/></svg>
         </a>
         <button type="button" class="share-btn px-3 py-2 rounded-lg font-medium text-sm flex items-center justify-center" data-id="${escapeAttr(v.id)}" data-name="${escapeAttr(v.name)}" data-price="${escapeAttr(fmtPrice(v.price, v))}"
@@ -709,9 +715,7 @@ function renderAccountFavorites() {
   empty.classList.add('hidden');
   grid.classList.remove('hidden');
   items.forEach(v => {
-    const imgSrc = v.media && v.media.length > 0
-      ? (typeof v.media[0] === 'string' ? v.media[0] : (v.media[0].src || v.img || ''))
-      : (v.img || 'https://placehold.co/300x176/1e293b/38bdf8?text=Auto');
+    const imgSrc = getVehicleCover(v, 'https://placehold.co/300x176/1e293b/38bdf8?text=Auto');
     const card = document.createElement('div');
     card.className = 'rounded-xl overflow-hidden cursor-pointer relative group';
     card.style.cssText = 'background:rgb(30,41,59);border:1px solid rgba(255,255,255,0.07);';
@@ -1201,9 +1205,7 @@ function renderSimilarPage(page) {
   const totalPages = Math.max(1, Math.ceil(similarVehicles.length / pageSize));
   const toShow = similarVehicles.slice((page-1)*pageSize, page*pageSize);
   toShow.forEach(sv => {
-    const imgSrc = sv.media && sv.media.length > 0
-      ? (typeof sv.media[0] === 'string' ? sv.media[0] : (sv.media[0].src || sv.img || ''))
-      : (sv.img || 'https://placehold.co/300x176/1e293b/38bdf8?text=Auto');
+    const imgSrc = getVehicleCover(sv, 'https://placehold.co/300x176/1e293b/38bdf8?text=Auto');
     const svIsFav = isFavorite(sv.id);
     const card = document.createElement('a');
     card.href = getVehiclePath(sv);
@@ -1666,12 +1668,30 @@ function renderImgPreview() {
         ${portadaBadge}
         <button class="remove-img" data-idx="${i}">✕</button>`;
     } else {
+      // Si la miniatura no se puede renderizar (archivo corrupto, objectURL
+      // revocado, URL de Cloudinary caída al editar), se muestra el MISMO
+      // estado neutro que la rama HEIC de arriba — nunca el placeholder de
+      // error "?", que se leía como imagen rota sobre el badge PORTADA.
       wrap.innerHTML = `<img src="${escapeAttr(src)}" class="w-full h-20 object-cover rounded-lg border-2 ${border}" alt="preview"
-        onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=?'">
+        data-preview-border="${border}">
         ${portadaBadge}
         <button class="remove-img" data-idx="${i}">✕</button>`;
     }
     container.appendChild(wrap);
+  });
+  // Fallback sin handler inline (el CSP ya carga con 'unsafe-inline' por
+  // deuda conocida; no se le suma uno nuevo): si la miniatura falla, se
+  // sustituye por el mismo bloque neutro de la rama HEIC.
+  container.querySelectorAll('img[data-preview-border]').forEach(im => {
+    im.addEventListener('error', () => {
+      const br = im.dataset.previewBorder || 'border-slate-600';
+      const ph = document.createElement('div');
+      ph.className = `w-full h-20 rounded-lg border-2 ${br} bg-slate-800 flex flex-col items-center justify-center gap-0.5 px-1 text-center`;
+      ph.innerHTML = `<i data-lucide="image-off" class="w-4 h-4 text-slate-400"></i>
+          <span class="text-[9px] text-slate-400 leading-tight">Vista previa no disponible</span>`;
+      im.replaceWith(ph);
+      if (window.lucide) window.lucide.createIcons();
+    }, { once: true });
   });
   if (typeof lucide !== 'undefined' && window.lucide) window.lucide.createIcons();
   container.querySelectorAll('.remove-img').forEach(btn => {
@@ -2374,26 +2394,6 @@ function initScrollSpy() {
 // ============================================================
 // INIT
 // ============================================================
-// ============================================================
-// FAB DE STARBLEX IA 1.0 — asistente automotriz accesible desde
-// cualquier pantalla del sitio. Reemplaza al antiguo FAB de WhatsApp
-// ("Escríbenos"). El chat en sí (starblex-chat.js) se inicializa bajo
-// demanda: este botón solo se muestra/oculta y delega la apertura.
-// ============================================================
-function initFabStarblex() {
-  const fab = document.getElementById('fab-starblex-btn');
-  if (!fab) return;
-  fab.addEventListener('click', () => {
-    window.LB_STARBLEX?.open();
-  });
-  const hero = document.querySelector('header.relative.h-\\[70vh\\]');
-  if (!hero || !('IntersectionObserver' in window)) { fab.classList.remove('hidden'); return; }
-  const io = new IntersectionObserver(entries => {
-    entries.forEach(entry => fab.classList.toggle('hidden', entry.isIntersecting));
-  }, { threshold: 0.15 });
-  io.observe(hero);
-}
-
 window.addEventListener('DOMContentLoaded', () => {
   updateAdminUI();
   populateYears('pub-year');
@@ -2401,7 +2401,6 @@ window.addEventListener('DOMContentLoaded', () => {
   initColorSearch();
   initCalcModalA11y();
   initFabCalc();
-  initFabStarblex();
   initNavEmpresa();
   initEmpresaRouting();
   initScrollSpy();

@@ -11,7 +11,6 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 ├── app.js                     Lógica: Firestore, CRUD admin, SEO dinámico, favoritos, galería
 ├── calculadora.js             Calculadora de financiamiento (modal + FAB)
 ├── invite-modal.js            Invitación opcional de registro al contactar por WhatsApp
-├── starblex-chat.js           Interfaz de Starblex IA 1.0 (FAB + panel de chat)
 ├── logo-labatalla.png         Logo oficial, usado en el modal de invitación
 ├── vehicles-demo.js           Datos de ejemplo — solo se descarga si Firebase falla
 ├── styles.css                 Estilos propios (complementa Tailwind)
@@ -30,13 +29,10 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 ├── scripts/
 │   └── generar-sitemap.js      Genera sitemap.xml desde la API REST de Firestore
 ├── netlify/edge-functions/
-│   ├── vehicle-og.js           Meta tags OG para bots sociales + 404 real por vehículo
-│   └── starblex.js             Backend de Starblex IA 1.0 — única pieza con la API key de Gemini
+│   └── vehicle-og.js           Meta tags OG para bots sociales + 404 real por vehículo
 └── .github/workflows/
     └── actualizar-sitemap.yml  Cron diario que regenera y commitea el sitemap
 ```
-
-⚠️ **Nota sobre un archivo huérfano**: existe también un `/starblex.js` en la **raíz** del repositorio (fuera de `netlify/edge-functions/`). Está confirmado que no tiene ninguna referencia real en `netlify.toml`, workflows ni el resto del código — es un duplicado sin uso, pendiente de limpieza manual (`ORPHANED — PENDING MANUAL CLEANUP`). La implementación real y activa es exclusivamente `netlify/edge-functions/starblex.js`.
 
 ## Reglas de sincronización crítica
 
@@ -45,7 +41,7 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 - Si agregas un dominio externo nuevo (CDN, API), añádelo a la CSP en `netlify.toml` o el navegador lo bloqueará.
 - **Subpáginas de Empresa (`/empresa/*`):** cada sección de `EMPRESA_SECTIONS` (app.js) tiene su propio `title`/`description` en `EMPRESA_META` y su `canonical` se reescribe en tiempo real vía `setPageMeta()`. Si agregas una sección nueva al menú `#nav-empresa-menu`, súmala también a `EMPRESA_SECTIONS` y `EMPRESA_META`, o heredará el título genérico "Empresa". El `<h1>` del hero también cambia de texto al entrar a Empresa (`EMPRESA_HERO_H1`) y se restaura al slide del carrusel realmente activo al salir — si agregas una sección nueva, súmala también a ese mapa.
 - **FAQ de Empresa:** las preguntas de `#preguntas-frecuentes` (index.html) y el array `FAQ_ENTRIES` (app.js, usado para el schema `FAQPage`) deben mantenerse idénticos. El schema se inyecta/retira dinámicamente en `showEmpresaPage()`/`hideEmpresaPage()` para no exponerlo en páginas donde el contenido no existe (home, fichas de vehículo).
-- Cada vez que edites `app.js`, `calculadora.js`, `dashboard.js`, `styles.css`, `invite-modal.js` o `starblex-chat.js`, incrementa el `?v=` de ese archivo en `index.html` (evita servir JS/CSS cacheado desacoplado del HTML nuevo). No hace falta subir el número de los archivos que no tocaste.
+- Cada vez que edites `app.js`, `calculadora.js`, `dashboard.js`, `styles.css` o `invite-modal.js`, incrementa el `?v=` de ese archivo en `index.html` (evita servir JS/CSS cacheado desacoplado del HTML nuevo). No hace falta subir el número de los archivos que no tocaste.
 
 ## Tareas pendientes del propietario (una sola vez)
 
@@ -75,18 +71,11 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
    `ADMIN_UID` o de desplegar las nuevas Rules en producción. Si algo falla en
    este paso, todavía tienes el esquema viejo como respaldo para recuperar
    acceso — una vez retirado, no.
-6. **Confirmar `/api/starblex` en producción real:** `GET /api/starblex` debe
-   devolver `405` (no `404`), y un `POST` con un mensaje simple debe devolver
-   `{ reply: "..." }` con una respuesta real de Gemini. Ver "Estado de
-   producción" más abajo.
-7. **Limpieza opcional:** eliminar el `/starblex.js` huérfano de la raíz (ver
-   nota en "Estructura" arriba) — confirmado sin referencias, pero no
-   bloqueante para el funcionamiento del sitio.
 
 ## Versionado de caché
 
 `index.html` referencia `roles.js`, `app.js`, `auth.js`, `auth-ui.js`,
-`calculadora.js`, `dashboard.js`, `invite-modal.js`, `starblex-chat.js`,
+`calculadora.js`, `dashboard.js`, `invite-modal.js`,
 `styles.css`, `dashboard.css` y `tailwind.css` con `?v=AAAAMMDD`. Cada vez que
 modifiques alguno de esos archivos, incrementa el valor de **ese archivo
 específico** en `index.html` — no hace falta subir los de archivos que no
@@ -104,74 +93,7 @@ El deploy a producción es automático: push a la rama principal → Netlify bui
 
 ---
 
-# Starblex IA 1.0
-
-Asistente automotriz en español, integrado como botón flotante y accesible
-desde cualquier pantalla del sitio. Incluye contexto del vehículo en pantalla,
-historial de conversación, tarjeta visual del vehículo (imagen, nombre,
-precio, botones "Ver vehículo"/"Financiar", miniaturas si hay varias fotos),
-mensajes proactivos (bienvenida rotativa en Home, saludo con el vehículo real
-al entrar a una ficha, aviso si el vehículo cambia dentro de la misma
-conversación) y sugerencias por categoría (Motor y rendimiento, Precio y
-financiamiento, Consumo, Problemas comunes, Comparar).
-
-### Arquitectura
-
-```
-Navegador (starblex-chat.js)
-    ↓  POST /api/starblex { message, history, vehicleId }
-Netlify Edge Function (netlify/edge-functions/starblex.js)
-    ↓
-Firestore REST API — inventario real, lectura pública (allow read: if true)
-    ↓
-Gemini 3.6 Flash (Google AI, Developer API — no Vertex AI)
-    ↓
-{ reply } — JSON limpio, sin datos internos
-```
-
-El navegador **nunca** es la fuente de verdad del inventario: como mucho puede
-indicar `vehicleId` (el vehículo que se está viendo). El backend resuelve
-inventario general con un tope de 60 vehículos (`MAX_INVENTORY_ITEMS`,
-cacheado 60s) para preguntas tipo "qué tienen disponible" — en ese listado de
-fondo, `features` se recorta a 3 elementos por vehículo (optimización de
-tamaño del prompt, ~17% menos tokens); el vehículo en pantalla se resuelve
-aparte, con una lectura directa por ID (caché propia de 60s) que **no
-depende de estar entre esos primeros 60**, y conserva su lista completa de
-características. Historial limitado a 6 turnos / 800 caracteres cada uno;
-mensaje del usuario limitado a 800 caracteres; timeout al proveedor de 20s.
-La API key de Gemini vive exclusivamente como variable de entorno de la Edge
-Function — nunca en HTML, JS público, `localStorage` ni `sessionStorage`.
-
-### Manejo de errores
-
-Cada fallo del backend incluye un campo `reason` interno (nunca mostrado al
-usuario) que distingue la causa real: `missing_api_key`, `rate_limited`,
-`provider_error`, `empty_response`, `timeout`. El frontend reintenta
-automáticamente **una sola vez**, solo para `timeout` o fallo de red — nunca
-para `rate_limited` (reintentar de inmediato empeora un límite de tasa) ni
-para errores de configuración.
-
-### Variables de entorno (configurar en Netlify → Environment variables, scope "Edge functions")
-
-```text
-GEMINI_API_KEY          # secreto — nunca poner el valor real en este repo
-ALLOWED_ORIGINS         # ej: https://labatallaautoimport.netlify.app (whitelist de CORS)
-FIREBASE_PROJECT_ID     # no es secreto — ya es público en app.js
-FIREBASE_WEB_API_KEY    # opcional, tampoco es secreto
-```
-
-### Estado de producción
-
-**Código auditado y aprobado localmente. Confirmación real en producción
-todavía pendiente.** No se ha podido verificar desde el entorno de
-desarrollo que `POST /api/starblex` responda con Gemini real (sin acceso de
-red saliente a `netlify.app` ni a `generativelanguage.googleapis.com` desde
-ese entorno). Antes de dar esta integración por 100% verificada, confirma
-manualmente: `GET /api/starblex` debe devolver `405` (no `404`, que
-indicaría que la Edge Function no está registrada en el deploy), y una
-petición `POST` real con un mensaje simple debe devolver `{ reply: "..." }`.
-
-### Invitación opcional de registro
+# Invitación opcional de registro
 
 Al intentar contactar por WhatsApp (tarjeta, ficha de vehículo, CTA final, o
 calculadora de financiamiento — 5 puntos en total, todos interceptados por
@@ -186,22 +108,6 @@ No se muestra a usuarios con sesión iniciada, ni más de una vez por sesión de
 navegador (`sessionStorage`), ni de nuevo a quien ya se registró alguna vez
 desde ese navegador (`localStorage`, solo como señal de UX — nunca datos
 sensibles).
-
-### Limitaciones actuales
-
-- Sin RAG: el modelo responde con el inventario real de Firestore más su
-  conocimiento general de mecánica — no hay base de conocimiento técnica
-  adicional todavía.
-- Sin memoria persistente: la conversación vive en memoria del navegador y se
-  pierde al recargar o cerrar la pestaña, a propósito.
-- Modelo único: Gemini 3.6 Flash. Sin router híbrido de modelos en esta versión.
-- Sin rate limiting persistente por IP/usuario — el backend limita tamaño de
-  mensaje, historial y tokens de salida, pero no frecuencia de uso a lo largo
-  del tiempo.
-- La precisión depende de que el inventario en Firestore tenga los campos
-  bien llenos (año, transmisión, etc.) — no hay garantía de "100% de
-  precisión" en ningún caso; el system prompt instruye a decir "no tengo
-  información suficiente" en vez de inventar datos.
 
 ---
 
@@ -246,8 +152,6 @@ ruta bajo `/empresa/*` vía redirect en `netlify.toml`.
   `<img>` (SVG no ejecuta scripts ahí) y el CSP tiene `object-src 'none'`. El
   fix vive en `cloudinary-sign-worker.js`, que corre en Cloudflare Workers —
   fuera de este repositorio, pendiente de despliegue manual.
-- **`/starblex.js`** en la raíz del proyecto: `ORPHANED — PENDING MANUAL
-  CLEANUP` (ver nota en "Estructura" arriba).
 
 # Estado del proyecto
 
@@ -255,14 +159,18 @@ ruta bajo `/empresa/*` vía redirect en `netlify.toml`.
 READY FOR DEPLOY
 ```
 
-Código auditado localmente de forma extensa (imágenes/HEIC, estabilidad y
-velocidad de Starblex, responsive de 14 viewports, SEO, seguridad,
-hero/carrusel) sin bugs críticos conocidos. Pendiente de verificación manual
-en producción:
+Auditado en navegador real (Chromium headless con la CSP de producción
+aplicada): catálogo, ficha, publicación/edición/borrado con imágenes,
+Auth, Dashboard, favoritos, cotizaciones, calculadora, Empresa, legales y
+404 — 78 aserciones funcionales en verde, 0 violaciones de axe-core
+(WCAG 2.1 A/AA), 0 violaciones de CSP y 48/48 viewports sin desbordamiento
+horizontal. Las 15 pruebas de `firestore.rules` pasan contra el emulador
+real de Firestore. Sin bugs críticos conocidos.
 
-- Respuesta real de Gemini vía `/api/starblex`
+Pendiente de verificación manual en producción (bloqueado por la red del
+entorno de desarrollo, que no alcanza gstatic/jsDelivr/Cloudinary):
+
 - Subida real de una foto HEIC a Cloudinary
 - Comportamiento real en iOS Safari (teclado virtual, safe-area)
-- Reglas dinámicas de Firestore contra el Emulator real
 - Vista previa social real (WhatsApp/Facebook) de `/` y `/empresa/*`
 - Indexación real por buscadores

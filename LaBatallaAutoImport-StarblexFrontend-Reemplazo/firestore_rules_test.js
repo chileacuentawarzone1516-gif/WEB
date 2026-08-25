@@ -1,7 +1,7 @@
 // ============================================================
 // Batería de pruebas de firestore.rules — 13 casos.
 // Requiere: npm install -D @firebase/rules-unit-testing firebase
-// Ejecutar:  firebase emulators:exec --only firestore "node tests/firestore.rules.test.js"
+// Ejecutar:  firebase emulators:exec --only firestore "node firestore_rules_test.js"
 // ============================================================
 const fs = require('fs');
 const path = require('path');
@@ -13,7 +13,7 @@ let testEnv;
 async function setup() {
   testEnv = await initializeTestEnvironment({
     projectId: 'la-batalla-rules-test',
-    firestore: { rules: fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf8') },
+    firestore: { rules: fs.readFileSync(path.resolve(__dirname, 'firestore.rules'), 'utf8') },
   });
 }
 async function seedWithoutRules(fn) {
