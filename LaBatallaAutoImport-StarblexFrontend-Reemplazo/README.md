@@ -4,6 +4,12 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 
 **Producción:** https://labatallaautoimport.netlify.app
 
+> **Netlify — Base directory.** `netlify.toml` vive dentro de
+> `LaBatallaAutoImport-StarblexFrontend-Reemplazo/`, no en la raíz del
+> repositorio. El sitio de Netlify debe tener **Base directory** apuntando a
+> esa carpeta; si no, Netlify no encuentra `netlify.toml` y se pierden los
+> redirects SPA, los headers de seguridad, la CSP y la Edge Function.
+
 ## Estructura
 
 ```
@@ -26,6 +32,9 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 ├── netlify.toml                Redirects SPA, Edge Functions, headers de cache y seguridad
 ├── firebase.json               Apunta a firestore.rules para deploy de reglas
 ├── firestore.rules             Reglas de seguridad (lectura pública, escritura solo admin)
+│                               ⚠️ Los archivos internos (firestore.rules, firebase.json,
+│                               firestore_rules_test.js, cloudinary-sign-worker.js, *.md) NO
+│                               se sirven: netlify.toml los devuelve 404 con force = true.
 ├── scripts/
 │   └── generar-sitemap.js      Genera sitemap.xml desde la API REST de Firestore
 ├── netlify/edge-functions/
@@ -44,6 +53,15 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 - Cada vez que edites `app.js`, `calculadora.js`, `dashboard.js`, `styles.css` o `invite-modal.js`, incrementa el `?v=` de ese archivo en `index.html` (evita servir JS/CSS cacheado desacoplado del HTML nuevo). No hace falta subir el número de los archivos que no tocaste.
 
 ## Tareas pendientes del propietario (una sola vez)
+
+0. **Desplegar las Reglas de Firestore:** esta versión añade
+   `match /config/{docId}` (tasa USD→RD$). Sin desplegarlas, `app.js` sigue
+   recibiendo `permission-denied` al leer `config/finanzas` y la tasa se queda
+   en el valor de respaldo del código (59), aunque la cambies en Firestore:
+
+   ```bash
+   firebase deploy --only firestore:rules
+   ```
 
 1. **Hero → Cloudinary:** sube 5 fotos reales a Cloudinary (carpeta `labatalla/`) y
    reemplaza las 5 URLs de Pexels marcadas con el bloque `HERO — MIGRAR A CLOUDINARY`

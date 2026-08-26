@@ -1,12 +1,12 @@
 // ============================================================
-// Batería de pruebas de firestore.rules — 13 casos.
+// Batería de pruebas de firestore.rules — 22 casos.
 // Requiere: npm install -D @firebase/rules-unit-testing firebase
 // Ejecutar:  firebase emulators:exec --only firestore "node firestore_rules_test.js"
 // ============================================================
 const fs = require('fs');
 const path = require('path');
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
-const { doc, setDoc, updateDoc, serverTimestamp } = require('firebase/firestore');
+const { doc, getDoc, setDoc, updateDoc, serverTimestamp } = require('firebase/firestore');
 
 let testEnv;
 
@@ -129,6 +129,56 @@ async function main() {
   await run('Usuario sin documento en users intenta crear vehículos → denegado', async () => {
     const db = testEnv.authenticatedContext('ghost1').firestore();
     await assertFails(setDoc(doc(db, 'vehicles', 'v5'), vehiculo('Nissan Frontier 2024', 'nissan-frontier-2024')));
+  });
+
+  // ---------- config/finanzas (tasa USD->RD$) ----------
+  // Regresión: sin la regla `match /config/{docId}` esta lectura caía en el
+  // deny por defecto y la tasa configurable nunca funcionaba en producción.
+  await run('Visitante anónimo lee config/finanzas (tasa USD) → permitido', async () => {
+    await seedWithoutRules(async db => {
+      await setDoc(doc(db, 'config', 'finanzas'), { tasaUsdRd: 62.5 });
+    });
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertSucceeds(getDoc(doc(db, 'config', 'finanzas')));
+  });
+
+  await run('Visitante anónimo escribe config/finanzas → denegado', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(setDoc(doc(db, 'config', 'finanzas'), { tasaUsdRd: 1 }));
+  });
+
+  await run('Cliente autenticado escribe config/finanzas → denegado', async () => {
+    await seedWithoutRules(async db => {
+      await setDoc(doc(db, 'users', 'cfgCustomer'), perfil('cfgc@test.com', 'C', 'customer', 'active'));
+    });
+    const db = testEnv.authenticatedContext('cfgCustomer').firestore();
+    await assertFails(setDoc(doc(db, 'config', 'finanzas'), { tasaUsdRd: 1 }));
+  });
+
+  await run('Editor escribe config/finanzas → denegado (solo admin)', async () => {
+    await seedWithoutRules(async db => {
+      await setDoc(doc(db, 'users', 'cfgEditor'), perfil('cfge@test.com', 'E', 'editor', 'active'));
+    });
+    const db = testEnv.authenticatedContext('cfgEditor').firestore();
+    await assertFails(setDoc(doc(db, 'config', 'finanzas'), { tasaUsdRd: 1 }));
+  });
+
+  await run('Admin actualiza la tasa USD → permitido', async () => {
+    await seedWithoutRules(async db => {
+      await setDoc(doc(db, 'users', 'cfgAdmin'), perfil('cfga@test.com', 'A', 'admin', 'active'));
+    });
+    const db = testEnv.authenticatedContext('cfgAdmin').firestore();
+    await assertSucceeds(setDoc(doc(db, 'config', 'finanzas'), { tasaUsdRd: 63 }));
+  });
+
+  await run('Admin intenta guardar una tasa inválida (texto) → denegado', async () => {
+    const db = testEnv.authenticatedContext('cfgAdmin').firestore();
+    await assertFails(setDoc(doc(db, 'config', 'finanzas'), { tasaUsdRd: 'mucho' }));
+  });
+
+  await run('Admin intenta colar un campo extra en config → denegado', async () => {
+    const db = testEnv.authenticatedContext('cfgAdmin').firestore();
+    await assertFails(setDoc(doc(db, 'config', 'finanzas'), { tasaUsdRd: 63, backdoor: true }));
   });
 
   await testEnv.cleanup();

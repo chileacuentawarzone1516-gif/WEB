@@ -408,6 +408,33 @@ service cloud.firestore {
         && (!('fuel' in request.resource.data) || (request.resource.data.fuel is string && request.resource.data.fuel.size() <= 30));
     }
 
+    // ==========================================================
+    // CONFIGURACIÓN PÚBLICA — config/finanzas
+    // ----------------------------------------------------------
+    // Faltaba por completo: app.js lee config/finanzas al arrancar
+    // para obtener la tasa USD->RD$ ("editable por el admin sin tocar
+    // código"), pero sin regla propia caía en el deny por defecto de
+    // más abajo. En producción esa lectura devolvía permission-denied,
+    // el .catch() la silenciaba y USD_TO_RD_RATE se quedaba SIEMPRE en
+    // el valor de respaldo del código (59): la tasa configurable nunca
+    // llegó a funcionar y los precios en USD se convertían con un valor
+    // fijo. Verificado contra el proyecto real (HTTP 403).
+    //
+    // Lectura pública: es exactamente lo que necesita cualquier
+    // visitante para ver los precios convertidos, y no contiene ningún
+    // dato sensible. Escritura solo para administradores.
+    // ==========================================================
+    match /config/{docId} {
+      allow read: if true;
+
+      allow write:
+        if isAdmin()
+        && request.resource.data.keys().hasOnly(['tasaUsdRd'])
+        && request.resource.data.tasaUsdRd is number
+        && request.resource.data.tasaUsdRd > 0
+        && request.resource.data.tasaUsdRd < 1000;
+    }
+
     // Deny por defecto
     match /{document=**} {
       allow read, write: if false;

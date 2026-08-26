@@ -227,7 +227,10 @@ function initFirebase() {
     db = firebase.firestore();
     fbReady = true;
     // Tasa de cambio USD→RD$ configurable — editable por el admin sin
-    // tocar código (ver config/finanzas en Firestore Rules).
+    // tocar código. Requiere la regla `match /config/{docId}` de
+    // firestore.rules (lectura pública, escritura solo admin): sin ella
+    // esta lectura devuelve permission-denied, el catch la silencia y la
+    // tasa se queda en el valor de respaldo de arriba para siempre.
     db.collection('config').doc('finanzas').get().then(doc => {
       if (doc.exists && typeof doc.data().tasaUsdRd === 'number') {
         USD_TO_RD_RATE = doc.data().tasaUsdRd;

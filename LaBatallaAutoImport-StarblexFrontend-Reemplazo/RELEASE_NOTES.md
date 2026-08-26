@@ -1,5 +1,92 @@
 # RELEASE NOTES — La Batalla Auto Import
 
+## CIERRE DE RELEASE — validación contra producción real
+
+Segunda pasada sobre el PR #2. Esta vez sí hubo acceso de red a
+`*.googleapis.com`, así que se pudo validar contra el **proyecto Firebase
+real** y con el **inventario real de producción** (37 vehículos), no solo con
+dobles locales. Aparecieron 3 defectos reales, ninguno causado por la
+eliminación de Starblex.
+
+### Bugs reales encontrados y corregidos en esta pasada
+
+1. **`config/finanzas` estaba denegado por las reglas: la tasa USD→RD$ nunca
+   funcionó.** `app.js` lee ese documento al arrancar para obtener la tasa de
+   cambio "editable por el admin sin tocar código", pero `firestore.rules`
+   **no tenía ninguna regla `match /config/...`**, así que caía en el deny por
+   defecto. Comprobado contra el proyecto real: `HTTP 403`. El `.catch()` lo
+   silenciaba y `USD_TO_RD_RATE` se quedaba siempre en el respaldo del código
+   (59), de modo que todo precio publicado en USD se convertía con un valor
+   fijo. Añadida la regla `match /config/{docId}` (lectura pública —la necesita
+   cualquier visitante para ver precios—, escritura solo admin, con el campo
+   `tasaUsdRd` validado como número entre 0 y 1000) y 7 pruebas nuevas.
+   ⚠️ **Requiere desplegar las reglas** (`firebase deploy --only
+   firestore:rules`); hasta entonces la tasa sigue fija en 59.
+
+2. **La descripción social perdía el año del vehículo.**
+   `netlify/edge-functions/vehicle-og.js` normalizaba el año con
+   `Number.isFinite(raw.year)`, pero el formulario de publicación lo guarda
+   como **cadena** (es el `value` de un `<select>`): los 37 vehículos reales lo
+   tienen como texto, así que el año se descartaba siempre. Corregido
+   normalizándolo como `mileage`. Además el año ahora solo se añade si el
+   nombre no lo lleva ya, para no producir "RAM 1500 Rebel 2024 2024" (33 de
+   los 37 nombres reales incluyen el año). Verificado ejecutando la Edge
+   Function real contra Firestore real: 37/37 fichas correctas, 0 pierden el
+   año, 0 lo repiten.
+
+3. **El sitio publicaba sus propios archivos internos.** Con `publish = "."`
+   eran descargables `/firestore.rules`, `/firestore_rules_test.js`,
+   `/firebase.json`, `/cloudinary-sign-worker.js`, `/README.md` y
+   `/RELEASE_NOTES.md`. Ninguno lo carga el sitio (0 referencias en
+   `index.html`). No son secretos —los correos de la whitelist ya viven en
+   `auth.js` por diseño—, pero entre todos publicaban el detalle de las reglas
+   de seguridad, la lógica de firma de Cloudinary y la deuda de seguridad
+   conocida. Añadidos 6 redirects `status = 404` con `force = true` (sin
+   `force`, Netlify sirve el estático y el redirect no se aplica). Verificado:
+   los 6 dan 404 y las 23 rutas y assets reales siguen dando 200.
+
+### Verificación contra producción real
+
+- **Inventario real (37 vehículos de Firestore) renderizado en el navegador**
+  con la CSP de producción: 37/37 alcanzables recorriendo la paginación,
+  **0 `src` rotos, 0 placeholders `?`, 0 `[object Object]`, 0 `src=""`**,
+  todas con `alt`. Dato relevante: **33 de los 37 no tienen `media[]`**, solo
+  `img` — justo el caso que rompía antes de `getVehicleCover()`.
+- **Las 37 fichas abiertas por su URL real** (pestaña nueva, como un enlace
+  compartido): 37/37 con imagen decodificada, `canonical`, `title` y JSON-LD
+  correctos, y **0 errores JS**.
+- **Slugs**: `app.js`, `vehicle-og.js` y `generar-sitemap.js` producen el mismo
+  slug para los 37 (0 duplicados, 0 vacíos), así que ninguna ficha compartida
+  cae en 404. Ninguno de los 37 tiene `slug` guardado en Firestore todavía; el
+  cálculo en caliente cubre el caso y coincide en las tres implementaciones.
+- **Reglas de Firestore en PRODUCCIÓN** (sin crear ningún dato): crear, editar
+  y borrar vehículos sin sesión → 403; listar `/users` sin sesión → 403;
+  escribir `config` sin sesión → 403; lectura pública del catálogo → 200.
+  Comprobado además que no quedó ningún dato de prueba y que el vehículo real
+  conserva su precio.
+- **Firebase Auth real** (Identity Toolkit): responde, la API key es válida y
+  el endpoint de proveedores opera.
+- **App Check**: no está forzado sobre Firestore — la lectura pública del
+  catálogo funciona sin token, que es justo lo que el sitio necesita.
+- **Reglas contra el emulador real**: 22/22 (15 previas + 7 nuevas de `config`).
+- Regresión completa: 78/78 funcionales, 0 violaciones axe-core, 48/48
+  responsive, 0 violaciones de CSP, 0 errores de página.
+
+### Sigue sin poder verificarse desde este entorno
+
+La red bloquea `netlify.app`, `api.netlify.com`, `gstatic.com`,
+`cdn.jsdelivr.net` y `*.cloudinary.com`. Queda pendiente de comprobación
+manual en el Deploy Preview: subida real a Cloudinary y conversión de un HEIC,
+Firebase Auth y App Check dentro del navegador con el SDK real, y la vista
+previa social renderizada por WhatsApp/Facebook.
+
+### Dato de inventario para el propietario (no es un bug de código)
+
+El vehículo `camry 2007` tiene `year: "2024"`. El nombre y el campo año no
+coinciden; conviene corregirlo desde el panel.
+
+---
+
 ## ELIMINACIÓN TOTAL DE STARBLEX + AUDITORÍA DE RELEASE
 
 Decisión del propietario: **Starblex IA se retira por completo del proyecto.**

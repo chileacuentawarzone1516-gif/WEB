@@ -75,7 +75,15 @@ function normalizeVehicle(raw, id) {
     slug: typeof raw.slug === 'string' && raw.slug.trim() ? raw.slug.trim() : '',
     name: String(raw.name).trim(),
     brand: typeof raw.brand === 'string' ? raw.brand.trim() : '',
-    year: Number.isFinite(raw.year) ? raw.year : null,
+    // El formulario de publicación guarda `year` como STRING (el value de
+    // un <select>), así que los 37 vehículos reales lo tienen como texto y
+    // Number.isFinite() lo descartaba: la descripción social perdía el año
+    // en toda ficha cuyo nombre no lo incluyera ya. Se normaliza igual que
+    // `mileage`, aceptando número o cadena y descartando solo lo vacío.
+    year: (() => {
+      const y = typeof raw.year === 'number' ? raw.year : String(raw.year ?? '').trim();
+      return y === '' || y == null ? null : y;
+    })(),
     price: Number.isFinite(raw.price) ? raw.price : null,
     priceDisplay: typeof raw.priceDisplay === 'string' ? raw.priceDisplay.trim() : '',
     condition: typeof raw.condition === 'string' ? raw.condition.trim() : '',
@@ -159,8 +167,13 @@ function isLikelyBot(request) {
 function buildMeta(vehicle, requestedSlug) {
   const canonical = `${SITE_URL}/vehiculos/${encodeURIComponent(requestedSlug)}`;
   const title = `${vehicle.name} — ${formatPrice(vehicle)} | La Batalla Auto Import`;
+  // El año se añade solo si el nombre no lo lleva ya: de los 37 vehículos
+  // reales, 33 lo incluyen en el propio nombre ("RAM 1500 Rebel 2024") y
+  // repetirlo daba "RAM 1500 Rebel 2024 2024".
+  const yearSuffix = vehicle.year && !String(vehicle.name).includes(String(vehicle.year))
+    ? ` ${vehicle.year}` : '';
   const description = [
-    `${vehicle.name}${vehicle.year ? ` ${vehicle.year}` : ''}`,
+    `${vehicle.name}${yearSuffix}`,
     vehicle.condition ? `· ${vehicle.condition}` : '',
     vehicle.mileage ? `· ${vehicle.mileage} km` : '',
     vehicle.transmission ? `· ${vehicle.transmission}` : '',
