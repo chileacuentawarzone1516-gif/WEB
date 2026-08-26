@@ -240,9 +240,40 @@ service cloud.firestore {
       ]);
     }
 
+    // ⚠️ REGRESIÓN CRÍTICA CORREGIDA (auditoría final).
+    //
+    // La versión anterior era:
+    //     request.method != 'update'
+    //       || request.resource.data.createdAt == resource.data.createdAt;
+    //
+    // En Firestore Rules, leer una clave que NO existe en un mapa no
+    // devuelve null: lanza un error de evaluación, y la regla entera pasa a
+    // denegar. NINGUNO de los 37 vehículos que hay hoy en producción tiene
+    // el campo `createdAt` (solo lo escriben las publicaciones nuevas), así
+    // que `resource.data.createdAt` reventaba en CADA edición.
+    //
+    // Efecto real, reproducido contra el emulador con los 37 documentos
+    // descargados de producción: 37/37 ediciones denegadas y 37/37
+    // backfills de slug denegados. Desde el despliegue de estas reglas, el
+    // administrador no podía guardar NINGÚN cambio en NINGÚN vehículo del
+    // inventario: solo veía "Error al guardar en Firebase".
+    //
+    // La garantía que se buscaba se conserva íntegra —una fecha de alta ya
+    // establecida NUNCA puede reescribirse ni borrarse— pero ahora se
+    // contempla el caso de que aún no exista, permitiendo fijarla una vez.
+    // El tipo y el rango de `createdAt` los sigue validando
+    // camposOpcionalesValidos() (número > 0).
     function createdAtInmutable() {
       return request.method != 'update'
-        || request.resource.data.createdAt == resource.data.createdAt;
+        || (
+          ('createdAt' in resource.data)
+            // Ya existe: debe seguir presente y con el MISMO valor.
+            ? ('createdAt' in request.resource.data
+                && request.resource.data.createdAt == resource.data.createdAt)
+            // Nunca se fijó (documento heredado): puede quedarse sin fecha
+            // o establecerse por primera vez, nunca reescribirse después.
+            : true
+        );
     }
 
     // ==========================================================

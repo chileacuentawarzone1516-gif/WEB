@@ -67,7 +67,11 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <!-- Web App Manifest — permite agregar el sitio a pantalla de inicio en móvil -->
   <link rel="manifest" href="/site.webmanifest">
-  <meta name="theme-color" content="#38bdf8">
+  <!-- Debe coincidir con theme_color/background_color de site.webmanifest y con
+       el fondo real del sitio (#0f172a). Antes era #38bdf8 (azul claro): en
+       Android la barra del navegador salía azul brillante sobre una página
+       oscura, y la pantalla de inicio de la PWA usaba otro tono distinto. -->
+  <meta name="theme-color" content="#0f172a">
   <link rel="stylesheet" href="/tailwind.css?v=20260722">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
   <script defer src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js" integrity="sha384-JNhb/AfQ8tCvhjfm2WXKx9qovmn7LcndXYllHYDf2CcTBaBMAiPsjRJeC3f9U8V6" crossorigin="anonymous"></script>

@@ -180,3 +180,61 @@ html { scroll-behavior: smooth; }
 @media (min-width: 1280px) {
   #hero-brand-logo { width: 170px; height: 170px; border-radius: 26px; }
 }
+
+/* ============================================================
+   AUDITORÍA FINAL — NAVEGACIÓN Y UX
+   ============================================================ */
+
+/* Enlace real que cubre la foto de la tarjeta. Antes la foto era un <div>
+   con role="link" y un listener: no se podía abrir en otra pestaña, el
+   navegador no mostraba la URL destino al pasar por encima y el menú
+   contextual no ofrecía "copiar dirección del enlace". Ahora es un <a>
+   con href de verdad, superpuesto a la imagen. */
+.card-image-overlay { position: absolute; inset: 0; z-index: 1; display: block; }
+.card-image-link:focus-within img { transform: scale(1.06); }
+.card-image-overlay:focus-visible { outline: 2px solid #38bdf8; outline-offset: -2px; }
+
+/* El filtro de marcas pasó de <div> a <button>: hay que neutralizar los
+   estilos por defecto del botón para conservar exactamente el mismo aspecto. */
+button.brand-logo-card { font: inherit; color: inherit; text-align: center; width: 100%; -webkit-appearance: none; appearance: none; }
+button.brand-logo-card:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+
+/* Foco visible y homogéneo en todo lo interactivo (antes dependía del
+   estilo por defecto del navegador, invisible sobre este fondo oscuro). */
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Objetivo táctil mínimo en los enlaces de texto del pie y de Empresa.
+   Medidos en navegador a 320-768 px: 100x17 y 155x20 px, por debajo del
+   mínimo de 24x24 (WCAG 2.5.8). Se amplía el área pulsable sin mover el
+   diseño, con padding vertical y display inline-block. */
+footer a, #empresa-page a.inline-flex, #contacto a:not([class*="rounded"]) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding-block: 4px;
+}
+
+/* ── CATÁLOGO EN ESCRITORIO — cuadrícula de 3 columnas ──
+   getPageSize() pagina de 9 en 9 "PC: 3 col x 3 rows", pero en >=1024 px
+   .scroll-section seguía siendo un carrusel horizontal de tarjetas fijas
+   de 300 px: las 9 tarjetas ocupaban ~2.700 px dentro de un contenedor de
+   1.152 px, así que en pantalla se veían 3 y media y para llegar al resto
+   había que arrastrar de lado ADEMÁS de paginar. Verificado en navegador a
+   1024/1280/1440/1920. Con la cuadrícula, las 9 tarjetas de la página se
+   ven de una vez, como ya ocurría en móvil y tablet. */
+@media (min-width: 1024px) {
+  .scroll-section {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    overflow-x: visible;
+    scroll-snap-type: none;
+    padding-bottom: 0.5rem;
+  }
+  .scroll-section > * { width: 100%; min-width: 0; flex-shrink: unset; scroll-snap-align: unset; }
+}

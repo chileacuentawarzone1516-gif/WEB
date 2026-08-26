@@ -248,3 +248,45 @@
   for = "/dashboard.css"
   [headers.values]
     Cache-Control = "public, max-age=3600, must-revalidate"
+
+# ============================================================
+# CACHÉ — recursos que faltaban (auditoría final)
+# ------------------------------------------------------------
+# tailwind.css y logo-hero.png se piden en TODAS las visitas desde
+# index.html y no tenían ninguna regla, así que se servían con la
+# heurística por defecto de Netlify en vez de con la política explícita
+# que ya usa el resto de archivos propios. Los favicons y el
+# apple-touch-icon estaban en la misma situación.
+# ============================================================
+[[headers]]
+  for = "/tailwind.css"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
+# logo-hero.png (68 KB) se muestra sobre el hero en la primera pantalla
+# de cada visita y prácticamente nunca cambia — mismo trato que el resto
+# de iconos de marca.
+[[headers]]
+  for = "/logo-hero.png"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, must-revalidate"
+
+[[headers]]
+  for = "/apple-touch-icon.png"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, must-revalidate"
+
+[[headers]]
+  for = "/favicon-16.png"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, must-revalidate"
+
+[[headers]]
+  for = "/favicon-32.png"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, must-revalidate"
+
+[[headers]]
+  for = "/favicon-48.png"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, must-revalidate"
