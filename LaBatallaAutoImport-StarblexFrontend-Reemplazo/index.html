@@ -739,7 +739,7 @@
         <input id="pub-name" type="text" placeholder="ej: BMW 330i 2024" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
       </div>
       <div>
-        <label class="text-slate-300 text-sm font-medium block mb-1">Precio *</label>
+        <label class="text-slate-300 text-sm font-medium block mb-1" for="pub-price">Precio *</label>
         <div class="flex gap-2">
           <select id="pub-currency" aria-label="Moneda del precio" class="bg-slate-800 border border-slate-600 text-white rounded-lg px-2 py-2 focus:border-sky-400 focus:outline-none text-sm font-bold w-24 flex-shrink-0">
             <option value="RD">RD$</option>
@@ -789,7 +789,7 @@
         <input id="pub-mileage" type="text" placeholder="ej: 45,000 km" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
       </div>
       <div>
-        <label class="text-slate-300 text-sm font-medium block mb-1">Color</label>
+        <label class="text-slate-300 text-sm font-medium block mb-1" for="pub-color-search">Color</label>
         <div class="relative">
           <input id="pub-color-search" type="text" placeholder="Buscar color..." autocomplete="off"
             class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
@@ -1358,8 +1358,8 @@
 
     <!-- Datos de contacto -->
     <div class="lb-calc-contact">
-      <input id="calc-modal-nombre" type="text" placeholder="Tu nombre" class="lb-calc-text-input">
-      <input id="calc-modal-telefono" type="tel" placeholder="Tu teléfono (WhatsApp)" class="lb-calc-text-input">
+      <input id="calc-modal-nombre" type="text" placeholder="Tu nombre" aria-label="Tu nombre" class="lb-calc-text-input">
+      <input id="calc-modal-telefono" type="tel" placeholder="Tu teléfono (WhatsApp)" aria-label="Tu teléfono (WhatsApp)" class="lb-calc-text-input">
     </div>
 
     <button id="calc-modal-submit-btn" class="lb-calc-cta">

@@ -1,5 +1,69 @@
 # RELEASE NOTES — La Batalla Auto Import
 
+## CIERRE DEFINITIVO — verificación contra producción + 2 correcciones
+
+Última pasada sobre el PR #2. Todo lo verificable desde este entorno se
+verificó contra el **proyecto Firebase real** y el **inventario real** (37
+vehículos). Solo aparecieron dos defectos, ambos corregidos aquí. El bloqueo
+que queda **no está en el código**: está en el despliegue y en los datos.
+
+### Defectos reales corregidos
+
+1. **Cuatro campos de formulario sin etiqueta accesible** (`index.html`).
+   `Precio *` y `Color` tenían un `<label>` sin `for`, y como el campo real no
+   va dentro de la etiqueta (entre medias hay un `<select>` de moneda y un
+   buscador), la asociación nunca existía. Los dos campos de contacto de la
+   calculadora (`calc-modal-nombre`, `calc-modal-telefono`) solo tenían
+   `placeholder`, que no es un nombre accesible. Un lector de pantalla
+   anunciaba esos cuatro campos sin nombre. axe-core no lo veía porque solo
+   analiza controles visibles y los cuatro viven dentro de modales cerrados.
+   Corregido con `for` en las dos etiquetas existentes y `aria-label` en los
+   dos campos de la calculadora — mismo patrón que ya usaba `#pub-currency`.
+   Sin cambio visual. Verificado: 48/48 controles con nombre accesible.
+
+2. **`og:image:width`/`og:image:height` declaraban medidas falsas**
+   (`netlify/edge-functions/vehicle-og.js`). Se inyectaba `1200x1200` en
+   TODAS las fichas. No era cierto en ninguna: `c_fill,w_1200` sin altura
+   conserva la proporción original —nunca sale cuadrada—, y las fotos del
+   catálogo base ni siquiera pasan por Cloudinary (llegan de Pexels a 800px
+   de ancho). Facebook y WhatsApp usan esos valores para reservar el hueco de
+   la tarjeta antes de descargar la imagen, así que la vista previa se
+   maquetaba con una proporción que no correspondía a la foto. Ahora la
+   medida se declara **solo cuando se conoce**: `c_fill,w_1200,h_630` fija la
+   imagen de Cloudinary a 1200x630 (la proporción 1.91:1 que piden esas
+   plataformas) y se declara eso; `preview.jpg` declara sus 1204x644 reales;
+   para una imagen de origen ajeno se retiran las dos etiquetas y es el
+   rastreador quien la mide. Verificado ejecutando la propia Edge Function
+   contra el Firestore real, ficha por ficha: 76/76.
+
+### Verificado sin necesidad de tocar nada
+
+Reglas de Firestore 92/92 · replay de los 37 vehículos reales 46/46 ·
+navegación 46/46 · imágenes (JPG/PNG/WebP/HEIC) 14/14 · vista previa social
+76/76 · XSS 7/7 · SEO y rendimiento 25/25 · axe-core 0 críticas / 0 serias en
+9 vistas · 0 desbordes horizontales en 12 anchos × 4 vistas · 0 referencias
+funcionales a Starblex.
+
+### Lo que sigue pendiente y NO se puede resolver desde el repositorio
+
+1. **Las reglas endurecidas de este PR no están desplegadas.** Comprobado
+   contra producción con tres huellas independientes: `config/finanzas`,
+   `users/{uid}/favorites/*` y `users/{uid}/preferences/*` responden `403`
+   donde estas reglas darían `404`/`200`. Lo que corre hoy es la versión de
+   `main`. Mientras siga así, la escalada de privilegios que este PR cierra
+   sigue abierta. Se arregla con un solo comando, desde esta rama:
+   `firebase deploy --only firestore:rules --project la-batalla-auto-import`.
+
+2. **Los 4 vehículos con `adminKey` siguen sin sanear.** `adminKey = 4` en
+   producción (último `updateTime`: 8 de junio de 2026). El código ya hace lo
+   correcto —`saveVehicleDB()` escribe con `.set()` solo los campos
+   permitidos— pero sanear exige una sesión de administrador, que este
+   entorno no tiene. Abrir cada uno de los 4 en el panel y pulsar
+   **Guardar Cambios** los limpia. Comprobado contra el emulador con los 37
+   documentos reales: `adminKey = 0`, `id` duplicado `= 0`, ningún dato
+   perdido y `camry 2007` conserva `transmission: "Manual"`.
+
+
 ## CIERRE DE RELEASE — validación contra producción real
 
 Segunda pasada sobre el PR #2. Esta vez sí hubo acceso de red a

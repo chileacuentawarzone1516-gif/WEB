@@ -155,16 +155,47 @@ async function fetchAllVehicles() {
 // subidas desde un iPhone llegan a Cloudinary como .heic. Ni WhatsApp ni
 // Facebook renderizan AVIF o HEIC en las tarjetas de enlace: la vista previa
 // salía en blanco. Con f_auto, Cloudinary sirve JPEG/PNG a esos rastreadores.
-function cldOptimize(url, width) {
+function cldOptimize(url, width, height) {
   if (!url || typeof url !== 'string') return url;
   if (!url.includes('res.cloudinary.com') || !url.includes('/upload/')) return url;
-  return url.replace('/upload/', `/upload/f_auto,q_auto,c_fill,w_${width}/`);
+  const size = height ? `c_fill,w_${width},h_${height}` : `c_fill,w_${width}`;
+  return url.replace('/upload/', `/upload/f_auto,q_auto,${size}/`);
 }
+
+// Medidas del og:image. Se declaran SOLO cuando se conocen de verdad:
+//   - Cloudinary: las fija la propia transformación. `c_fill` recorta a las
+//     dos dimensiones dadas, así que la imagen sale exactamente a
+//     1200x630 — la proporción 1.91:1 que piden Facebook y WhatsApp.
+//   - preview.jpg: es un archivo del repositorio, 1204x644 medidos.
+//   - Cualquier otro origen (las fotos de Pexels del catálogo base): no se
+//     conocen, y no se inventan.
+//
+// ⚠️ DEFECTO CORREGIDO (cierre de release). Antes se declaraba 1200x1200
+// para TODAS las fichas. No era cierto en ninguna: `c_fill,w_1200` sin
+// altura conserva la proporción original (nunca sale cuadrada), y las
+// fotos de Pexels ni siquiera pasan por Cloudinary — llegan a 800px de
+// ancho. Facebook usa estos valores para reservar el hueco de la tarjeta
+// antes de descargar la imagen, así que la vista previa se maquetaba con
+// una proporción que no correspondía a la foto. Comprobado ejecutando esta
+// misma función contra el Firestore real de producción.
+const OG_IMAGE_WIDTH = 1200;
+const OG_IMAGE_HEIGHT = 630;
+const PREVIEW_WIDTH = 1204;
+const PREVIEW_HEIGHT = 644;
 
 function pickImage(vehicle) {
   const candidate = vehicle.media[0] || vehicle.img || `${SITE_URL}/preview.jpg`;
-  if (!/^https?:\/\//i.test(candidate)) return `${SITE_URL}/preview.jpg`;
-  return cldOptimize(candidate, 1200);
+  if (!/^https?:\/\//i.test(candidate)) {
+    return { url: `${SITE_URL}/preview.jpg`, width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT };
+  }
+  const optimized = cldOptimize(candidate, OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT);
+  if (optimized !== candidate) {
+    return { url: optimized, width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT };
+  }
+  if (candidate === `${SITE_URL}/preview.jpg`) {
+    return { url: candidate, width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT };
+  }
+  return { url: candidate, width: null, height: null };
 }
 
 function formatPrice(vehicle) {
@@ -197,7 +228,12 @@ function buildMeta(vehicle, requestedSlug) {
   ].filter(Boolean).join(' ');
   const image = pickImage(vehicle);
 
-  return { canonical, title, description, image };
+  return {
+    canonical, title, description,
+    image: image.url,
+    imageWidth: image.width,
+    imageHeight: image.height,
+  };
 }
 
 function injectMeta(html, meta) {
@@ -215,10 +251,14 @@ function injectMeta(html, meta) {
     // og:image:width/height quedaban con las medidas de preview.jpg
     // (1204x644) aunque la imagen inyectada sea la foto del vehículo, que
     // tiene otra proporción. Facebook usa esos valores para reservar el
-    // hueco de la tarjeta y recortaba mal la vista previa. Con f_auto,c_fill,
-    // w_1200 la imagen sale siempre a 1200x1200, así que se declara eso.
-    [/<meta\s+property=["']og:image:width["'][^>]*>/i, `<meta property="og:image:width" content="1200">`],
-    [/<meta\s+property=["']og:image:height["'][^>]*>/i, `<meta property="og:image:height" content="1200">`],
+    // hueco de la tarjeta y recortaba mal la vista previa. Ahora se
+    // declaran las medidas REALES de la imagen inyectada (ver pickImage);
+    // cuando no se conocen, las dos etiquetas se retiran y es el propio
+    // rastreador quien mide el archivo.
+    [/<meta\s+property=["']og:image:width["'][^>]*>/i,
+      meta.imageWidth ? `<meta property="og:image:width" content="${meta.imageWidth}">` : ''],
+    [/<meta\s+property=["']og:image:height["'][^>]*>/i,
+      meta.imageHeight ? `<meta property="og:image:height" content="${meta.imageHeight}">` : ''],
   ];
 
   let output = html;
