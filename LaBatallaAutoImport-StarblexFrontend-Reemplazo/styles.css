@@ -39,6 +39,24 @@ body { font-family: 'DM Sans', sans-serif; }.slide { opacity: 0; transition: opa
 }
 
 /* ============================================================ PÁGINA 404 — vehículo no encontrado ============================================================ */ #not-found-page { min-height: 70vh; display: flex; align-items: center; justify-content: center; padding: 24px; }#not-found-page .nf-box { text-align: center; max-width: 420px; }#not-found-page .nf-icon { width: 72px; height: 72px; color: #38bdf8; margin: 0 auto 20px; opacity: 0.85; }#not-found-page h1 { color: #f8fafc; font-size: 22px; font-weight: 800; margin-bottom: 10px; }#not-found-page p { color: #94a3b8; font-size: 14px; margin-bottom: 24px; line-height: 1.6; }#not-found-page button { background: #38bdf8; color: #0f172a; font-weight: 800; padding: 12px 28px; border: none; border-radius: 12px; cursor: pointer; font-size: 14px; transition: transform 0.15s; }#not-found-page button:hover { transform: translateY(-2px); }
+/* ————— Estado vacío del catálogo (#catalog-empty) —————
+   Misma forma visual que la página 404 del sitio: caja centrada, icono
+   grande, título, explicación y acción. La altura mínima evita que la
+   página se colapse cuando no hay inventario. El CTA respeta el mínimo
+   de 44px de alto para el toque en móvil. */
+#catalog-empty { display: flex; align-items: center; justify-content: center; min-height: 46vh; padding: 24px 8px; }
+#catalog-empty .ce-box { text-align: center; max-width: 460px; }
+#catalog-empty .ce-icon { width: 72px; height: 72px; color: #38bdf8; margin: 0 auto 20px; opacity: 0.85; }
+#catalog-empty h2 { color: #f8fafc; font-size: 22px; font-weight: 800; margin-bottom: 10px; }
+#catalog-empty p { color: #94a3b8; font-size: 14px; margin-bottom: 24px; line-height: 1.6; }
+#catalog-empty .ce-cta { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; background: rgb(37,211,102); color: #052e16; font-weight: 800; font-size: 14.5px; padding: 12px 26px; border-radius: 12px; text-decoration: none; box-shadow: 0 6px 20px rgba(37,211,102,0.28); transition: transform 0.15s, box-shadow 0.15s; }
+#catalog-empty .ce-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 26px rgba(37,211,102,0.38); }
+#catalog-empty .ce-cta:focus-visible { outline: 2px solid #38bdf8; outline-offset: 3px; }
+#catalog-empty .ce-cta-icon { width: 20px; height: 20px; fill: currentColor; flex-shrink: 0; }
+#catalog-empty .ce-link { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 14px; color: #94a3b8; font-size: 13px; text-decoration: underline; }
+#catalog-empty .ce-link:hover { color: #38bdf8; }
+#catalog-empty .ce-link:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; border-radius: 6px; }
+@media (max-width: 767px) { #catalog-empty { min-height: 40vh; padding: 16px 4px; } #catalog-empty h2 { font-size: 19px; } #catalog-empty .ce-icon { width: 58px; height: 58px; margin-bottom: 14px; } }
 
 /* ============================================================
    AJUSTES DE SCROLL — anclas con scroll suave y offset para que el

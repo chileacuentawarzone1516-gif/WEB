@@ -96,15 +96,69 @@ function initLocalMode() {
   document.head.appendChild(script);
 }
 // ————— Estado vacío explícito (reemplaza el auto-seed) —————
+// Con el inventario a cero, las tres cabeceras de categoría no aportan nada
+// y quien llega se queda sin ninguna salida: antes solo se pintaba el texto
+// "Inventario en actualización — vuelve pronto." repetido tres veces, sin
+// icono, sin contacto y sin acción posible. Ahora las tres secciones se
+// ocultan y en su lugar aparece UN panel con la misma forma que la página
+// 404 del sitio (icono + título + explicación + botón), con el WhatsApp del
+// negocio ya cargado con el mensaje. El número es el mismo que usan la ficha
+// de vehículo, el botón de contacto y el pie de página.
+const CATALOG_SECTIONS = ['sedanes', 'suvs', 'pickups'];
+const CATALOG_EMPTY_ID = 'catalog-empty';
+const WHATSAPP_NUMBER = '18097759771';
+const EMPTY_STATE_MESSAGE = 'Hola, vi que ahora mismo no hay vehículos publicados en la web. '
+  + '¿Me avisan cuando entre algo? Me interesa saber qué tienen disponible.';
+
 function renderEmptyInventoryState() {
-  ['sedanes', 'suvs', 'pickups'].forEach(cat => {
+  CATALOG_SECTIONS.forEach(cat => {
     const scroll = document.getElementById(cat + '-scroll');
     const paginationEl = document.getElementById(cat + '-pagination');
-    if (scroll) scroll.innerHTML = '<p class="text-slate-400 text-sm py-4">Inventario en actualización — vuelve pronto.</p>';
+    if (scroll) scroll.innerHTML = '';
     if (paginationEl) paginationEl.innerHTML = '';
+    const section = document.getElementById(cat);
+    if (section) section.hidden = true;
   });
+  showCatalogEmptyState();
   renderBrandLogoFilter();
   if (window.lucide) lucide.createIcons();
+}
+
+function showCatalogEmptyState() {
+  const view = document.getElementById('catalog-view');
+  if (!view || document.getElementById(CATALOG_EMPTY_ID)) return;
+  const box = document.createElement('section');
+  box.id = CATALOG_EMPTY_ID;
+  // role="status" + aria-live: el panel sustituye al catálogo DESPUÉS de la
+  // carga, así que un lector de pantalla debe anunciar el cambio. El icono
+  // es decorativo y se oculta del árbol de accesibilidad.
+  box.setAttribute('role', 'status');
+  box.setAttribute('aria-live', 'polite');
+  box.innerHTML = `
+    <div class="ce-box">
+      <i data-lucide="car-front" class="ce-icon" aria-hidden="true"></i>
+      <h2>Estamos renovando el inventario</h2>
+      <p>Ahora mismo no hay vehículos publicados. Recibimos unidades nuevas cada semana
+         — escríbenos y te avisamos en cuanto entre algo que encaje con lo que buscas.</p>
+      <a class="ce-cta" href="https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(EMPTY_STATE_MESSAGE)}"
+         target="_blank" rel="noopener noreferrer">
+        <svg class="ce-cta-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-whatsapp"></use></svg>
+        Avísame por WhatsApp
+      </a>
+      <a class="ce-link" href="#contacto">Ver todas las formas de contacto</a>
+    </div>`;
+  view.insertBefore(box, view.firstChild);
+}
+
+// Se retira en cuanto entra el primer vehículo: con Firestore en vivo, el
+// onSnapshot vuelve a llamar a renderSections() en el momento en que el
+// administrador publica, sin recargar la página.
+function hideCatalogEmptyState() {
+  document.getElementById(CATALOG_EMPTY_ID)?.remove();
+  CATALOG_SECTIONS.forEach(cat => {
+    const section = document.getElementById(cat);
+    if (section) section.hidden = false;
+  });
 }
 // ————— Backfill de slugs (solo admin, una vez por sesión) —————
 // Persiste el slug de vehículos publicados antes de esta versión.
@@ -758,10 +812,23 @@ document.addEventListener('click', e => {
 // ============================================================
 // MI CUENTA — Login simple (localStorage) + panel de Favoritos
 // ============================================================
+// Cuenta SOLO los favoritos que siguen existiendo en el inventario. Antes
+// contaba los identificadores guardados en bruto, y el panel de favoritos
+// (renderAccountFavorites) sí filtra por vehículo existente: al retirarse una
+// publicación, el globo del menú seguía marcando "3" mientras el panel decía
+// "Aún no tienes vehículos favoritos". Reproducido en navegador con el
+// catálogo vacío. Mientras el inventario no ha cargado todavía
+// (`vehicles` vacío en el primer render) no se inventa un número: el globo
+// queda oculto y se actualiza solo en cuanto llega el primer snapshot.
+function countExistingFavorites() {
+  const favIds = getFavorites();
+  if (favIds.length === 0) return 0;
+  return favIds.filter(id => vehicles.some(v => v.id === id)).length;
+}
 function updateNavFavCount() {
   const el = document.getElementById('nav-fav-count');
   if (!el) return;
-  const n = getFavorites().length;
+  const n = countExistingFavorites();
   if (n > 0) {
     el.textContent = n > 99 ? '99+' : n;
     el.classList.remove('hidden');
@@ -870,6 +937,7 @@ function getPageSize() {
 function renderSections() {
   const overlay = document.getElementById('loading-overlay');
   if (overlay) overlay.style.display = 'none';
+  hideCatalogEmptyState();
   ['sedanes','suvs','pickups'].forEach(cat => renderCategory(cat));
   // Los listeners de .ver-btn los pone renderCategory() sobre las tarjetas
   // que acaba de crear. Aquí había un segundo querySelectorAll('.ver-btn')

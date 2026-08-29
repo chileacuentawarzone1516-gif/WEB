@@ -1,5 +1,68 @@
 # RELEASE NOTES — La Batalla Auto Import
 
+## UX DEL CATÁLOGO VACÍO — 2 defectos corregidos
+
+Salieron al probar la aplicación contra un Firestore con la colección
+`vehicles` a cero (emulador). Ninguno se ve hoy porque el catálogo nunca ha
+estado vacío. **No se tocó ningún dato de producción.**
+
+### 1. El contador de favoritos contaba publicaciones que ya no existen
+
+`updateNavFavCount()` usaba `getFavorites().length`, los identificadores
+guardados en bruto, mientras que `renderAccountFavorites()` sí filtra por
+vehículo existente. Al retirarse una publicación, el globo del menú seguía
+marcando "3" y el panel decía "Aún no tienes vehículos favoritos".
+Reproducido en navegador con el catálogo vacío.
+
+Se añade `countExistingFavorites()`, que cuenta solo los favoritos que siguen
+en el inventario. Con el inventario aún sin cargar el globo queda oculto —no
+se inventa un número— y se actualiza en cuanto llega el primer snapshot.
+Comprobado en los 4 casos: 2 válidos + 2 borrados → "2"; todos válidos → "3";
+todos borrados → oculto; sin favoritos → oculto. En los cuatro, el globo y el
+panel coinciden.
+
+### 2. El estado vacío del catálogo no ofrecía ninguna salida
+
+`renderEmptyInventoryState()` pintaba el texto "Inventario en actualización —
+vuelve pronto." repetido en las tres secciones: sin icono, sin contacto y sin
+nada que hacer. Para un negocio cuya conversión es WhatsApp, ese es justo el
+momento de ofrecer "avísame cuando entre algo".
+
+Ahora las tres secciones se ocultan y aparece **un** panel `#catalog-empty`
+con la misma forma que la página 404 del sitio (icono, título, explicación,
+acción): CTA de WhatsApp al número que ya usan la ficha, el botón de contacto
+y el pie (`18097759771`), con el mensaje precargado, más un enlace secundario
+a `#contacto`. Accesible: `role="status"` + `aria-live="polite"` para que un
+lector de pantalla anuncie el cambio, icono `aria-hidden`, CTA de 46px de alto
+y `rel="noopener noreferrer"`.
+
+El panel se retira solo: `renderSections()` llama a `hideCatalogEmptyState()`,
+así que en cuanto el administrador publica el primer vehículo el `onSnapshot`
+en vivo devuelve el catálogo sin recargar la página. Verificado en ambos
+sentidos contra el emulador.
+
+### Archivos
+
+- `app.js` — `countExistingFavorites()` nuevo, `updateNavFavCount()`,
+  `renderEmptyInventoryState()`, `showCatalogEmptyState()` y
+  `hideCatalogEmptyState()` nuevas, y una llamada añadida en `renderSections()`.
+- `styles.css` — bloque `#catalog-empty`, calcado del patrón `#not-found-page`.
+- `index.html` — solo el `?v=` de `app.js` y `styles.css`.
+
+Sin cambios en `firestore.rules` (mismo SHA-256
+`fc58d14275baf411a0bc714995f1ff8a005a151b30bc97264257c8ad634931fe`),
+`netlify.toml`, `vehicle-og.js` ni en ningún dato.
+
+### Pruebas
+
+Inventario vacío 15/15 · contador de favoritos 8/8 · navegación 46/46 ·
+imágenes 14/14 · XSS 7/7 · vista previa social 76/76 · SEO y rendimiento 25/25 ·
+responsive y teclado 8/8 · estado vacío responsive 12/12 anchos ·
+axe-core 0 críticas / 0 serias en 9 vistas con inventario y en 3 del catálogo
+vacío · reglas 92/92 · replay de los 37 vehículos reales 46/46 ·
+0 errores de consola y 0 recursos fallidos en 6 vistas.
+
+
 ## CIERRE DEFINITIVO — verificación contra producción + 2 correcciones
 
 Última pasada sobre el PR #2. Todo lo verificable desde este entorno se
