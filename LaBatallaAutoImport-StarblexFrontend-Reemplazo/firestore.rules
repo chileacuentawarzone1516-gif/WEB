@@ -143,10 +143,23 @@ service cloud.firestore {
               )
           ))
 
+        // ⚠️ `null` ADMITIDO (auditoría final). app.js (readPublishForm)
+        // calcula priceDisplay y priceUSD en la MISMA expresión:
+        //     const priceDisplay = currency === 'USD' ? `USD$ ...` : null;
+        //     const priceUSD     = currency === 'USD' ? priceRaw   : null;
+        // priceUSD ya contemplaba el null; priceDisplay no. Como RD$ es la
+        // moneda por defecto del formulario, TODA publicación en pesos
+        // mandaba priceDisplay: null y Firestore la rechazaba con
+        // permission-denied: el vehículo no se publicaba y el admin solo
+        // veía "❌ Error al guardar en Firebase". Reproducido contra el
+        // emulador con el payload literal del formulario.
         && (!('priceDisplay' in d)
           || (
-              d.priceDisplay is string
-              && d.priceDisplay.size() < 100
+              d.priceDisplay == null
+              || (
+                d.priceDisplay is string
+                && d.priceDisplay.size() < 100
+              )
           ))
 
         && (!('features' in d)
@@ -227,9 +240,40 @@ service cloud.firestore {
       ]);
     }
 
+    // ⚠️ REGRESIÓN CRÍTICA CORREGIDA (auditoría final).
+    //
+    // La versión anterior era:
+    //     request.method != 'update'
+    //       || request.resource.data.createdAt == resource.data.createdAt;
+    //
+    // En Firestore Rules, leer una clave que NO existe en un mapa no
+    // devuelve null: lanza un error de evaluación, y la regla entera pasa a
+    // denegar. NINGUNO de los 37 vehículos que hay hoy en producción tiene
+    // el campo `createdAt` (solo lo escriben las publicaciones nuevas), así
+    // que `resource.data.createdAt` reventaba en CADA edición.
+    //
+    // Efecto real, reproducido contra el emulador con los 37 documentos
+    // descargados de producción: 37/37 ediciones denegadas y 37/37
+    // backfills de slug denegados. Desde el despliegue de estas reglas, el
+    // administrador no podía guardar NINGÚN cambio en NINGÚN vehículo del
+    // inventario: solo veía "Error al guardar en Firebase".
+    //
+    // La garantía que se buscaba se conserva íntegra —una fecha de alta ya
+    // establecida NUNCA puede reescribirse ni borrarse— pero ahora se
+    // contempla el caso de que aún no exista, permitiendo fijarla una vez.
+    // El tipo y el rango de `createdAt` los sigue validando
+    // camposOpcionalesValidos() (número > 0).
     function createdAtInmutable() {
       return request.method != 'update'
-        || request.resource.data.createdAt == resource.data.createdAt;
+        || (
+          ('createdAt' in resource.data)
+            // Ya existe: debe seguir presente y con el MISMO valor.
+            ? ('createdAt' in request.resource.data
+                && request.resource.data.createdAt == resource.data.createdAt)
+            // Nunca se fijó (documento heredado): puede quedarse sin fecha
+            // o establecerse por primera vez, nunca reescribirse después.
+            : true
+        );
     }
 
     // ==========================================================
@@ -301,11 +345,26 @@ service cloud.firestore {
       // exige que un admin lo haga después, nunca en la creación.
       // createdAt debe escribirse con FieldValue.serverTimestamp() en
       // el cliente (auth.js lo hace), nunca con Date.now().
+      // ⚠️ ESCALADA DE PRIVILEGIOS CERRADA (auditoría final).
+      // Antes, `email` solo se validaba como "cadena de hasta 254
+      // caracteres": nada lo ataba al correo REALMENTE autenticado. Como
+      // isWhitelistedAdminEmail() consulta resource.data.email —el valor
+      // guardado, que lo escribe el propio usuario—, cualquiera podía
+      // registrarse con su correo, crear su documento declarando
+      // 'manuel15160410@gmail.com', auto-promoverse a admin y quedarse con
+      // el control del inventario y de todos los usuarios. Reproducido de
+      // extremo a extremo contra el emulador antes de este cambio.
+      //
+      // El correo del documento debe coincidir con el del token de Firebase
+      // Auth. No rompe nada: auth.js siempre escribe `email: user.email`,
+      // que es exactamente ese valor (tanto en registro por contraseña como
+      // con Google).
       allow create: if signedIn()
         && request.auth.uid == uid
         && request.resource.data.keys().hasOnly(['email','name','role','status','createdAt','schemaVersion','provider','photoURL','lastLogin','lastName','username','city','phone','address','country'])
         && request.resource.data.role == 'customer'
         && request.resource.data.status == 'active'
+        && request.resource.data.email == request.auth.token.email
         && validUserProfile(request.resource.data);
 
       // El propio usuario edita su perfil, pero NUNCA role/status/
@@ -333,7 +392,15 @@ service cloud.firestore {
       allow update: if signedIn() && request.auth.uid == uid
         && (
           request.resource.data.role == resource.data.role
-          || (request.resource.data.role == 'admin' && isWhitelistedAdminEmail(resource.data.email))
+          // La promoción exige, además de estar en la whitelist, que el
+          // correo guardado sea el del token. Sin esta segunda condición,
+          // cualquier documento con el email falsificado que ya existiera
+          // de antes seguiría sirviendo para escalar.
+          || (
+            request.resource.data.role == 'admin'
+            && isWhitelistedAdminEmail(resource.data.email)
+            && resource.data.email == request.auth.token.email
+          )
         )
         && request.resource.data.status == resource.data.status
         && request.resource.data.createdAt == resource.data.createdAt
@@ -344,10 +411,23 @@ service cloud.firestore {
 
       // Un admin puede cambiar cualquier cosa de cualquier perfil, con
       // listas cerradas para role/status y perfil siempre válido.
-      allow update, delete: if isAdmin()
+      //
+      // `delete` va SEPARADO a propósito: al borrar, request.resource es
+      // null, así que validUserProfile(request.resource.data) fallaba con
+      // error y la regla denegaba SIEMPRE. Era una regla muerta —un admin
+      // no podía borrar ningún perfil— comprobado contra el emulador.
+      //
+      // Se añade además hasOnly(): la rama de admin era la única sin lista
+      // cerrada de campos, así que permitía inyectar claves arbitrarias en
+      // el perfil de cualquier usuario. Es la misma lista que ya usan las
+      // ramas de creación y de auto-edición.
+      allow update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['email','name','role','status','createdAt','schemaVersion','provider','photoURL','lastLogin','lastName','username','city','phone','address','country'])
         && validUserProfile(request.resource.data)
         && (!('role' in request.resource.data) || request.resource.data.role in ['customer','sales','editor','admin'])
         && (!('status' in request.resource.data) || request.resource.data.status in ['active','disabled','pending']);
+
+      allow delete: if isAdmin();
     }
 
     // ==========================================================
@@ -361,11 +441,23 @@ service cloud.firestore {
 
     // Favoritos: users/{uid}/favorites/{vehicleId} — el ID del vehículo
     // como ID del documento evita duplicados por diseño (upsert natural).
+    // ⚠️ LECTURA ARREGLADA (auditoría final). `allow read, write` metía la
+    // lectura bajo una condición que desreferencia request.resource.data;
+    // en una lectura request.resource es null, así que la expresión daba
+    // error y Firestore DENEGABA. Resultado real: el usuario no podía leer
+    // sus propios favoritos —la pestaña Favoritos del Dashboard quedaba
+    // vacía y no había sincronización entre dispositivos, aunque en local
+    // pareciera funcionar por el respaldo de localStorage—. Comprobado
+    // contra el emulador antes de este cambio (get y list denegados).
+    // La escritura no cambia: mismas restricciones de siempre.
     match /users/{uid}/favorites/{vehicleId} {
-      allow read, write: if signedIn() && request.auth.uid == uid
-        && (request.method == 'delete'
-          || (request.resource.data.keys().hasOnly(['addedAt'])
-            && request.resource.data.addedAt is timestamp));
+      allow read: if signedIn() && request.auth.uid == uid;
+
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['addedAt'])
+        && request.resource.data.addedAt is timestamp;
+
+      allow delete: if signedIn() && request.auth.uid == uid;
     }
 
     // Historial de vehículos vistos: users/{uid}/history/{autoId}.
@@ -395,8 +487,16 @@ service cloud.firestore {
     }
 
     // Preferencias de búsqueda: documento único users/{uid}/preferences/settings.
+    // Mismo fallo que en favoritos: la lectura caía bajo una condición que
+    // desreferencia request.resource.data y quedaba denegada, así que las
+    // preferencias guardadas no se recuperaban nunca. Aquí ni siquiera
+    // había la vía de escape de `request.method == 'delete'`.
     match /users/{uid}/preferences/{docId} {
-      allow read, write: if signedIn() && request.auth.uid == uid
+      allow read: if signedIn() && request.auth.uid == uid;
+
+      allow delete: if signedIn() && request.auth.uid == uid;
+
+      allow create, update: if signedIn() && request.auth.uid == uid
         && request.resource.data.keys().hasOnly([
           'brands', 'priceMin', 'priceMax', 'vehicleType', 'transmission', 'fuel'
         ])
@@ -406,6 +506,45 @@ service cloud.firestore {
         && (!('vehicleType' in request.resource.data) || (request.resource.data.vehicleType is string && request.resource.data.vehicleType.size() <= 30))
         && (!('transmission' in request.resource.data) || (request.resource.data.transmission is string && request.resource.data.transmission.size() <= 30))
         && (!('fuel' in request.resource.data) || (request.resource.data.fuel is string && request.resource.data.fuel.size() <= 30));
+    }
+
+    // ==========================================================
+    // CONFIGURACIÓN PÚBLICA — config/finanzas
+    // ----------------------------------------------------------
+    // Faltaba por completo: app.js lee config/finanzas al arrancar para
+    // obtener la tasa USD->RD$ ("editable por el admin sin tocar código"),
+    // pero sin regla propia caía en el deny por defecto. En producción esa
+    // lectura devolvía permission-denied (HTTP 403 comprobado contra el
+    // proyecto real), el .catch() la silenciaba y USD_TO_RD_RATE se quedaba
+    // SIEMPRE en el valor de respaldo del código (59): la tasa configurable
+    // nunca llegó a funcionar y los precios en USD se convertían con un
+    // valor fijo.
+    //
+    // Decisiones de esta regla:
+    //   - Acotada a docId == 'finanzas', también en LECTURA. Es el único
+    //     documento que la aplicación usa. Así, si algún día se crea otro
+    //     documento en /config con datos internos, cae en el deny por
+    //     defecto en vez de quedar público por accidente.
+    //   - hasOnly(['tasaUsdRd']): el único campo que la aplicación lee
+    //     (app.js -> USD_TO_RD_RATE). Cierra la puerta a campos inesperados.
+    //   - tasaUsdRd > 0, no >= 0: una tasa de 0 convertiría a RD$ 0 todo
+    //     precio publicado en dólares, que es tan inválido como un negativo.
+    //   - Sin `delete`: borrar el documento devolvería la tasa al respaldo
+    //     del código en silencio. Si hay que corregirla, se sobrescribe.
+    // ==========================================================
+    match /config/{docId} {
+      allow read: if docId == 'finanzas';
+
+      allow create, update:
+        if isAdmin()
+        && docId == 'finanzas'
+        && request.resource.data.keys().hasOnly(['tasaUsdRd'])
+        && 'tasaUsdRd' in request.resource.data
+        && request.resource.data.tasaUsdRd is number
+        && request.resource.data.tasaUsdRd > 0
+        && request.resource.data.tasaUsdRd <= 1000;
+
+      allow delete: if false;
     }
 
     // Deny por defecto

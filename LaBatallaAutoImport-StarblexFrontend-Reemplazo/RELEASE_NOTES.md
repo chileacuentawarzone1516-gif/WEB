@@ -1,86 +1,334 @@
 # RELEASE NOTES — La Batalla Auto Import
 
-## STARBLEX IA 1.0 — INTEGRACIÓN COMPLETA: UI + Invitación + Logo + fixes reales
+## UX DEL CATÁLOGO VACÍO — 2 defectos corregidos
 
-**Esta entrega integra físicamente**, no solo documenta, todo lo aprobado hasta ahora: interfaz de Starblex, invitación opcional de registro, y el nuevo logo — corrigiendo 3 bugs reales encontrados durante la verificación (no solo revisión superficial):
+Salieron al probar la aplicación contra un Firestore con la colección
+`vehicles` a cero (emulador). Ninguno se ve hoy porque el catálogo nunca ha
+estado vacío. **No se tocó ningún dato de producción.**
 
-### Bugs reales encontrados y corregidos
-1. **`starblex-chat.js` mandaba un payload de una arquitectura vieja** (`vehicleContext` + `inventorySnapshot` completos) que el backend actual ya no lee — el backend obtiene el inventario de Firestore por su cuenta desde la corrección de Fase 1. Corregido: ahora manda solo `vehicleId`. Sin este fix, "Explícame este vehículo" nunca le habría llegado el vehículo correcto al modelo.
-2. **Faltaba el `<script>` de `starblex-chat.js` en `index.html`.** El botón del FAB ya llamaba a `window.LB_STARBLEX?.open()`, pero ese objeto nunca se definía porque el archivo que lo define no se estaba cargando. El FAB habría estado ahí, visible, sin hacer nada al pulsarlo.
-3. **Un punto de contacto por WhatsApp no pasaba por la invitación opcional**: el botón "Solicitar este Financiamiento" del modal de calculadora dispara `window.open()` directamente (no es un `<a>`), así que el listener delegado de `invite-modal.js` no lo detectaba. Corregido en `calculadora.js` para que use el mismo criterio que los otros 4 puntos.
+### 1. El contador de favoritos contaba publicaciones que ya no existen
 
-### Aclaración sobre "Escríbenos"
-No es un sistema separado — era el texto visible del FAB de WhatsApp original (`<span class="fab-whatsapp-label-title">Escríbenos</span>`). Ese FAB ya fue reemplazado por el de Starblex IA en esta misma integración; no queda ningún rastro del label ni del botón anterior.
+`updateNavFavCount()` usaba `getFavorites().length`, los identificadores
+guardados en bruto, mientras que `renderAccountFavorites()` sí filtra por
+vehículo existente. Al retirarse una publicación, el globo del menú seguía
+marcando "3" y el panel decía "Aún no tienes vehículos favoritos".
+Reproducido en navegador con el catálogo vacío.
 
-### Logo
-Se usó `La_Batalla_Auto_Import_-_Logo_Premium_Automotriz.png` (confirmado por el propietario) como fuente. Ya estaba correctamente derivado en `logo-labatalla.png` (240×240, fondo #051d40 idéntico al original, sin distorsión) para el modal de invitación — verificado de nuevo contra el hash del archivo confirmado.
+Se añade `countExistingFavorites()`, que cuenta solo los favoritos que siguen
+en el inventario. Con el inventario aún sin cargar el globo queda oculto —no
+se inventa un número— y se actualiza en cuanto llega el primer snapshot.
+Comprobado en los 4 casos: 2 válidos + 2 borrados → "2"; todos válidos → "3";
+todos borrados → oculto; sin favoritos → oculto. En los cuatro, el globo y el
+panel coinciden.
 
-### Verificación real ejecutada
-- `node --check` en los 11 archivos `.js` del proyecto: OK.
-- `netlify.toml` parseado con un parser TOML real (librería `toml` de Python): OK, sin duplicados de `[[edge_functions]]`.
-- HTML: 250 `<div>` de apertura = 250 de cierre, cero IDs duplicados.
-- **Prueba real de overflow horizontal con Chromium headless** (Playwright) en los 8 anchos pedidos (320/360/375/390/414/768/1024/1440): **cero overflow horizontal en los 8**. Renderizado real, no inspección de CSS.
-- Sin archivos duplicados de `starblex.js`, `starblex-chat.js` ni `invite-modal.js`.
-- Mensajes del chat insertados con `textContent`, no `innerHTML` — sin vector XSS.
+### 2. El estado vacío del catálogo no ofrecía ninguna salida
 
-### Limitaciones honestas
-No pude verificar visualmente la posición del FAB de Starblex ni su no-solapamiento con "Financiar": Firebase y los CDN externos están bloqueados en la red de este entorno de pruebas, así que `app.js` lanza `firebase is not defined` antes de inicializar el FAB. Limitación del entorno de pruebas, no evidencia de un bug — pero no lo declaro "verificado" sin haberlo visto renderizado. Pendiente de confirmación visual tras el deploy real.
+`renderEmptyInventoryState()` pintaba el texto "Inventario en actualización —
+vuelve pronto." repetido en las tres secciones: sin icono, sin contacto y sin
+nada que hacer. Para un negocio cuya conversión es WhatsApp, ese es justo el
+momento de ofrecer "avísame cuando entre algo".
 
-No se implementó router híbrido Haiku/Sonnet, RAG, ni memoria persistente — fuera de alcance de la 1.0.
+Ahora las tres secciones se ocultan y aparece **un** panel `#catalog-empty`
+con la misma forma que la página 404 del sitio (icono, título, explicación,
+acción): CTA de WhatsApp al número que ya usan la ficha, el botón de contacto
+y el pie (`18097759771`), con el mensaje precargado, más un enlace secundario
+a `#contacto`. Accesible: `role="status"` + `aria-live="polite"` para que un
+lector de pantalla anuncie el cambio, icono `aria-hidden`, CTA de 46px de alto
+y `rel="noopener noreferrer"`.
+
+El panel se retira solo: `renderSections()` llama a `hideCatalogEmptyState()`,
+así que en cuanto el administrador publica el primer vehículo el `onSnapshot`
+en vivo devuelve el catálogo sin recargar la página. Verificado en ambos
+sentidos contra el emulador.
+
+### Archivos
+
+- `app.js` — `countExistingFavorites()` nuevo, `updateNavFavCount()`,
+  `renderEmptyInventoryState()`, `showCatalogEmptyState()` y
+  `hideCatalogEmptyState()` nuevas, y una llamada añadida en `renderSections()`.
+- `styles.css` — bloque `#catalog-empty`, calcado del patrón `#not-found-page`.
+- `index.html` — solo el `?v=` de `app.js` y `styles.css`.
+
+Sin cambios en `firestore.rules` (mismo SHA-256
+`fc58d14275baf411a0bc714995f1ff8a005a151b30bc97264257c8ad634931fe`),
+`netlify.toml`, `vehicle-og.js` ni en ningún dato.
+
+### Pruebas
+
+Inventario vacío 15/15 · contador de favoritos 8/8 · navegación 46/46 ·
+imágenes 14/14 · XSS 7/7 · vista previa social 76/76 · SEO y rendimiento 25/25 ·
+responsive y teclado 8/8 · estado vacío responsive 12/12 anchos ·
+axe-core 0 críticas / 0 serias en 9 vistas con inventario y en 3 del catálogo
+vacío · reglas 92/92 · replay de los 37 vehículos reales 46/46 ·
+0 errores de consola y 0 recursos fallidos en 6 vistas.
+
+
+## CIERRE DEFINITIVO — verificación contra producción + 2 correcciones
+
+Última pasada sobre el PR #2. Todo lo verificable desde este entorno se
+verificó contra el **proyecto Firebase real** y el **inventario real** (37
+vehículos). Solo aparecieron dos defectos, ambos corregidos aquí. El bloqueo
+que queda **no está en el código**: está en el despliegue y en los datos.
+
+### Defectos reales corregidos
+
+1. **Cuatro campos de formulario sin etiqueta accesible** (`index.html`).
+   `Precio *` y `Color` tenían un `<label>` sin `for`, y como el campo real no
+   va dentro de la etiqueta (entre medias hay un `<select>` de moneda y un
+   buscador), la asociación nunca existía. Los dos campos de contacto de la
+   calculadora (`calc-modal-nombre`, `calc-modal-telefono`) solo tenían
+   `placeholder`, que no es un nombre accesible. Un lector de pantalla
+   anunciaba esos cuatro campos sin nombre. axe-core no lo veía porque solo
+   analiza controles visibles y los cuatro viven dentro de modales cerrados.
+   Corregido con `for` en las dos etiquetas existentes y `aria-label` en los
+   dos campos de la calculadora — mismo patrón que ya usaba `#pub-currency`.
+   Sin cambio visual. Verificado: 48/48 controles con nombre accesible.
+
+2. **`og:image:width`/`og:image:height` declaraban medidas falsas**
+   (`netlify/edge-functions/vehicle-og.js`). Se inyectaba `1200x1200` en
+   TODAS las fichas. No era cierto en ninguna: `c_fill,w_1200` sin altura
+   conserva la proporción original —nunca sale cuadrada—, y las fotos del
+   catálogo base ni siquiera pasan por Cloudinary (llegan de Pexels a 800px
+   de ancho). Facebook y WhatsApp usan esos valores para reservar el hueco de
+   la tarjeta antes de descargar la imagen, así que la vista previa se
+   maquetaba con una proporción que no correspondía a la foto. Ahora la
+   medida se declara **solo cuando se conoce**: `c_fill,w_1200,h_630` fija la
+   imagen de Cloudinary a 1200x630 (la proporción 1.91:1 que piden esas
+   plataformas) y se declara eso; `preview.jpg` declara sus 1204x644 reales;
+   para una imagen de origen ajeno se retiran las dos etiquetas y es el
+   rastreador quien la mide. Verificado ejecutando la propia Edge Function
+   contra el Firestore real, ficha por ficha: 76/76.
+
+### Verificado sin necesidad de tocar nada
+
+Reglas de Firestore 92/92 · replay de los 37 vehículos reales 46/46 ·
+navegación 46/46 · imágenes (JPG/PNG/WebP/HEIC) 14/14 · vista previa social
+76/76 · XSS 7/7 · SEO y rendimiento 25/25 · axe-core 0 críticas / 0 serias en
+9 vistas · 0 desbordes horizontales en 12 anchos × 4 vistas · 0 referencias
+funcionales a Starblex.
+
+### Lo que sigue pendiente y NO se puede resolver desde el repositorio
+
+1. **Las reglas endurecidas de este PR no están desplegadas.** Comprobado
+   contra producción con tres huellas independientes: `config/finanzas`,
+   `users/{uid}/favorites/*` y `users/{uid}/preferences/*` responden `403`
+   donde estas reglas darían `404`/`200`. Lo que corre hoy es la versión de
+   `main`. Mientras siga así, la escalada de privilegios que este PR cierra
+   sigue abierta. Se arregla con un solo comando, desde esta rama:
+   `firebase deploy --only firestore:rules --project la-batalla-auto-import`.
+
+2. **Los 4 vehículos con `adminKey` siguen sin sanear.** `adminKey = 4` en
+   producción (último `updateTime`: 8 de junio de 2026). El código ya hace lo
+   correcto —`saveVehicleDB()` escribe con `.set()` solo los campos
+   permitidos— pero sanear exige una sesión de administrador, que este
+   entorno no tiene. Abrir cada uno de los 4 en el panel y pulsar
+   **Guardar Cambios** los limpia. Comprobado contra el emulador con los 37
+   documentos reales: `adminKey = 0`, `id` duplicado `= 0`, ningún dato
+   perdido y `camry 2007` conserva `transmission: "Manual"`.
+
+
+## CIERRE DE RELEASE — validación contra producción real
+
+Segunda pasada sobre el PR #2. Esta vez sí hubo acceso de red a
+`*.googleapis.com`, así que se pudo validar contra el **proyecto Firebase
+real** y con el **inventario real de producción** (37 vehículos), no solo con
+dobles locales. Aparecieron 3 defectos reales, ninguno causado por la
+eliminación de Starblex.
+
+### Bugs reales encontrados y corregidos en esta pasada
+
+1. **`config/finanzas` estaba denegado por las reglas: la tasa USD→RD$ nunca
+   funcionó.** `app.js` lee ese documento al arrancar para obtener la tasa de
+   cambio "editable por el admin sin tocar código", pero `firestore.rules`
+   **no tenía ninguna regla `match /config/...`**, así que caía en el deny por
+   defecto. Comprobado contra el proyecto real: `HTTP 403`. El `.catch()` lo
+   silenciaba y `USD_TO_RD_RATE` se quedaba siempre en el respaldo del código
+   (59), de modo que todo precio publicado en USD se convertía con un valor
+   fijo. Añadida la regla `match /config/{docId}` (lectura pública —la necesita
+   cualquier visitante para ver precios—, escritura solo admin, con el campo
+   `tasaUsdRd` validado como número entre 0 y 1000) y 7 pruebas nuevas.
+   ⚠️ **Requiere desplegar las reglas** (`firebase deploy --only
+   firestore:rules`); hasta entonces la tasa sigue fija en 59.
+
+2. **La descripción social perdía el año del vehículo.**
+   `netlify/edge-functions/vehicle-og.js` normalizaba el año con
+   `Number.isFinite(raw.year)`, pero el formulario de publicación lo guarda
+   como **cadena** (es el `value` de un `<select>`): los 37 vehículos reales lo
+   tienen como texto, así que el año se descartaba siempre. Corregido
+   normalizándolo como `mileage`. Además el año ahora solo se añade si el
+   nombre no lo lleva ya, para no producir "RAM 1500 Rebel 2024 2024" (33 de
+   los 37 nombres reales incluyen el año). Verificado ejecutando la Edge
+   Function real contra Firestore real: 37/37 fichas correctas, 0 pierden el
+   año, 0 lo repiten.
+
+3. **El sitio publicaba sus propios archivos internos.** Con `publish = "."`
+   eran descargables `/firestore.rules`, `/firestore_rules_test.js`,
+   `/firebase.json`, `/cloudinary-sign-worker.js`, `/README.md` y
+   `/RELEASE_NOTES.md`. Ninguno lo carga el sitio (0 referencias en
+   `index.html`). No son secretos —los correos de la whitelist ya viven en
+   `auth.js` por diseño—, pero entre todos publicaban el detalle de las reglas
+   de seguridad, la lógica de firma de Cloudinary y la deuda de seguridad
+   conocida. Añadidos 6 redirects `status = 404` con `force = true` (sin
+   `force`, Netlify sirve el estático y el redirect no se aplica). Verificado:
+   los 6 dan 404 y las 23 rutas y assets reales siguen dando 200.
+
+### Verificación contra producción real
+
+- **Inventario real (37 vehículos de Firestore) renderizado en el navegador**
+  con la CSP de producción: 37/37 alcanzables recorriendo la paginación,
+  **0 `src` rotos, 0 placeholders `?`, 0 `[object Object]`, 0 `src=""`**,
+  todas con `alt`. Dato relevante: **33 de los 37 no tienen `media[]`**, solo
+  `img` — justo el caso que rompía antes de `getVehicleCover()`.
+- **Las 37 fichas abiertas por su URL real** (pestaña nueva, como un enlace
+  compartido): 37/37 con imagen decodificada, `canonical`, `title` y JSON-LD
+  correctos, y **0 errores JS**.
+- **Slugs**: `app.js`, `vehicle-og.js` y `generar-sitemap.js` producen el mismo
+  slug para los 37 (0 duplicados, 0 vacíos), así que ninguna ficha compartida
+  cae en 404. Ninguno de los 37 tiene `slug` guardado en Firestore todavía; el
+  cálculo en caliente cubre el caso y coincide en las tres implementaciones.
+- **Reglas de Firestore en PRODUCCIÓN** (sin crear ningún dato): crear, editar
+  y borrar vehículos sin sesión → 403; listar `/users` sin sesión → 403;
+  escribir `config` sin sesión → 403; lectura pública del catálogo → 200.
+  Comprobado además que no quedó ningún dato de prueba y que el vehículo real
+  conserva su precio.
+- **Firebase Auth real** (Identity Toolkit): responde, la API key es válida y
+  el endpoint de proveedores opera.
+- **App Check**: no está forzado sobre Firestore — la lectura pública del
+  catálogo funciona sin token, que es justo lo que el sitio necesita.
+- **Reglas contra el emulador real**: 22/22 (15 previas + 7 nuevas de `config`).
+- Regresión completa: 78/78 funcionales, 0 violaciones axe-core, 48/48
+  responsive, 0 violaciones de CSP, 0 errores de página.
+
+### Sigue sin poder verificarse desde este entorno
+
+La red bloquea `netlify.app`, `api.netlify.com`, `gstatic.com`,
+`cdn.jsdelivr.net` y `*.cloudinary.com`. Queda pendiente de comprobación
+manual en el Deploy Preview: subida real a Cloudinary y conversión de un HEIC,
+Firebase Auth y App Check dentro del navegador con el SDK real, y la vista
+previa social renderizada por WhatsApp/Facebook.
+
+### Dato de inventario para el propietario (no es un bug de código)
+
+El vehículo `camry 2007` tiene `year: "2024"`. El nombre y el campo año no
+coinciden; conviene corregirlo desde el panel.
 
 ---
 
-## STARBLEX IA 1.0 — FASE 7: mensaje demasiado largo, de truncado silencioso a rechazo explícito
+## ELIMINACIÓN TOTAL DE STARBLEX + AUDITORÍA DE RELEASE
 
-**Cambio puntual**, sin tocar nada más: `netlify/edge-functions/starblex.js` ya no trunca en silencio un mensaje que excede 800 caracteres. Ahora responde `400` con `"El mensaje es demasiado largo. Intenta resumirlo."` antes de construir cualquier request a Anthropic. El historial y el `vehicleId` siguen acotándose igual que antes (no son texto libre que la persona esté escribiendo en ese momento). Verificado con `node --check` + 2 aserciones nuevas (mensaje de 5000 chars → 400; mensaje de exactamente 800 chars → no se rechaza) sobre las 26 totales del arnés de Fase 2, todas en verde.
+Decisión del propietario: **Starblex IA se retira por completo del proyecto.**
+Esta entrega elimina la funcionalidad entera (frontend, backend, estilos,
+configuración y documentación) sin tocar ninguna otra función del sitio, y
+audita el resultado.
 
----
-
-
-
-## STARBLEX IA 1.0 — FASE 1: Backend mínimo seguro
-
-**Alcance de esta entrega:** exclusivamente el backend (`/api/starblex`, Netlify Edge Function) que habla con Claude Haiku 4.5. Explícitamente **fuera de alcance de esta fase** (aprobado así, no implementado): interfaz de chat, botón flotante Starblex, eliminación del FAB de WhatsApp, RAG, memoria persistente, router Haiku/Sonnet, rate limiting persistente.
-
-⚠️ **Nota de transparencia:** en este mismo entorno de trabajo existen, de una ronda anterior (antes de que se pidiera detener la implementación para decidir arquitectura), borradores sin entregar de la interfaz de Starblex (`starblex-chat.js`) y del reemplazo del FAB de WhatsApp (`index.html`, `app.js`, `styles.css`, `dashboard.js`). **No se incluyen en esta entrega** porque esta fase los excluye explícitamente — quedan en espera hasta la fase de UX/Chat. Los archivos protegidos reales (`auth.js`, `auth-ui.js`, `roles.js`, `firestore.rules`, `dashboard.css`, `calculadora.js`, `cloudinary-sign-worker.js`) están verificados byte a byte, sin cambios.
-
-### 1. Corrección de arquitectura aplicada: fuente del inventario
-La propuesta original enviaba el inventario desde el navegador al backend (`inventorySnapshot`). Corregido: el navegador **ya no es fuente de verdad**. `netlify/edge-functions/starblex.js` obtiene el inventario directamente de Firestore vía su REST API pública (`firestore.googleapis.com`), aprovechando que `firestore.rules` línea 241 ya tiene `allow read: if true` en `/vehicles` — la misma lectura pública que usa hoy el SDK cliente. Esto no requiere Service Account, Firebase Admin ni ninguna credencial privilegiada, y **no se modificó `firestore.rules`**.
-
-El cliente, cuando se implemente el chat, solo podrá enviar `vehicleId` (un identificador) para indicar "estoy viendo este vehículo" — el backend lo busca en su propia lista ya obtenida de Firestore. Un ID inexistente o manipulado simplemente no encuentra nada; no hay forma de inyectar datos falsos de un vehículo.
-
-### 2. Edge Function (`netlify/edge-functions/starblex.js`)
-- Valida método (solo `POST`+`OPTIONS`), `Content-Type: application/json`, tamaño de body (máx. 20 KB antes de parsear), longitud de mensaje (800 caracteres), historial (máx. 6 turnos, 800 caracteres cada uno, roles restringidos a `user`/`assistant`).
-- Modelo fijado en una única constante (`claude-haiku-4-5-20251001`) — el cliente no puede elegir modelo, system prompt, `temperature` ni `max_tokens`.
-- Inventario cacheado en memoria 60s para no golpear Firestore en cada mensaje.
-- System prompt con separación explícita entre instrucciones (reglas de Starblex) y datos (inventario, vehículo en pantalla, historial, mensaje del usuario) — instruye a ignorar intentos de inyección que pidan revelar el prompt, claves o cambiar de rol.
-- CORS restringido a `ALLOWED_ORIGINS` (whitelist explícita, sin `*`); rechaza cualquier origen no listado con 403.
-- Errores tipados sin fugas: JSON inválido (400), body excesivo (413), método incorrecto (405), origen no autorizado (403), `Content-Type` incorrecto (415), falta `ANTHROPIC_API_KEY` (503), error/cuota del proveedor (502/429), timeout de 20s (504) — todos devuelven el mismo mensaje genérico al usuario, nunca detalle interno, stack trace, ni el system prompt.
-- Punto de extensión marcado en el código (`RATE LIMIT (fase posterior)`) para añadir límite por IP/usuario sin reestructurar el archivo.
-
-### 3. `netlify.toml`
-Registrada la ruta `[[edge_functions]] path = "/api/starblex" function = "starblex"`. Sin cambios de CSP ni CORS externo — mismo dominio que el resto del sitio.
-
-### Archivos nuevos
-`netlify/edge-functions/starblex.js`
+### Archivos eliminados
+- `starblex-chat.js` — interfaz completa del chat (FAB, panel, historial, sugerencias, tarjeta de vehículo, mensajes proactivos). Exclusivo de Starblex.
+- `netlify/edge-functions/starblex.js` — backend `/api/starblex` (Gemini + Firestore REST). Exclusivo de Starblex.
+- `starblex.js` (raíz) — duplicado byte a byte del anterior, sin referencias; estaba marcado como `ORPHANED — PENDING MANUAL CLEANUP` en el README. Además dejaba de publicarse como archivo estático accesible en `/starblex.js`.
 
 ### Archivos modificados
-`netlify.toml` (solo el bloque de la nueva ruta)
+- `index.html` — retirado el `<button id="fab-starblex-btn">` del `.fab-stack` y el `<script src="/starblex-chat.js">`. `?v=` incrementado en `app.js`, `styles.css` y `dashboard.js`.
+- `app.js` — eliminada `initFabStarblex()` y su llamada en el `DOMContentLoaded`. Única referencia a `window.LB_STARBLEX`.
+- `dashboard.js` — retirada la acción rápida "Hablar con Starblex IA"; la tarjeta "Recomendados para ti" ya no necesita la aclaración "sin IA".
+- `styles.css` — eliminados los 3 bloques exclusivos: `.fab-starblex*` + `@keyframes fabStarblexPulse`, el panel de conversación completo (`.starblex-*`) y la tarjeta de vehículo del chat. 310 → 173 líneas.
+- `netlify.toml` — eliminado `[[edge_functions]] path = "/api/starblex"` y el bloque `[[headers]] for = "/starblex-chat.js"`.
+- `README.md` / `RELEASE_NOTES.md` — retirada la documentación de Starblex.
+- `dashboard.css`, `politica-privacidad.html`, `terminos-y-condiciones.html` — solo el color de texto terciario (ver contraste, más abajo).
+- `firestore_rules_test.js` — ruta de lectura de `firestore.rules` corregida.
+- `sitemap.xml` — regenerado con el inventario real (44 URLs, 37 vehículos).
 
-### Archivos NO modificados (verificados por diff byte a byte)
-`auth.js`, `auth-ui.js`, `roles.js`, `firestore.rules`, `dashboard.css`, `calculadora.js`, `cloudinary-sign-worker.js`, `firebase.json`, `firestore_rules_test.js`, `robots.txt`, `sitemap.xml`, `tailwind.css`, `politica-privacidad.html`, `terminos-y-condiciones.html`, `404.html`, `README.md`.
+### Archivos conservados (parecían relacionados, no lo están)
+- `netlify/edge-functions/vehicle-og.js` — comparte carpeta y las variables `FIREBASE_PROJECT_ID` / `FIREBASE_WEB_API_KEY`, pero es el OG/404 real de `/vehiculos/*`. Independiente de Starblex.
+- `logo-labatalla.png` — lo usaba el avatar del FAB, pero su uso principal (modal de invitación, `invite-modal.js`) sigue vivo.
+- `invite-modal.js`, `calculadora.js`, `cloudinary-sign-worker.js`, `scripts/generar-sitemap.js` — sin dependencia de Starblex.
 
-### Variables de entorno necesarias en Netlify (Site settings → Environment variables → marcar disponibles para "Edge functions")
-- `ANTHROPIC_API_KEY=<CONFIGURAR EN NETLIFY>` — API key de platform.claude.com, nunca un valor real en este repo.
-- `ALLOWED_ORIGINS=https://labatallaautoimport.netlify.app` (agregar dominio propio si lo hay, separado por coma).
-- `FIREBASE_PROJECT_ID=la-batalla-auto-import` — no es secreto (ya es público en `app.js`), pero se mantiene como variable para no hardcodearlo en el Edge Function.
-- `FIREBASE_WEB_API_KEY=<opcional>` — tampoco es secreto; si se define, se añade a la consulta a Firestore, no es obligatorio.
+### Bugs reales encontrados en la auditoría posterior y corregidos
 
-### Pruebas ejecutadas en esta fase
-Pruebas unitarias de la lógica pura (Node, sin red): parseo de campos tipados de Firestore → JS plano, whitelist de campos del inventario (descarta cualquier campo fuera de la lista, ej. `ownerUid`), remoción del `id` interno antes de armar el prompt, sanitización de historial (descarta roles inválidos como `system`, trunca a 6 turnos y 800 caracteres), truncado de mensajes largos, y búsqueda de `vehicleContext` por ID (encuentra el real, ignora uno inexistente/manipulado). Las 11 aserciones pasaron. `node --check` confirma sintaxis JS válida.
+Ninguno lo causó la eliminación de Starblex — son defectos previos que la
+auditoría en navegador (Chromium + Playwright, con la CSP real de
+`netlify.toml` aplicada por el servidor de pruebas) dejó al descubierto.
 
-### Pendiente / no verificable en este entorno
-`NOT VERIFIED — EXTERNAL API UNAVAILABLE`: no se pudo ejecutar el runtime real de Netlify Edge Functions (Deno) ni llamadas reales a `firestore.googleapis.com` o a la API de Anthropic (sin `ANTHROPIC_API_KEY` real ni acceso de red a Firestore desde este entorno). Los 12 casos de prueba de extremo a extremo listados para la Fase 2 (mensaje normal, vacío, muy largo, JSON inválido, GET, prompt injection, etc.) quedan pendientes de ejecutar contra el despliegue real, con `web-application-testing`, cuando lo autorices.
+1. **La CSP bloqueaba la vista previa de las fotos al publicar (CRÍTICO).**
+   `img-src 'self' data: https:` no incluía `blob:`, y el formulario de
+   publicación genera cada miniatura con `URL.createObjectURL(file)` → una URL
+   `blob:`. En producción el admin elegía sus fotos y **no veía ninguna**:
+   publicaba a ciegas. Es la causa raíz del recuadro con `?` bajo el badge
+   `PORTADA` que se venía reportando. Corregido añadiendo `blob:` a `img-src`
+   y a `media-src` (los vídeos tenían el mismo problema). Verificado en
+   navegador: la miniatura ahora decodifica (`naturalWidth > 0`) y hay 0
+   violaciones de CSP en home, ficha, Empresa, login, publicación y Dashboard.
+
+2. **`src="[object Object]"` en las tarjetas del catálogo.** `renderCard()`
+   resolvía la portada con `first.src || first`: si `media[0]` era un objeto
+   sin `.src` (dato heredado), inyectaba el objeto entero como `src` y el
+   navegador pedía `/[object Object]` → 404 real, capturado en la consola del
+   navegador. Otros dos puntos de render caían a cadena vacía, y `<img src="">`
+   vuelve a pedir el documento HTML completo. Unificado en un único helper,
+   `getVehicleCover(v, placeholder)`, usado por los 5 puntos que resolvían
+   portada (tarjeta, favoritos, similares, OG/meta y JSON-LD).
+
+3. **Placeholder de error `?` en el formulario de publicación.** El `onerror`
+   de cada miniatura cargaba `placehold.co/80x80?text=?`, que se leía como
+   imagen rota justo debajo del badge `PORTADA`. Sustituido por el mismo bloque
+   neutro que ya usaba la rama HEIC ("Vista previa no disponible"), enganchado
+   con `addEventListener` en vez de un handler inline nuevo.
+
+4. **Contraste por debajo de WCAG AA (SC 1.4.3) en todo el sitio.** El gris
+   `#64748b` daba 3.15:1 sobre las tarjetas y 3.75:1 sobre el fondo; el blanco
+   sobre el verde de WhatsApp `#25d366` daba 1.98:1, y sobre el azul `#0ea5e9`
+   de "Ver Características", "Publicar" y "Publicar Vehículo", 2.77:1.
+   Corregido: gris → `#8b99ad` (≥4.6:1 sobre todos los fondos reales del
+   sitio), texto de los CTA verdes → `#052e16` (7.5:1, conservando el verde de
+   marca), texto de los CTA azules → azul marino (5.1:1). axe-core: de 19
+   violaciones a **0** en home, Empresa, legales, 404, ficha, Dashboard y los
+   3 modales.
+
+5. **`<select>` de moneda sin nombre accesible (crítico en axe).**
+   `#pub-currency` no tenía `<label>` ni `aria-label`: un lector de pantalla
+   solo anunciaba "RD$". Añadido `aria-label="Moneda del precio"`.
+
+6. **Puntos del carrusel de 7×7 px (WCAG 2.2 SC 2.5.8).** El botón entero medía
+   9×9 en escritorio y 7×7 en móvil, con 13px entre centros — ni el tamaño
+   mínimo de 24px ni la excepción por espaciado. Ampliada el área táctil del
+   `<button>` a 24×24 dejando el punto visible en su tamaño original mediante
+   `::after`; el diseño no cambia.
+
+7. **`firestore_rules_test.js` no podía ejecutarse.** Leía las reglas de
+   `../firestore.rules`, una ruta que apunta fuera del repositorio (el archivo
+   está en la raíz, no en `tests/`). Corregida la ruta y el comando de ejemplo.
+   Con eso, las **15 pruebas pasan contra el emulador real de Firestore**, algo
+   que hasta ahora figuraba como pendiente en el README.
+
+### Verificación ejecutada (navegador real, no solo análisis estático)
+
+- `node --check` en los 12 `.js`; TOML/JSON/XML con parsers reales; HTML de las
+  4 páginas con etiquetas balanceadas.
+- Chromium headless sirviendo el sitio con los redirects y **la CSP de
+  producción**: catálogo, ficha, atrás/adelante, Empresa ×4, legales, 404,
+  login, logout, Dashboard, favoritos, publicación (JPG/PNG/WebP/HEIC),
+  cambio de portada, borrado de imagen, edición, eliminación con confirmación,
+  calculadora y recarga. **78 aserciones funcionales, todas en verde.**
+- axe-core (WCAG 2.1 A/AA) sobre 5 rutas + ficha + Dashboard + 3 modales: 0
+  violaciones. Trampa de foco, Escape y devolución del foco verificadas.
+- 12 viewports (320→1920) × 4 rutas: **48/48 sin desbordamiento horizontal**.
+- `scripts/generar-sitemap.js` ejecutado contra el Firestore real: 44 URLs, 37
+  vehículos. `sitemap.xml` actualizado en el repo (antes solo tenía las 7 URLs
+  estáticas, sin ningún vehículo, y ese es el respaldo que se publica si la
+  lectura de Firestore falla durante el build).
+
+### Lo que NO pudo verificarse en este entorno
+
+La red de este entorno bloquea `gstatic.com`, `cdn.jsdelivr.net` y
+`res.cloudinary.com`. El SDK de Firebase, Lucide y Cloudinary se sustituyeron
+por dobles locales fieles a su API para poder ejercitar el código del sitio.
+Queda pendiente de comprobar contra el despliegue real: la subida real a
+Cloudinary (incluida la conversión de un HEIC), Firebase Auth real, App Check
+con reCAPTCHA, y la vista previa social de WhatsApp/Facebook.
+
+### Variables de entorno de Netlify
+- `GEMINI_API_KEY` — **ya no la usa ningún archivo del repositorio.** Puede borrarse del panel de Netlify (Site settings → Environment variables). No se toca desde aquí: eliminarla es una acción manual del propietario.
+- `ALLOWED_ORIGINS` — **CONSERVAR.** La sigue usando `cloudinary-sign-worker.js` (Cloudflare Worker) para su whitelist de CORS.
+- `FIREBASE_PROJECT_ID` / `FIREBASE_WEB_API_KEY` — **CONSERVAR.** Las usan `vehicle-og.js` y `scripts/generar-sitemap.js`.
 
 ---
 

@@ -59,18 +59,64 @@
   to = "/index.html"
   status = 200
 
+# ============================================================
+# ARCHIVOS INTERNOS QUE NO DEBEN SERVIRSE
+# ------------------------------------------------------------
+# `publish = "."` publica TODA la carpeta, así que hoy son
+# descargables /firestore.rules, /firestore_rules_test.js,
+# /firebase.json, /cloudinary-sign-worker.js, /README.md y
+# /RELEASE_NOTES.md. Ninguno lo carga el sitio (verificado: 0
+# referencias en index.html y ningún <script> los pide), pero
+# entre todos publican el detalle de las reglas de seguridad, la
+# lógica de firma de Cloudinary y la deuda de seguridad conocida
+# —un mapa cómodo para quien quiera atacar el sitio—.
+#
+# No son secretos (los correos de la whitelist ya viven en auth.js
+# por diseño, porque el cliente los necesita), pero tampoco hay
+# ninguna razón para servirlos: se devuelven 404.
+#
+# `force = true` es imprescindible: sin él, Netlify sirve el
+# archivo estático y el redirect nunca se aplica.
+# ============================================================
+[[redirects]]
+  from = "/firestore.rules"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/firestore_rules_test.js"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/firebase.json"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/cloudinary-sign-worker.js"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/README.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/RELEASE_NOTES.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
 [[edge_functions]]
   path = "/vehiculos/*"
   function = "vehicle-og"
-
-# Starblex IA 1.0 — backend seguro del chat automotriz. La API key del
-# proveedor de IA vive SOLO como variable de entorno de esta función
-# (ANTHROPIC_API_KEY, ALLOWED_ORIGINS) — nunca en el cliente. Mismo
-# dominio que el resto del sitio, así que no requiere cambios de CSP
-# ni de CORS externo.
-[[edge_functions]]
-  path = "/api/starblex"
-  function = "starblex"
 
 [[headers]]
   for = "/styles.css"
@@ -143,6 +189,14 @@
 # jsDelivr, imágenes de Pexels/placehold.co). Si agregas un nuevo
 # servicio externo más adelante, tendrás que sumarlo aquí o el
 # navegador lo bloqueará silenciosamente.
+#
+# `blob:` en img-src y media-src NO es opcional: el formulario de
+# publicación genera la vista previa de cada foto/vídeo elegido con
+# URL.createObjectURL(file) (app.js), que produce una URL `blob:`.
+# Sin este permiso el navegador bloquea la miniatura y el admin
+# publica a ciegas — verificado en navegador con esta misma política.
+# Un `blob:` solo puede crearlo la propia página desde un archivo que
+# la persona ya seleccionó; no abre la puerta a ningún origen externo.
 # ============================================================
 [[headers]]
   for = "/*"
@@ -152,7 +206,7 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "geolocation=(), microphone=(), camera=()"
     Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
-    Content-Security-Policy = "default-src 'self'; base-uri 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdn.jsdelivr.net https://www.google.com https://www.googletagmanager.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; media-src https:; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.gstatic.com https://api.cloudinary.com https://res.cloudinary.com https://labatalla-cloudinary-sign.chileacuentawarzone1516.workers.dev https://www.googletagmanager.com https://www.google-analytics.com https://region1.google-analytics.com; frame-src https://www.google.com https://la-batalla-auto-import.firebaseapp.com; frame-ancestors 'none'; object-src 'none'; form-action 'self'; manifest-src 'self'"
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdn.jsdelivr.net https://www.google.com https://www.googletagmanager.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src blob: https:; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.gstatic.com https://api.cloudinary.com https://res.cloudinary.com https://labatalla-cloudinary-sign.chileacuentawarzone1516.workers.dev https://www.googletagmanager.com https://www.google-analytics.com https://region1.google-analytics.com; frame-src https://www.google.com https://la-batalla-auto-import.firebaseapp.com; frame-ancestors 'none'; object-src 'none'; form-action 'self'; manifest-src 'self'"
 
 # Archivos nuevos de la Fase 1 (auth + dashboard) — mismo patrón de caché
 # que app.js: corto con revalidación, el versionado ?v= fuerza el refresh.
@@ -183,12 +237,6 @@
   [headers.values]
     Cache-Control = "public, max-age=3600, must-revalidate"
 
-# Interfaz de Starblex IA 1.0 — mismo patrón que los demás JS propios.
-[[headers]]
-  for = "/starblex-chat.js"
-  [headers.values]
-    Cache-Control = "public, max-age=3600, must-revalidate"
-
 # Logo usado únicamente dentro del modal de invitación — cambia rara
 # vez, mismo patrón que icon192/icon512/favicon.
 [[headers]]
@@ -200,3 +248,45 @@
   for = "/dashboard.css"
   [headers.values]
     Cache-Control = "public, max-age=3600, must-revalidate"
+
+# ============================================================
+# CACHÉ — recursos que faltaban (auditoría final)
+# ------------------------------------------------------------
+# tailwind.css y logo-hero.png se piden en TODAS las visitas desde
+# index.html y no tenían ninguna regla, así que se servían con la
+# heurística por defecto de Netlify en vez de con la política explícita
+# que ya usa el resto de archivos propios. Los favicons y el
+# apple-touch-icon estaban en la misma situación.
+# ============================================================
+[[headers]]
+  for = "/tailwind.css"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
+# logo-hero.png (68 KB) se muestra sobre el hero en la primera pantalla
+# de cada visita y prácticamente nunca cambia — mismo trato que el resto
+# de iconos de marca.
+[[headers]]
+  for = "/logo-hero.png"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, must-revalidate"
+
+[[headers]]
+  for = "/apple-touch-icon.png"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, must-revalidate"
+
+[[headers]]
+  for = "/favicon-16.png"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, must-revalidate"
+
+[[headers]]
+  for = "/favicon-32.png"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, must-revalidate"
+
+[[headers]]
+  for = "/favicon-48.png"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, must-revalidate"

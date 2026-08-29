@@ -59,17 +59,25 @@ function isDevEnvironment() {
   return h === 'localhost' || h === '127.0.0.1' || window.location.protocol === 'file:';
 }
 function initLocalMode() {
+  // El try/catch va SOLO alrededor de la lectura+parseo de la caché. Antes
+  // envolvía también a renderSections(), así que cualquier excepción de
+  // renderizado se interpretaba como "no hay caché" y se descartaba el
+  // inventario real guardado. Nunca se silencia el error: se registra.
+  let cached = null;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      vehicles = JSON.parse(raw);
-      const overlay = document.getElementById('loading-overlay');
-      if (overlay) overlay.style.display = 'none';
-      renderSections();
-      if (window.lucide) lucide.createIcons();
-      return;
-    }
-  } catch(e) {}
+    if (raw) cached = JSON.parse(raw);
+  } catch (e) {
+    console.warn('Caché local ilegible — se ignora:', e);
+  }
+  if (Array.isArray(cached) && cached.length > 0) {
+    vehicles = cached;
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.style.display = 'none';
+    renderSections();
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
 
   if (!isDevEnvironment()) { showDataLoadError(); return; }
 
@@ -88,15 +96,69 @@ function initLocalMode() {
   document.head.appendChild(script);
 }
 // ————— Estado vacío explícito (reemplaza el auto-seed) —————
+// Con el inventario a cero, las tres cabeceras de categoría no aportan nada
+// y quien llega se queda sin ninguna salida: antes solo se pintaba el texto
+// "Inventario en actualización — vuelve pronto." repetido tres veces, sin
+// icono, sin contacto y sin acción posible. Ahora las tres secciones se
+// ocultan y en su lugar aparece UN panel con la misma forma que la página
+// 404 del sitio (icono + título + explicación + botón), con el WhatsApp del
+// negocio ya cargado con el mensaje. El número es el mismo que usan la ficha
+// de vehículo, el botón de contacto y el pie de página.
+const CATALOG_SECTIONS = ['sedanes', 'suvs', 'pickups'];
+const CATALOG_EMPTY_ID = 'catalog-empty';
+const WHATSAPP_NUMBER = '18097759771';
+const EMPTY_STATE_MESSAGE = 'Hola, vi que ahora mismo no hay vehículos publicados en la web. '
+  + '¿Me avisan cuando entre algo? Me interesa saber qué tienen disponible.';
+
 function renderEmptyInventoryState() {
-  ['sedanes', 'suvs', 'pickups'].forEach(cat => {
+  CATALOG_SECTIONS.forEach(cat => {
     const scroll = document.getElementById(cat + '-scroll');
     const paginationEl = document.getElementById(cat + '-pagination');
-    if (scroll) scroll.innerHTML = '<p class="text-slate-400 text-sm py-4">Inventario en actualización — vuelve pronto.</p>';
+    if (scroll) scroll.innerHTML = '';
     if (paginationEl) paginationEl.innerHTML = '';
+    const section = document.getElementById(cat);
+    if (section) section.hidden = true;
   });
+  showCatalogEmptyState();
   renderBrandLogoFilter();
   if (window.lucide) lucide.createIcons();
+}
+
+function showCatalogEmptyState() {
+  const view = document.getElementById('catalog-view');
+  if (!view || document.getElementById(CATALOG_EMPTY_ID)) return;
+  const box = document.createElement('section');
+  box.id = CATALOG_EMPTY_ID;
+  // role="status" + aria-live: el panel sustituye al catálogo DESPUÉS de la
+  // carga, así que un lector de pantalla debe anunciar el cambio. El icono
+  // es decorativo y se oculta del árbol de accesibilidad.
+  box.setAttribute('role', 'status');
+  box.setAttribute('aria-live', 'polite');
+  box.innerHTML = `
+    <div class="ce-box">
+      <i data-lucide="car-front" class="ce-icon" aria-hidden="true"></i>
+      <h2>Estamos renovando el inventario</h2>
+      <p>Ahora mismo no hay vehículos publicados. Recibimos unidades nuevas cada semana
+         — escríbenos y te avisamos en cuanto entre algo que encaje con lo que buscas.</p>
+      <a class="ce-cta" href="https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(EMPTY_STATE_MESSAGE)}"
+         target="_blank" rel="noopener noreferrer">
+        <svg class="ce-cta-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-whatsapp"></use></svg>
+        Avísame por WhatsApp
+      </a>
+      <a class="ce-link" href="#contacto">Ver todas las formas de contacto</a>
+    </div>`;
+  view.insertBefore(box, view.firstChild);
+}
+
+// Se retira en cuanto entra el primer vehículo: con Firestore en vivo, el
+// onSnapshot vuelve a llamar a renderSections() en el momento en que el
+// administrador publica, sin recargar la página.
+function hideCatalogEmptyState() {
+  document.getElementById(CATALOG_EMPTY_ID)?.remove();
+  CATALOG_SECTIONS.forEach(cat => {
+    const section = document.getElementById(cat);
+    if (section) section.hidden = false;
+  });
 }
 // ————— Backfill de slugs (solo admin, una vez por sesión) —————
 // Persiste el slug de vehículos publicados antes de esta versión.
@@ -115,16 +177,30 @@ async function backfillSlugs() {
   const missing = vehicles.filter(v => !v.slug && v.name);
   if (missing.length === 0) { _slugBackfillDone = true; _slugBackfillRunning = false; return; }
   let okCount = 0;
+  // `id` se borra en la MISMA escritura: en un update, las Rules evalúan el
+  // documento ya fusionado, así que un `id` heredado (lo llevan los 37
+  // vehículos reales) deja la escritura fuera de soloCamposPermitidos() y
+  // el backfill se rechazaba SIEMPRE. Borrarlo no pierde información: es una
+  // copia exacta del ID del documento, que es como se direcciona.
+  const deleteId = (firebase.firestore.FieldValue && firebase.firestore.FieldValue.delete)
+    ? firebase.firestore.FieldValue.delete() : undefined;
   for (const v of missing) {
     try {
-      await db.collection('vehicles').doc(v.id).update({ slug: getVehicleSlug(v) });
+      const patch = { slug: getVehicleSlug(v) };
+      if (deleteId !== undefined) patch.id = deleteId;
+      await db.collection('vehicles').doc(v.id).update(patch);
       okCount++;
     } catch (e) {
-      // No abortar el resto: un documento antiguo con datos que ya no pasan
-      // las reglas endurecidas (p. ej. `year` inválido) se arregla editando
-      // y guardando ese vehículo desde el panel — el resto sigue su curso.
+      // No abortar el resto. Un documento heredado puede llevar campos que
+      // no están en la lista cerrada de las Rules (en el inventario real, 4
+      // vehículos arrastran una clave `adminKey` de un esquema antiguo que
+      // ninguna línea de este código lee). Ese resto NO se borra aquí a
+      // propósito: un backfill automático no debe hacer escrituras
+      // destructivas sobre datos de producción sin intervención humana.
+      // Abrir el vehículo en el panel y pulsar "Guardar Cambios" lo
+      // regulariza: saveVehicleDB() escribe solo los campos permitidos.
       console.warn(`Backfill: no se pudo persistir el slug de "${v.name}" (${v.id}). ` +
-        'Edita y guarda ese vehículo desde el panel para regularizarlo.', e);
+        'Abre ese vehículo en el panel y pulsa "Guardar Cambios" para regularizarlo.', e);
     }
   }
   _slugBackfillDone = true; // intento completo realizado; no reintentar en bucle
@@ -161,6 +237,30 @@ function setBtnBusy(btn, busy, busyText, idleText) {
   label.textContent = busy ? busyText : idleText;
 }
 
+// Lista CERRADA de campos que las Firestore Rules aceptan en /vehicles
+// (debe coincidir exactamente con soloCamposPermitidos() de firestore.rules).
+// Cualquier otra clave hace que la escritura se rechace con permission-denied.
+const VEHICLE_FIELDS = [
+  'name','price','priceUSD','currency','priceDisplay',
+  'category','condition','brand','year','carfax',
+  'mileage','color','transmission',
+  'features','seoTags','media',
+  'tags','slug','img','createdAt'
+];
+// Deja el documento EXACTAMENTE con los campos permitidos. Resuelve dos
+// defectos reales verificados contra el inventario de producción:
+//   1. `id` — los 37 vehículos lo llevan como CAMPO además de como ID de
+//      documento. Es información duplicada y no está en la lista cerrada.
+//   2. `adminKey` — 4 documentos arrastran esta clave de un esquema viejo
+//      (ninguna línea del código la lee). Al reenviarla en cada guardado,
+//      las Rules rechazaban la edición de esos vehículos.
+// Al sanear aquí, guardar un vehículo desde el panel además LIMPIA el
+// documento de esos restos.
+function sanitizeVehicleForWrite(v) {
+  const out = {};
+  for (const k of VEHICLE_FIELDS) if (v[k] !== undefined) out[k] = v[k];
+  return out;
+}
 // ————— Guardar vehículo — SOLO persistencia —————
 async function saveVehicleDB(v) {
   if (fbReady && db) {
@@ -171,7 +271,7 @@ async function saveVehicleDB(v) {
       // Firestore no lo descarta solo, y las Rules reales desplegadas
       // (soloCamposPermitidos()) no lo incluyen en su lista cerrada:
       // si se manda, la escritura se rechaza con permission-denied.
-      const { id, ...dataToWrite } = v;
+      const dataToWrite = sanitizeVehicleForWrite(v);
       await db.collection('vehicles').doc(v.id).set(dataToWrite);
       return { success: true };
     } catch (e) {
@@ -227,13 +327,31 @@ function initFirebase() {
     db = firebase.firestore();
     fbReady = true;
     // Tasa de cambio USD→RD$ configurable — editable por el admin sin
-    // tocar código (ver config/finanzas en Firestore Rules).
+    // tocar código. Requiere la regla `match /config/{docId}` de
+    // firestore.rules (lectura pública, escritura solo admin): sin ella
+    // esta lectura devuelve permission-denied, el catch la silencia y la
+    // tasa se queda en el valor de respaldo de arriba para siempre.
     db.collection('config').doc('finanzas').get().then(doc => {
       if (doc.exists && typeof doc.data().tasaUsdRd === 'number') {
         USD_TO_RD_RATE = doc.data().tasaUsdRd;
       }
     }).catch(() => { /* se mantiene el valor de respaldo */ });
+    // Vigilante de carga: si Firestore no entrega el primer snapshot (canal
+    // bloqueado, App Check sin resolver, red caída), sin esto el visitante se
+    // queda mirando "Cargando La Batalla Auto Import…" indefinidamente —
+    // onSnapshot puede no llamar nunca al callback de error. Reproducido en
+    // navegador. Tras el plazo se cae al respaldo local (caché real o, en
+    // producción sin caché, pantalla de error explícita).
+    let firstSnapshotArrived = false;
+    const loadWatchdog = setTimeout(() => {
+      if (!firstSnapshotArrived) {
+        console.warn('Firestore no respondió a tiempo — usando respaldo local.');
+        initLocalMode();
+      }
+    }, 12000);
     db.collection('vehicles').onSnapshot((snap) => {
+      firstSnapshotArrived = true;
+      clearTimeout(loadWatchdog);
       const fromDB = snap.docs.map(d => {
         const { _deleted, ...rest } = d.data();
         return { ...rest, id: d.id };
@@ -249,6 +367,8 @@ function initFirebase() {
       }
       if (window.lucide) lucide.createIcons();
     }, (err) => {
+      firstSnapshotArrived = true;
+      clearTimeout(loadWatchdog);
       console.error('Firestore error:', err);
       initLocalMode();
     });
@@ -257,12 +377,16 @@ function initFirebase() {
     try { initLocalMode(); } catch(e2) { showDataLoadError(); }
   }
 }
-// Iniciar después de que el DOM esté listo
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initFirebase);
-} else {
-  initFirebase();
-}
+// El arranque (initFirebase) NO se invoca aquí: vive al FINAL de este
+// archivo. Motivo (defecto real corregido en esta auditoría): app.js se
+// carga con `defer`, así que al llegar a esta línea document.readyState ya
+// es 'interactive' y la llamada se ejecutaba de inmediato, a mitad del
+// script. initFirebase() -> initLocalMode() -> renderSections() ->
+// renderCategory() lee `pageState`, declarado con `const` ~500 líneas más
+// abajo: zona muerta temporal (TDZ) -> ReferenceError. El `catch` vacío de
+// initLocalMode() lo silenciaba, de modo que el respaldo de localStorage
+// NUNCA funcionó: en producción el visitante veía "No pudimos cargar el
+// inventario" aunque tuviera una copia válida en caché.
 // ============================================================
 // HELPERS
 // ============================================================
@@ -331,6 +455,19 @@ function escapeHtml(str) {
 }
 // Escapa para usar dentro de un atributo entre comillas (src, alt, data-id, href)
 function escapeAttr(str) { return escapeHtml(str); }
+// Resuelve la foto de portada de un vehículo desde el esquema real de
+// `media` ({type, src} o string suelto de registros antiguos), cayendo a
+// `img` y por último al placeholder que se le indique. Antes cada punto
+// de render resolvía esto por su cuenta con criterios distintos: uno caía
+// al propio objeto de media (renderizaba src="[object Object]", petición
+// 404 real) y dos caían a cadena vacía (<img src=""> vuelve a pedir el
+// documento HTML completo). Un solo criterio para todos.
+function getVehicleCover(v, placeholder) {
+  const first = v && Array.isArray(v.media) && v.media.length > 0 ? v.media[0] : null;
+  if (typeof first === 'string' && first) return first;
+  if (first && typeof first.src === 'string' && first.src) return first.src;
+  return (v && typeof v.img === 'string' && v.img) ? v.img : placeholder;
+}
 // Inserta una transformación de Cloudinary (f_auto,q_auto + ancho) en
 // cualquier URL que provenga de Cloudinary. Si la URL no es de
 // Cloudinary (ej. placehold.co, Pexels demo), la devuelve intacta.
@@ -376,7 +513,7 @@ function updateSeoForVehicle(v) {
   setMetaTag('meta[name="twitter:title"]', 'content', title);
   setMetaTag('meta[name="twitter:description"]', 'content', desc);
   setCanonical(url);
-  const rawImg = v.media?.[0] ? (typeof v.media[0] === 'string' ? v.media[0] : v.media[0].src) : v.img;
+  const rawImg = getVehicleCover(v, '');
   const img = cldOptimize(rawImg, 1200); // mismo criterio que la Edge Function vehicle-og.js
   if (img) { setMetaTag('meta[property="og:image"]', 'content', img); setMetaTag('meta[name="twitter:image"]', 'content', img); }
   injectVehicleJsonLd(v);
@@ -397,7 +534,7 @@ function resetSeoToDefault() {
 // Datos estructurados — le indican a Google explícitamente "esto es un vehículo en venta"
 function injectVehicleJsonLd(v) {
   document.getElementById('vehicle-jsonld')?.remove();
-  const img = v.media?.[0] ? (typeof v.media[0] === 'string' ? v.media[0] : v.media[0].src) : v.img;
+  const img = getVehicleCover(v, '');
   const keywords = Array.isArray(v.seoTags) ? v.seoTags : [];
   const data = {
     "@context": "https://schema.org", "@type": "Vehicle", "name": v.name,
@@ -442,6 +579,13 @@ function showToast(msg, duration=2500) {
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), duration);
 }
+// Un clic con Ctrl/Cmd/Shift/Alt o con el botón central significa "ábrelo
+// en otra pestaña/ventana". Interceptarlo con preventDefault() rompía esa
+// expectativa en TODAS las tarjetas del catálogo: el enlace existía pero no
+// se podía abrir aparte. Con esto, el enrutado SPA solo actúa en el clic normal.
+function isModifiedClick(e) {
+  return e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || (typeof e.button === 'number' && e.button !== 0);
+}
 function scrollToSection(id) {
   const el = document.getElementById(id);
   if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -450,14 +594,7 @@ function scrollToSection(id) {
 // RENDER VEHICLE CARD
 // ============================================================
 function renderCard(v) {
-  // media[0] es {type, src} — extraer .src correctamente
-  let imgSrc = 'https://placehold.co/300x176/1e293b/38bdf8?text=Auto';
-  if (v.media && v.media.length > 0) {
-    const first = v.media[0];
-    imgSrc = typeof first === 'string' ? first : (first.src || first);
-  } else if (v.img) {
-    imgSrc = v.img;
-  }
+  const imgSrc = getVehicleCover(v, 'https://placehold.co/300x176/1e293b/38bdf8?text=Auto');
   const div = document.createElement('div');
   div.className = 'vehicle-card rounded-xl overflow-hidden shadow-lg relative';
   div.style.background = 'rgb(30,41,59)';
@@ -481,11 +618,12 @@ function renderCard(v) {
   const vehicleUrl = getVehicleUrl(v);
   const vehiclePath = getVehiclePath(v);
   div.innerHTML = `
-    <div class="relative card-image-link" data-id="${escapeAttr(v.id)}" role="link" tabindex="0" aria-label="Ver ${escapeAttr(v.name)}">
+    <div class="relative card-image-link">
       <img src="${escapeAttr(cldOptimize(imgSrc, 500))}" class="w-full h-44 object-cover" loading="lazy" alt="${escapeAttr(v.name)}"
         onerror="this.src='https://placehold.co/300x176/1e293b/38bdf8?text=Auto'">
+      <a href="${escapeAttr(vehiclePath)}" class="card-image-overlay" data-id="${escapeAttr(v.id)}" aria-label="Ver ${escapeAttr(v.name)}"></a>
       ${isNew ? `<span class="absolute top-2 left-2 text-xs font-bold px-2 py-1 rounded-full" style="background:#38bdf8;color:#0f172a;">✨ NUEVO</span>` : ''}
-      <button type="button" class="fav-btn absolute top-2 right-2 w-9 h-9 rounded-full flex items-center justify-center transition" data-id="${escapeAttr(v.id)}" aria-label="Agregar a favoritos" style="background:rgba(15,23,42,0.65);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.1);">
+      <button type="button" class="fav-btn absolute top-2 right-2 w-9 h-9 rounded-full flex items-center justify-center transition" data-id="${escapeAttr(v.id)}" aria-label="Agregar a favoritos" style="background:rgba(15,23,42,0.65);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.1);z-index:2;">
         <i data-lucide="heart" class="fav-icon w-4 h-4 pointer-events-none" style="color:${isFav ? '#f87171' : '#fff'};fill:${isFav ? '#f87171' : 'none'};"></i>
       </button>
     </div>
@@ -498,11 +636,11 @@ function renderCard(v) {
       </div>
       ${activeTags.length > 0 ? `<div class="flex gap-1 mb-3 flex-wrap">${activeTags.map(t => `<span class="text-xs px-2 py-1 rounded-full font-semibold" style="background:${tagDefs[t].bg};color:${tagDefs[t].color};">${tagDefs[t].label}</span>`).join('')}</div>` : '<div class="mb-1"></div>'}
       <div class="flex gap-2">
-        <a href="${vehiclePath}" class="ver-btn flex-1 px-3 py-2 rounded-lg font-medium text-sm text-center" data-id="${v.id}"
-          style="background:rgb(14,165,233); color:#fff;">Ver Características</a>
+        <a href="${escapeAttr(vehiclePath)}" class="ver-btn flex-1 px-3 py-2 rounded-lg font-medium text-sm text-center" data-id="${escapeAttr(v.id)}"
+          style="background:rgb(14,165,233); color:#042c53; font-weight:700;">Ver Características</a>
         <a href="https://wa.me/18097759771?text=${encodeURIComponent('Hola, estoy interesado en el ' + v.name + ' (' + fmtPrice(v.price, v) + ') de La Batalla Auto Import. ¿Está disponible?\n\n🔗 ' + vehicleUrl)}" target="_blank" rel="noopener noreferrer"
           class="px-3 py-2 rounded-lg font-medium text-center text-sm flex items-center justify-center"
-          style="background:rgb(34,197,94); color:#fff;" title="WhatsApp">
+          style="background:rgb(34,197,94); color:#052e16;" title="WhatsApp">
           <svg class="w-4 h-4 fill-current"><use href="#icon-whatsapp"/></svg>
         </a>
         <button type="button" class="share-btn px-3 py-2 rounded-lg font-medium text-sm flex items-center justify-center" data-id="${escapeAttr(v.id)}" data-name="${escapeAttr(v.name)}" data-price="${escapeAttr(fmtPrice(v.price, v))}"
@@ -662,29 +800,35 @@ document.addEventListener('click', e => {
     e.stopPropagation();
     openShareMenu(shareBtn.dataset.id, shareBtn.dataset.name, shareBtn.dataset.price, shareBtn);
   }
-  // Click/tap en la imagen o miniatura del vehículo → abre la ficha completa
-  const cardImg = e.target.closest('.card-image-link');
-  if (cardImg) {
-    window.scrollTo(0, 0);
-    openDetail(cardImg.dataset.id);
-  }
-});
-// Soporte de teclado (Enter/Espacio) para .card-image-link — accesibilidad
-document.addEventListener('keydown', e => {
-  const cardImg = e.target.closest && e.target.closest('.card-image-link');
-  if (cardImg && (e.key === 'Enter' || e.key === ' ')) {
+  // Click/tap en la imagen del vehículo → abre la ficha. Ahora es un <a>
+  // real con href, así que el teclado (Enter), el menú contextual y
+  // "abrir en pestaña nueva" funcionan solos: no hace falta keydown propio.
+  const cardImg = e.target.closest('.card-image-overlay');
+  if (cardImg && !isModifiedClick(e)) {
     e.preventDefault();
-    window.scrollTo(0, 0);
     openDetail(cardImg.dataset.id);
   }
 });
 // ============================================================
 // MI CUENTA — Login simple (localStorage) + panel de Favoritos
 // ============================================================
+// Cuenta SOLO los favoritos que siguen existiendo en el inventario. Antes
+// contaba los identificadores guardados en bruto, y el panel de favoritos
+// (renderAccountFavorites) sí filtra por vehículo existente: al retirarse una
+// publicación, el globo del menú seguía marcando "3" mientras el panel decía
+// "Aún no tienes vehículos favoritos". Reproducido en navegador con el
+// catálogo vacío. Mientras el inventario no ha cargado todavía
+// (`vehicles` vacío en el primer render) no se inventa un número: el globo
+// queda oculto y se actualiza solo en cuanto llega el primer snapshot.
+function countExistingFavorites() {
+  const favIds = getFavorites();
+  if (favIds.length === 0) return 0;
+  return favIds.filter(id => vehicles.some(v => v.id === id)).length;
+}
 function updateNavFavCount() {
   const el = document.getElementById('nav-fav-count');
   if (!el) return;
-  const n = getFavorites().length;
+  const n = countExistingFavorites();
   if (n > 0) {
     el.textContent = n > 99 ? '99+' : n;
     el.classList.remove('hidden');
@@ -709,9 +853,7 @@ function renderAccountFavorites() {
   empty.classList.add('hidden');
   grid.classList.remove('hidden');
   items.forEach(v => {
-    const imgSrc = v.media && v.media.length > 0
-      ? (typeof v.media[0] === 'string' ? v.media[0] : (v.media[0].src || v.img || ''))
-      : (v.img || 'https://placehold.co/300x176/1e293b/38bdf8?text=Auto');
+    const imgSrc = getVehicleCover(v, 'https://placehold.co/300x176/1e293b/38bdf8?text=Auto');
     const card = document.createElement('div');
     card.className = 'rounded-xl overflow-hidden cursor-pointer relative group';
     card.style.cssText = 'background:rgb(30,41,59);border:1px solid rgba(255,255,255,0.07);';
@@ -795,10 +937,13 @@ function getPageSize() {
 function renderSections() {
   const overlay = document.getElementById('loading-overlay');
   if (overlay) overlay.style.display = 'none';
+  hideCatalogEmptyState();
   ['sedanes','suvs','pickups'].forEach(cat => renderCategory(cat));
-  document.querySelectorAll('.ver-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => { e.preventDefault(); openDetail(btn.dataset.id); });
-  });
+  // Los listeners de .ver-btn los pone renderCategory() sobre las tarjetas
+  // que acaba de crear. Aquí había un segundo querySelectorAll('.ver-btn')
+  // global que volvía a enlazar LAS MISMAS tarjetas: cada clic ejecutaba
+  // openDetail() dos veces y registraba la vista por duplicado en el
+  // historial del usuario (documentos repetidos en Firestore).
   renderBrandLogoFilter();
   if (window.lucide) lucide.createIcons();
 }
@@ -820,7 +965,10 @@ function renderCategory(cat, page) {
     toShow.forEach(v => scroll.appendChild(renderCard(v)));
   }
   scroll.querySelectorAll('.ver-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => { e.preventDefault(); openDetail(btn.dataset.id); });
+    btn.addEventListener('click', (e) => {
+      if (isModifiedClick(e)) return; // Ctrl/Cmd/medio clic -> pestaña nueva
+      e.preventDefault(); openDetail(btn.dataset.id);
+    });
   });
   if (totalPages > 1 && paginationEl) {
     renderPagination(paginationEl, p, totalPages, (newPage) => {
@@ -832,13 +980,24 @@ function renderPagination(container, currentPage, totalPages, onPageClick) {
   if (typeof container === 'string') container = document.getElementById(container);
   container.innerHTML = '';
   container.className = 'flex items-center justify-center gap-2 mt-5 mb-1 flex-wrap';
+  container.setAttribute('role', 'navigation');
+  container.setAttribute('aria-label', 'Paginación del catálogo');
   const sA = 'width:38px;height:38px;border-radius:50%;background:rgb(14,165,233);color:#fff;font-size:14px;font-weight:800;border:none;cursor:pointer;box-shadow:0 0 14px rgba(14,165,233,0.45);display:flex;align-items:center;justify-content:center;';
   const sI = 'width:38px;height:38px;border-radius:50%;background:rgb(22,32,50);color:rgb(148,163,184);font-size:14px;font-weight:700;border:1px solid rgba(255,255,255,0.09);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;';
   const sAr = 'width:38px;height:38px;border-radius:50%;background:rgb(22,32,50);color:#94a3b8;font-size:20px;font-weight:700;border:1px solid rgba(255,255,255,0.09);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;';
   const make = (label, page, style) => {
     const btn = document.createElement('button');
-    btn.innerHTML = label;
+    btn.type = 'button';
+    btn.textContent = String(label);
     btn.style.cssText = style;
+    // Los botones no tenían nombre accesible: las flechas se anunciaban como
+    // "botón" a secas y nada indicaba cuál es la página actual.
+    if (label === '\u2039') btn.setAttribute('aria-label', 'Página anterior');
+    else if (label === '\u203a') btn.setAttribute('aria-label', 'Página siguiente');
+    else {
+      btn.setAttribute('aria-label', `Ir a la página ${label}`);
+      if (style === sA) btn.setAttribute('aria-current', 'page');
+    }
     if (page !== null) {
       btn.addEventListener('click', () => onPageClick(page));
       if (style !== sA) {
@@ -936,7 +1095,12 @@ function goToHeroSlide(newIdx, userInitiated = false) {
   // Crossfade del texto en sincronía con la transición de la imagen
   // (misma duración que .slide en styles.css) para que título/subtítulo
   // cambien sin sensación de "salto" brusco.
-  if (heroTextWrap) {
+  // Mientras se muestra una subpágina de Empresa, el <h1> del hero lleva el
+  // título de esa sección ("Quiénes somos", …). El autoplay lo sobrescribía
+  // a los 5,5 s con el título del slide, dejando un H1 que no correspondía al
+  // contenido (verificado en navegador). La imagen sí sigue rotando.
+  const enEmpresa = !document.getElementById('empresa-page')?.classList.contains('hidden');
+  if (heroTextWrap && !enEmpresa) {
     heroTextWrap.style.opacity = '0';
     setTimeout(() => {
       const active = slides[slideIdx];
@@ -1094,6 +1258,7 @@ function openDetail(id) {
   try {
     if (window.self === window.top && window.location.pathname !== getVehiclePath(v)) {
       history.pushState({ vehicleId: id }, '', getVehiclePath(v));
+      _detailOpenedFromSite = true; // hay una entrada nuestra a la que volver
     }
   } catch(e) { /* iframe o sandbox — ignorar */ }
   document.getElementById('main-page').classList.add('page-hidden');
@@ -1150,7 +1315,12 @@ function renderGalleryMedia() {
     vid.src = typeof item.src === 'string' ? item.src : '';
   } else {
     vid.classList.add('hidden'); img.classList.remove('hidden');
-    img.src = cldOptimize(typeof item.src === 'string' ? item.src : item.src, 1000);
+    // El ternario original comparaba y devolvía LO MISMO en ambas ramas
+    // (`typeof item.src === 'string' ? item.src : item.src`), así que un
+    // media mal formado llegaba tal cual al atributo y el navegador pedía
+    // "[object Object]" (404 real). Ahora se descarta lo que no sea cadena.
+    const rawSrc = typeof item.src === 'string' ? item.src : '';
+    img.src = rawSrc ? cldOptimize(rawSrc, 1000) : 'https://placehold.co/800x600/1e293b/38bdf8?text=Sin+imagen';
     // Fallback si la imagen principal falla (Cloudinary/Pexels caído, URL
     // rota, etc.) — mismo patrón placehold.co usado en el resto del sitio
     // (tarjetas de catálogo, avatares, logos). Antes esta imagen, la más
@@ -1201,9 +1371,7 @@ function renderSimilarPage(page) {
   const totalPages = Math.max(1, Math.ceil(similarVehicles.length / pageSize));
   const toShow = similarVehicles.slice((page-1)*pageSize, page*pageSize);
   toShow.forEach(sv => {
-    const imgSrc = sv.media && sv.media.length > 0
-      ? (typeof sv.media[0] === 'string' ? sv.media[0] : (sv.media[0].src || sv.img || ''))
-      : (sv.img || 'https://placehold.co/300x176/1e293b/38bdf8?text=Auto');
+    const imgSrc = getVehicleCover(sv, 'https://placehold.co/300x176/1e293b/38bdf8?text=Auto');
     const svIsFav = isFavorite(sv.id);
     const card = document.createElement('a');
     card.href = getVehiclePath(sv);
@@ -1225,7 +1393,10 @@ function renderSimilarPage(page) {
           ${sv.category === 'sedanes' ? 'Sedán' : sv.category === 'suvs' ? 'SUV' : 'Camioneta'}
         </span>
       </div>`;
-    card.addEventListener('click', (e) => { e.preventDefault(); window.scrollTo(0,0); openDetail(sv.id); });
+    card.addEventListener('click', (e) => {
+      if (isModifiedClick(e)) return;
+      e.preventDefault(); openDetail(sv.id);
+    });
     card.addEventListener('mouseenter', () => {
       card.style.transform = 'translateY(-3px)';
       card.style.boxShadow = '0 8px 24px rgba(56,189,248,0.13)';
@@ -1263,10 +1434,19 @@ function openLightbox(idx) {
   if (!lb || galleryMedia.length === 0) return;
   galleryIdx = idx;
   const item = galleryMedia[galleryIdx];
+  const lbSrc = typeof item.src === 'string' ? item.src : '';
   if (item.type === 'video') {
-    lbImg.classList.add('hidden'); lbVid.classList.remove('hidden'); lbVid.src = item.src;
+    lbImg.classList.add('hidden'); lbVid.classList.remove('hidden'); lbVid.src = lbSrc;
   } else {
-    lbVid.classList.add('hidden'); lbImg.classList.remove('hidden'); lbImg.src = item.src;
+    lbVid.classList.add('hidden'); lbImg.classList.remove('hidden');
+    // Misma optimización (f_auto/q_auto) y mismo respaldo ante error que la
+    // imagen de la ficha. Antes la vista ampliada era la ÚNICA sin ninguna de
+    // las dos: cargaba el original sin transformar y, si fallaba, mostraba el
+    // icono de imagen rota del navegador. El alt tampoco decía qué foto era.
+    lbImg.onerror = () => { lbImg.onerror = null; lbImg.src = 'https://placehold.co/1200x900/1e293b/38bdf8?text=Sin+imagen'; };
+    lbImg.src = lbSrc ? cldOptimize(lbSrc, 1600) : 'https://placehold.co/1200x900/1e293b/38bdf8?text=Sin+imagen';
+    const lbName = (currentDetailVehicle && currentDetailVehicle.name) ? currentDetailVehicle.name : 'Vehículo';
+    lbImg.alt = `${lbName} — foto ${galleryIdx + 1} de ${galleryMedia.length} (ampliada)`;
   }
   lb.classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -1297,9 +1477,17 @@ function makeGalleryClickable() {
 }
 // Re-render on resize/orientation change
 let resizeTimer;
+let lastPageSize = getPageSize();
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
+    // Solo re-renderizamos si cambió de verdad cuántas tarjetas caben por
+    // página. Antes bastaba CUALQUIER resize: al desplazarse en móvil, la
+    // barra de URL se oculta, eso dispara `resize` por el cambio de ALTO y
+    // el catálogo saltaba de la página 3 a la 1 mientras el usuario leía.
+    const size = getPageSize();
+    if (size === lastPageSize) return;
+    lastPageSize = size;
     Object.keys(pageState).forEach(cat => { pageState[cat] = 1; });
     renderSections();
     if (window.lucide) lucide.createIcons();
@@ -1331,14 +1519,24 @@ function showNotFound() {
   if (window.lucide) lucide.createIcons();
 }
 document.getElementById('not-found-back-btn')?.addEventListener('click', () => {
-  try { if (window.self === window.top) history.pushState(null, '', '/'); } catch(e) {}
+  // replaceState, no pushState: con pushState el 404 quedaba en el historial
+  // y el botón Atrás del navegador devolvía al "Vehículo no encontrado" —
+  // un callejón sin salida del que solo se salía pulsando Atrás dos veces.
+  try { if (window.self === window.top) history.replaceState(null, '', '/'); } catch(e) {}
   document.getElementById('not-found-page')?.classList.add('page-hidden');
   document.getElementById('main-page').classList.remove('page-hidden');
   resetSeoToDefault();
 });
+// Marca si la ficha se abrió navegando DENTRO del sitio. Es el caso normal
+// (catálogo -> ficha) y ahí `history.back()` es lo correcto. Pero la vía de
+// entrada más frecuente de este negocio es un enlace /vehiculos/slug
+// compartido por WhatsApp: entonces no hay ninguna entrada previa nuestra en
+// el historial y `history.back()` sacaba al visitante del sitio — desde el
+// botón "Volver" del propio sitio. Ahora, en ese caso, vamos al catálogo.
+let _detailOpenedFromSite = false;
 document.getElementById('back-btn').addEventListener('click', () => {
   try {
-    if (window.self === window.top) history.back();
+    if (window.self === window.top && _detailOpenedFromSite) history.back();
     else goBackToMain();
   } catch(e) { goBackToMain(); }
 });
@@ -1416,7 +1614,12 @@ document.getElementById('publish-cancel-btn').addEventListener('click', closePub
 function openPublishModal(vehicle) {
   const modal = document.getElementById('publish-modal');
   const title = document.getElementById('modal-title');
+  // Libera los object URLs del formulario anterior. Sin esto, abrir el modal,
+  // elegir fotos y volver a abrirlo (sin pasar por closePublishModal) dejaba
+  // los blobs retenidos en memoria durante toda la sesión.
+  revokePendingObjectUrls();
   pendingFiles = [];
+  mediaClearedByUser = false;
   document.getElementById('img-preview').innerHTML = '';
   if (vehicle) {
     title.textContent = 'Editar Vehículo';
@@ -1574,6 +1777,18 @@ async function uploadProfilePhoto(file) {
 }
 // ————— Preview local mientras suben —————
 let pendingFiles = []; // archivos originales para subir a Cloudinary
+// true cuando el admin dejó la lista de fotos vacía QUITÁNDOLAS él mismo
+// (distinto de "abrió el formulario y no tocó las fotos").
+let mediaClearedByUser = false;
+// Solo revoca los blobs creados por nosotros: al editar, `localUrl` es una
+// URL https de Cloudinary y revocarla no tendría sentido.
+function revokePendingObjectUrls() {
+  pendingFiles.forEach(f => {
+    if (f && f.file && typeof f.localUrl === 'string' && f.localUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(f.localUrl);
+    }
+  });
+}
 const MAX_IMAGES = 10;
 function updateImgLabel() {
   const labelText = document.getElementById('pub-images-label-text');
@@ -1605,13 +1820,24 @@ document.getElementById('pub-images').addEventListener('change', function() {
   }
   // Filtrar archivos que excedan el tamaño permitido
   const rejected = [];
+  const wrongType = [];
   files = files.filter(file => {
-    const isVideo = file.type.startsWith('video');
+    // Solo se comprobaba el TAMAÑO. Un PDF o un .zip elegido por error se
+    // subía a Cloudinary y se guardaba como {type:'image'}: la ficha
+    // terminaba con una <img> que nunca podía renderizar. El atributo
+    // `accept` del input no basta — el usuario puede saltárselo eligiendo
+    // "todos los archivos" en el diálogo del sistema.
+    const isVideo = (file.type || '').startsWith('video/');
+    const isImage = (file.type || '').startsWith('image/') || isPreviewUnrenderable(file);
+    if (!isVideo && !isImage) { wrongType.push(file.name); return false; }
     const limitMB = isVideo ? MAX_VIDEO_MB : MAX_IMAGE_MB;
     const okSize = file.size <= limitMB * 1024 * 1024;
     if (!okSize) rejected.push(file.name);
     return okSize;
   });
+  if (wrongType.length > 0) {
+    showToast(`⚠️ ${wrongType.length} archivo(s) descartado(s): solo se admiten fotos o videos`, 3500);
+  }
   if (rejected.length > 0) {
     showToast(`⚠️ ${rejected.length} archivo(s) superan el límite (${MAX_IMAGE_MB}MB fotos / ${MAX_VIDEO_MB}MB video)`, 3500);
   }
@@ -1666,12 +1892,30 @@ function renderImgPreview() {
         ${portadaBadge}
         <button class="remove-img" data-idx="${i}">✕</button>`;
     } else {
+      // Si la miniatura no se puede renderizar (archivo corrupto, objectURL
+      // revocado, URL de Cloudinary caída al editar), se muestra el MISMO
+      // estado neutro que la rama HEIC de arriba — nunca el placeholder de
+      // error "?", que se leía como imagen rota sobre el badge PORTADA.
       wrap.innerHTML = `<img src="${escapeAttr(src)}" class="w-full h-20 object-cover rounded-lg border-2 ${border}" alt="preview"
-        onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=?'">
+        data-preview-border="${border}">
         ${portadaBadge}
         <button class="remove-img" data-idx="${i}">✕</button>`;
     }
     container.appendChild(wrap);
+  });
+  // Fallback sin handler inline (el CSP ya carga con 'unsafe-inline' por
+  // deuda conocida; no se le suma uno nuevo): si la miniatura falla, se
+  // sustituye por el mismo bloque neutro de la rama HEIC.
+  container.querySelectorAll('img[data-preview-border]').forEach(im => {
+    im.addEventListener('error', () => {
+      const br = im.dataset.previewBorder || 'border-slate-600';
+      const ph = document.createElement('div');
+      ph.className = `w-full h-20 rounded-lg border-2 ${br} bg-slate-800 flex flex-col items-center justify-center gap-0.5 px-1 text-center`;
+      ph.innerHTML = `<i data-lucide="image-off" class="w-4 h-4 text-slate-400"></i>
+          <span class="text-[9px] text-slate-400 leading-tight">Vista previa no disponible</span>`;
+      im.replaceWith(ph);
+      if (window.lucide) window.lucide.createIcons();
+    }, { once: true });
   });
   if (typeof lucide !== 'undefined' && window.lucide) window.lucide.createIcons();
   container.querySelectorAll('.remove-img').forEach(btn => {
@@ -1681,6 +1925,7 @@ function renderImgPreview() {
         URL.revokeObjectURL(pendingFiles[idx].localUrl);
       }
       pendingFiles.splice(idx, 1);
+      if (pendingFiles.length === 0) mediaClearedByUser = true;
       renderImgPreview();
       updateImgLabel();
     });
@@ -1736,7 +1981,13 @@ function validatePublishForm(form) {
 
 // Sube las fotos pendientes o reutiliza las existentes al editar sin
 // fotos nuevas. Lanza si alguna subida falla — el llamador decide qué hacer.
-async function resolvePublishMedia(editId, onProgress) {
+async function resolvePublishMedia(editId, onProgress, userClearedAll) {
+  // Si el admin quitó a propósito todas las fotos al editar, debe quedarse
+  // sin fotos. Antes, `pendingFiles.length === 0` se interpretaba siempre
+  // como "no tocó las fotos" y se devolvía el media anterior: las imágenes
+  // eliminadas reaparecían al guardar y era imposible dejar un vehículo sin
+  // portada.
+  if (pendingFiles.length === 0 && userClearedAll) return [];
   if (pendingFiles.length > 0) {
     const media = [];
     for (let i = 0; i < pendingFiles.length; i++) {
@@ -1838,7 +2089,7 @@ document.getElementById('publish-submit-btn').addEventListener('click', async ()
       media = await resolvePublishMedia(form.editId, (i, total) => {
         const label = btn.querySelector('.btn-label') || btn;
         label.textContent = `⏳ Subiendo foto ${i} de ${total}...`;
-      });
+      }, mediaClearedByUser);
     } catch (e) {
       console.error('Error subiendo a Cloudinary:', e);
       if (token === currentSaveToken) showToast('❌ Error subiendo fotos — intenta de nuevo');
@@ -1871,8 +2122,9 @@ document.getElementById('publish-submit-btn').addEventListener('click', async ()
 // Limpiar pendingFiles al cerrar modal
 function closePublishModal() {
   document.getElementById('publish-modal').classList.add('hidden');
-  pendingFiles.forEach(f => URL.revokeObjectURL(f.localUrl));
+  revokePendingObjectUrls();
   pendingFiles = [];
+  mediaClearedByUser = false;
 }
 // ============================================================
 // CALCULADORA FINANCIERA (modal único + FAB) — se movió a
@@ -1949,15 +2201,36 @@ function renderBrandLogoFilter() {
   brandsInStock.forEach(brand => {
     const meta = BRAND_LOGO_MAP[brand] || { slug: null, initial: brand.charAt(0), color: '#38bdf8' };
     const count = vehicles.filter(v => v.brand === brand).length;
-    const card = document.createElement('div');
+    // <button> en vez de <div>: era un div con un listener de clic, sin
+    // tabindex ni role, así que el filtro por marca —una de las funciones
+    // principales de la portada— era IMPOSIBLE de usar con teclado
+    // (WCAG 2.1.1). aria-pressed comunica además qué marca está activa.
+    const card = document.createElement('button');
+    card.type = 'button';
     card.className = 'brand-logo-card';
     card.dataset.brand = brand;
+    card.setAttribute('aria-pressed', 'false');
+    card.setAttribute('aria-label', `Filtrar por ${brand} (${count} ${count === 1 ? 'vehículo' : 'vehículos'})`);
     if (meta.slug) {
-      card.innerHTML = `
-        <img src="https://cdn.jsdelivr.net/npm/simple-icons@v13/icons/${meta.slug}.svg" alt="Logo ${escapeAttr(brand)}"
-          onerror="this.outerHTML='<div style=\\'width:36px;height:36px;border-radius:9px;background:${meta.color};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;\\'>${escapeHtml(meta.initial)}</div>'">
-        <span class="brand-name">${escapeHtml(brand)}</span>
-        <span class="brand-count">${count} ${count === 1 ? 'auto' : 'autos'}</span>`;
+      // El respaldo del logo se resuelve con un listener, no con un atributo
+      // onerror inline que anidaba comillas escapadas dentro de HTML dentro
+      // de JS: era ilegible y se rompía con cualquier dato inesperado.
+      const logo = document.createElement('img');
+      logo.src = `https://cdn.jsdelivr.net/npm/simple-icons@v13/icons/${meta.slug}.svg`;
+      logo.alt = '';
+      logo.setAttribute('aria-hidden', 'true');
+      logo.addEventListener('error', () => {
+        const ph = document.createElement('div');
+        ph.style.cssText = `width:36px;height:36px;border-radius:9px;background:${meta.color};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;`;
+        ph.textContent = meta.initial;
+        logo.replaceWith(ph);
+      }, { once: true });
+      card.appendChild(logo);
+      const nm = document.createElement('span');
+      nm.className = 'brand-name'; nm.textContent = brand;
+      const ct = document.createElement('span');
+      ct.className = 'brand-count'; ct.textContent = `${count} ${count === 1 ? 'auto' : 'autos'}`;
+      card.appendChild(nm); card.appendChild(ct);
     } else {
       card.innerHTML = `
         <div style="width:36px;height:36px;border-radius:9px;background:${meta.color};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;">${escapeHtml(meta.initial)}</div>
@@ -1966,13 +2239,17 @@ function renderBrandLogoFilter() {
     }
     card.addEventListener('click', () => {
       const isActive = card.classList.contains('active');
-      document.querySelectorAll('.brand-logo-card').forEach(c => c.classList.remove('active'));
+      document.querySelectorAll('.brand-logo-card').forEach(c => {
+        c.classList.remove('active');
+        c.setAttribute('aria-pressed', 'false');
+      });
       if (isActive) {
         // Deselect — clear filter
         document.getElementById('filter-results').classList.add('hidden');
         document.getElementById('brand-clear-btn').classList.add('hidden');
       } else {
         card.classList.add('active');
+        card.setAttribute('aria-pressed', 'true');
         filterByBrand(brand);
         document.getElementById('brand-clear-btn').classList.remove('hidden');
       }
@@ -1999,14 +2276,20 @@ function filterByBrand(brand) {
       grid.appendChild(card);
     });
     grid.querySelectorAll('.ver-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => { e.preventDefault(); openDetail(btn.dataset.id); });
+      btn.addEventListener('click', (e) => {
+        if (isModifiedClick(e)) return;
+        e.preventDefault(); openDetail(btn.dataset.id);
+      });
     });
     if (window.lucide) lucide.createIcons();
   }
   section.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 document.getElementById('brand-clear-btn')?.addEventListener('click', () => {
-  document.querySelectorAll('.brand-logo-card').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.brand-logo-card').forEach(c => {
+    c.classList.remove('active');
+    c.setAttribute('aria-pressed', 'false');
+  });
   document.getElementById('filter-results').classList.add('hidden');
   document.getElementById('brand-clear-btn').classList.add('hidden');
 });
@@ -2046,36 +2329,77 @@ const ALL_COLORS = [
 // dos implementaciones que eran casi idénticas (menos código, un
 // solo lugar que mantener si cambia el comportamiento).
 // ============================================================
+// Patrón combobox accesible. Antes las opciones eran <div> que solo
+// escuchaban `mousedown`: el desplegable de MARCA y el de COLOR del
+// formulario de publicación no se podían usar con teclado (WCAG 2.1.1),
+// y tampoco anunciaban nada a un lector de pantalla. Ahora responden a
+// ArrowUp/ArrowDown/Enter/Escape y exponen role/aria-expanded/aria-activedescendant.
 function createSearchDropdown({ inputId, hiddenId, dropdownId, displayId, options, emptyText, allowEmptyFilter = true }) {
   const searchInput = document.getElementById(inputId);
   const hiddenInput = document.getElementById(hiddenId);
   const dropdown = document.getElementById(dropdownId);
   const display = document.getElementById(displayId);
   if (!searchInput) return;
+  let activeIdx = -1;
+  let current = [];
+
+  searchInput.setAttribute('role', 'combobox');
+  searchInput.setAttribute('aria-expanded', 'false');
+  searchInput.setAttribute('aria-autocomplete', 'list');
+  searchInput.setAttribute('aria-controls', dropdownId);
+  dropdown.setAttribute('role', 'listbox');
+
+  function closeDropdown() {
+    dropdown.classList.add('hidden');
+    searchInput.setAttribute('aria-expanded', 'false');
+    searchInput.removeAttribute('aria-activedescendant');
+    activeIdx = -1;
+  }
+  function choose(value) {
+    hiddenInput.value = value;
+    searchInput.value = value;
+    display.textContent = '✓ ' + value;
+    display.classList.remove('hidden');
+    closeDropdown();
+  }
+  function highlight(idx) {
+    const items = dropdown.querySelectorAll('[role="option"]');
+    if (items.length === 0) return;
+    activeIdx = (idx + items.length) % items.length;
+    items.forEach((el, i) => {
+      const on = i === activeIdx;
+      el.setAttribute('aria-selected', on ? 'true' : 'false');
+      el.classList.toggle('bg-slate-700', on);
+      if (on) { searchInput.setAttribute('aria-activedescendant', el.id); el.scrollIntoView({ block: 'nearest' }); }
+    });
+  }
   function renderDropdown(filter) {
     const f = (filter || '').toLowerCase();
     const filtered = (!f && !allowEmptyFilter) ? [] :
       (f ? options.filter(o => o.toLowerCase().includes(f)) : options);
+    current = filtered;
     dropdown.innerHTML = '';
+    activeIdx = -1;
+    searchInput.removeAttribute('aria-activedescendant');
     if (filtered.length === 0) {
-      dropdown.innerHTML = `<div class="px-3 py-2 text-slate-400 text-sm">${emptyText}</div>`;
+      const none = document.createElement('div');
+      none.className = 'px-3 py-2 text-slate-400 text-sm';
+      none.textContent = emptyText;
+      dropdown.appendChild(none);
     } else {
-      filtered.forEach(value => {
+      filtered.forEach((value, i) => {
         const item = document.createElement('div');
+        item.id = `${dropdownId}-opt-${i}`;
+        item.setAttribute('role', 'option');
+        item.setAttribute('aria-selected', 'false');
         item.className = 'px-3 py-2 text-white text-sm cursor-pointer hover:bg-slate-700 transition';
         item.textContent = value;
-        item.addEventListener('mousedown', e => {
-          e.preventDefault();
-          hiddenInput.value = value;
-          searchInput.value = value;
-          display.textContent = '✓ ' + value;
-          display.classList.remove('hidden');
-          dropdown.classList.add('hidden');
-        });
+        item.addEventListener('mousedown', e => { e.preventDefault(); choose(value); });
         dropdown.appendChild(item);
       });
     }
     dropdown.classList.remove('hidden');
+    searchInput.setAttribute('aria-expanded', 'true');
   }
   searchInput.addEventListener('input', () => {
     hiddenInput.value = '';
@@ -2083,7 +2407,23 @@ function createSearchDropdown({ inputId, hiddenId, dropdownId, displayId, option
     renderDropdown(searchInput.value);
   });
   searchInput.addEventListener('focus', () => renderDropdown(searchInput.value));
-  searchInput.addEventListener('blur', () => setTimeout(() => dropdown.classList.add('hidden'), 150));
+  searchInput.addEventListener('blur', () => setTimeout(closeDropdown, 150));
+  searchInput.addEventListener('keydown', e => {
+    const open = !dropdown.classList.contains('hidden');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!open) renderDropdown(searchInput.value);
+      highlight(activeIdx + 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!open) renderDropdown(searchInput.value);
+      highlight(activeIdx - 1);
+    } else if (e.key === 'Enter') {
+      if (open && activeIdx >= 0 && current[activeIdx]) { e.preventDefault(); choose(current[activeIdx]); }
+    } else if (e.key === 'Escape') {
+      if (open) { e.preventDefault(); e.stopPropagation(); closeDropdown(); }
+    }
+  });
 }
 function initColorSearch() {
   createSearchDropdown({
@@ -2149,7 +2489,13 @@ function initNavEmpresa() {
     isOpen ? closeMenu() : openMenu();
   });
   document.addEventListener('click', e => { if (!wrap.contains(e.target)) closeMenu(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    // Además de cerrar, hay que DEVOLVER el foco al botón: sin esto el foco
+    // quedaba huérfano en el documento y quien navega con teclado tenía que
+    // recorrer la página entera de nuevo.
+    if (btn.getAttribute('aria-expanded') === 'true') { closeMenu(); btn.focus(); }
+  });
   menu.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
 }
 
@@ -2298,7 +2644,7 @@ function showEmpresaPage(sectionId, push = true) {
   });
 }
 
-function hideEmpresaPage(push = true) {
+function hideEmpresaPage(push = true, skipScroll = false) {
   const empresa = document.getElementById('empresa-page');
   const catalog = document.getElementById('catalog-view');
   if (!empresa || !catalog) return;
@@ -2323,7 +2669,7 @@ function hideEmpresaPage(push = true) {
   } catch (e) {}
   setPageMeta(DEFAULT_META);
   removeFaqSchema();
-  window.scrollTo(0, 0);
+  if (!skipScroll) window.scrollTo(0, 0);
   if (window.lucide) lucide.createIcons();
 }
 
@@ -2341,7 +2687,14 @@ function initEmpresaRouting() {
   // primero para que el ancla apunte a contenido visible.
   document.querySelectorAll('a.nav-cat-link[href^="#"]').forEach(a => {
     a.addEventListener('click', () => {
-      if (!document.getElementById('empresa-page').classList.contains('hidden')) hideEmpresaPage(true);
+      if (!document.getElementById('empresa-page').classList.contains('hidden')) {
+        // `skipScroll`: hideEmpresaPage() hacía window.scrollTo(0,0), que se
+        // ejecutaba DESPUÉS del handler de anclas y cancelaba el scroll suave
+        // hacia #sedanes/#suvs/#pickups. Resultado real: pulsar "Sedanes"
+        // estando en Empresa dejaba al usuario arriba del todo, no en Sedanes.
+        hideEmpresaPage(true, true);
+        scrollToSection(a.getAttribute('href').replace('#',''));
+      }
     });
   });
 }
@@ -2374,26 +2727,6 @@ function initScrollSpy() {
 // ============================================================
 // INIT
 // ============================================================
-// ============================================================
-// FAB DE STARBLEX IA 1.0 — asistente automotriz accesible desde
-// cualquier pantalla del sitio. Reemplaza al antiguo FAB de WhatsApp
-// ("Escríbenos"). El chat en sí (starblex-chat.js) se inicializa bajo
-// demanda: este botón solo se muestra/oculta y delega la apertura.
-// ============================================================
-function initFabStarblex() {
-  const fab = document.getElementById('fab-starblex-btn');
-  if (!fab) return;
-  fab.addEventListener('click', () => {
-    window.LB_STARBLEX?.open();
-  });
-  const hero = document.querySelector('header.relative.h-\\[70vh\\]');
-  if (!hero || !('IntersectionObserver' in window)) { fab.classList.remove('hidden'); return; }
-  const io = new IntersectionObserver(entries => {
-    entries.forEach(entry => fab.classList.toggle('hidden', entry.isIntersecting));
-  }, { threshold: 0.15 });
-  io.observe(hero);
-}
-
 window.addEventListener('DOMContentLoaded', () => {
   updateAdminUI();
   populateYears('pub-year');
@@ -2401,7 +2734,6 @@ window.addEventListener('DOMContentLoaded', () => {
   initColorSearch();
   initCalcModalA11y();
   initFabCalc();
-  initFabStarblex();
   initNavEmpresa();
   initEmpresaRouting();
   initScrollSpy();
@@ -2417,13 +2749,17 @@ window.addEventListener('DOMContentLoaded', () => {
     const match = window.location.pathname.match(/^\/vehiculos\/([^\/]+)\/?$/);
     if (!match) return;
     const slug = decodeURIComponent(match[1]);
-    // Esperar a que los vehículos carguen de Firebase antes de buscar el slug
+    // Se reintenta cada 120 ms y SIN espera inicial. Antes había un
+    // setTimeout fijo de 800 ms antes del primer intento: como el inventario
+    // suele llegar antes, el visitante que abría un enlace compartido por
+    // WhatsApp veía la PORTADA durante casi un segundo y después la página
+    // saltaba sola a la ficha. Ahora la ficha se abre en cuanto hay datos.
     const tryOpen = (attempts = 0) => {
       const v = findVehicleBySlug(slug);
       if (v) {
         openDetail(v.id);
-      } else if (attempts < 20) {
-        setTimeout(() => tryOpen(attempts + 1), 500);
+      } else if (attempts < 85) {
+        setTimeout(() => tryOpen(attempts + 1), 120);
       } else {
         // Vehículo no encontrado tras esperar 10s — mostrar 404 real
         // en vez de dejar al usuario esperando indefinidamente.
@@ -2431,7 +2767,7 @@ window.addEventListener('DOMContentLoaded', () => {
         showNotFound();
       }
     };
-    setTimeout(() => tryOpen(0), 800);
+    tryOpen(0);
   }
   checkPathVehicle();
   // Entrada directa a una subpágina de Empresa (/empresa/quienes-somos, etc.)
@@ -2514,3 +2850,19 @@ function setupModalAccessibility(modalId, closeFn) {
 setupModalAccessibility('delete-modal', () => document.getElementById('delete-cancel-btn').click());
 setupModalAccessibility('publish-modal', closePublishModal);
 setupModalAccessibility('account-modal', closeAccountModal);
+
+// ============================================================
+// ARRANQUE — DEBE SER LO ÚLTIMO DE ESTE ARCHIVO.
+// ------------------------------------------------------------
+// app.js se carga con `defer`, así que cuando el navegador llega aquí el
+// DOM ya está parseado y TODAS las declaraciones de este archivo
+// (incluida `const pageState`) están inicializadas. Ese es justo el
+// motivo de ponerlo al final: colocado a mitad del archivo, la llamada
+// se ejecutaba antes de que `pageState` existiera y renderCategory()
+// lanzaba "Cannot access 'pageState' before initialization".
+// ============================================================
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initFirebase);
+} else {
+  initFirebase();
+}
