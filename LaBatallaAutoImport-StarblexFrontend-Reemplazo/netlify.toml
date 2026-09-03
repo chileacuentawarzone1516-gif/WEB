@@ -128,6 +128,19 @@
   [headers.values]
     Cache-Control = "public, max-age=3600, must-revalidate"
 
+# Módulos extraídos de app.js (carrusel del hero y subida de medios) —
+# mismo patrón de caché que el resto de JS propio: corto con
+# revalidación; el versionado ?v= del <script> fuerza el refresh.
+[[headers]]
+  for = "/hero-carousel.js"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
+[[headers]]
+  for = "/media-upload.js"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
 [[headers]]
   for = "/calculadora.js"
   [headers.values]

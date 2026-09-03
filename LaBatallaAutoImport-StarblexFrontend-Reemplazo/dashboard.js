@@ -649,7 +649,12 @@ async function handleProfilePhotoUpload(e) {
     showToast('✅ Foto de perfil actualizada');
   } catch (err) {
     console.error('Error subiendo foto de perfil:', err);
-    statusEl.textContent = '❌ ' + (err.message || 'No se pudo subir la foto.');
+    // Los fallos de red/permiso llegan como UploadError con un `code`
+    // traducible a una causa concreta ("sin conexión", "sesión caducada");
+    // el resto son validaciones nuestras y ya traen un texto para leer.
+    statusEl.textContent = err instanceof LBMedia.UploadError
+      ? LBMedia.describeError(err)
+      : '❌ ' + (err.message || 'No se pudo subir la foto.');
     statusEl.className = 'text-red-400 text-[11px] mt-1';
   } finally {
     dbPhotoUploadBusy = false;

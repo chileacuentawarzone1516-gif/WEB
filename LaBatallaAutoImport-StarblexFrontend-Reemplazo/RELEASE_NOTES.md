@@ -1,5 +1,71 @@
 # RELEASE NOTES — La Batalla Auto Import
 
+## PUBLICACIÓN DE VEHÍCULOS EN MÓVIL Y CARRUSEL DEL HERO
+
+Dos defectos reportados desde un teléfono Android: "❌ Error subiendo fotos"
+al publicar un vehículo con 10 fotos, y el carrusel de portada congelado en
+la primera imagen (en PC/tablet sí rotaba).
+
+### 1. Fallaba la subida de fotos al publicar (`media-upload.js`, nuevo)
+
+Se subía el **archivo original de la cámara**. Una foto de un móvil actual
+pesa entre 3 y 12 MB; diez son 40-90 MB en serie, sin reintentos, sin
+temporizador y sin progreso. Basta un microcorte de datos móviles para tumbar
+la publicación entera, y el mensaje de error era siempre el mismo, así que no
+había forma de saber la causa.
+
+Se extrae toda la mecánica de red a un módulo propio:
+
+- **Compresión en el navegador** antes de subir: redimensionado a 1920 px y
+  recodificado a WebP (JPEG donde no hay WebP), respetando la orientación
+  EXIF. Medido en navegador: 609 KB → 50 KB; una foto real de 6 MB baja a
+  ~250 KB. La tanda pasa de decenas de MB a 2-4 MB.
+- **3 reintentos** con espera exponencial ante fallo de red, 429 y 5xx.
+- **Temporizador de inactividad** (45 s sin un solo byte) que aborta y
+  reintenta, en vez de quedarse colgado para siempre cuando la radio del
+  teléfono pierde la conexión sin cerrar el socket.
+- **Progreso real por archivo** ("Subiendo 3 de 10 · 45%"): una barra parada
+  se lee como "se colgó" y el usuario recarga a mitad de la publicación.
+- **Firma cacheada 20 min**: de 10 peticiones al Worker (10 verificaciones de
+  JWT + 10 lecturas de Firestore) a 1 por publicación.
+- **Wake Lock** mientras dura la subida: bloquear la pantalla la congelaba.
+- **Reanudación**: lo ya subido conserva su URL, así que volver a pulsar
+  Publicar continúa donde se quedó en vez de empezar de cero.
+- **Errores concretos**: sin conexión / sesión caducada / archivo rechazado /
+  conexión demasiado lenta, indicando qué archivo falló y cuántos ya subieron.
+
+El límite de las fotos sube de 10 MB a 25 MB (ya no se sube el original) y el
+`#toast` deja de recortar los mensajes largos en pantallas estrechas.
+
+### 2. El carrusel del hero no rotaba en teléfono (`hero-carousel.js`, nuevo)
+
+Cuatro causas, todas de móvil:
+
+1. `prefers-reduced-motion: reduce` **cancelaba el autoplay por completo**.
+   Android activa esa preferencia con el ahorro de batería o con "Quitar
+   animaciones" — de ahí que en PC rotara y en el teléfono no. Ahora se
+   respeta como corresponde: se elimina el fundido y se alarga el intervalo,
+   pero el contenido sigue avanzando.
+2. `setInterval` se congela al bloquear la pantalla o pasar a segundo plano.
+   Se sustituye por una cadena de `setTimeout` re-armada en
+   `visibilitychange`, `pageshow`, `focus` y `online`.
+3. `onerror` dejaba diapositivas **invisibles** dentro de la rotación: una
+   foto que no cargaba se "mostraba" igualmente durante 5,5 s. Ahora se marca
+   como rota, se salta y desaparece de los indicadores.
+4. No había gesto táctil. Se añade deslizamiento horizontal, también en la
+   galería de la ficha y en la vista ampliada.
+
+Accesibilidad: botón visible de pausa/reanudar (WCAG 2.2.2), pausa con el
+puntero encima y con foco de **teclado** dentro (el foco táctil no pausa: en
+Android dejaba el carrusel muerto justo después de usarlo), navegación con
+←/→/Inicio/Fin, `aria-controls` + roving tabindex en los indicadores y
+anuncio por `aria-live` solo cuando el carrusel está pausado.
+
+Verificado en navegador (Chromium, 1440×900 y 393×873 con touch y
+`reduced-motion`): autoplay, flechas, indicadores, pausa, swipe, diapositiva
+rota, reanudación de una tanda cortada y caché de firma.
+
+
 ## UX DEL CATÁLOGO VACÍO — 2 defectos corregidos
 
 Salieron al probar la aplicación contra un Firestore con la colección

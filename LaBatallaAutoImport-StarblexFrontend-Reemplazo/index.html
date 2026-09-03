@@ -159,7 +159,7 @@
     </div>
   </nav>
 
-  <header class="relative h-[70vh] overflow-hidden flex items-center justify-center" role="region" aria-roledescription="carrusel" aria-label="Vehículos destacados">
+  <header id="hero" class="relative h-[70vh] overflow-hidden flex items-center justify-center" role="region" aria-roledescription="carrusel" aria-label="Vehículos destacados">
     <div class="absolute inset-0" id="hero-slides">
       <!-- ════════════════════════════════════════════════════════
         HERO — MIGRAR A CLOUDINARY (pendiente de tus imágenes):
@@ -194,6 +194,20 @@
     <button type="button" id="hero-prev" class="hero-arrow hero-arrow--prev" aria-label="Diapositiva anterior">‹</button>
     <button type="button" id="hero-next" class="hero-arrow hero-arrow--next" aria-label="Siguiente diapositiva">›</button>
     <div id="hero-dots" class="hero-dots" role="tablist" aria-label="Seleccionar diapositiva"></div>
+    <!-- WCAG 2.2.2 (Pause, Stop, Hide): todo contenido que se mueve solo
+         durante más de 5 s necesita un control explícito para detenerlo.
+         El carrusel también se pausa con el puntero encima, con el foco
+         dentro y mientras se desliza con el dedo, pero eso no sustituye
+         al botón: un usuario que solo quiere leer el titular necesita
+         poder congelarlo sin mantener el ratón quieto. -->
+    <button type="button" id="hero-toggle" class="hero-toggle" aria-pressed="false" aria-label="Pausar el carrusel" title="Pausar el carrusel">
+      <span class="hero-toggle__pause" aria-hidden="true"></span>
+      <span class="hero-toggle__play" aria-hidden="true"></span>
+    </button>
+    <!-- Anuncio para lectores de pantalla. El módulo activa aria-live
+         solo cuando el carrusel está pausado o el usuario navega a mano:
+         anunciar cada rotación automática sería ruido constante. -->
+    <p id="hero-status" class="sr-only" role="status"></p>
   </header>
 
   <!-- BRAND LOGO FILTER -->
@@ -836,7 +850,7 @@
           <i data-lucide="upload" class="w-5 h-5 text-slate-400"></i>
           <span id="pub-images-label-text" class="text-slate-400 text-sm">Seleccionar fotos o videos (máx. 10)</span>
         </label>
-        <input type="file" id="pub-images" accept="image/*,video/*" multiple class="hidden">
+        <input type="file" id="pub-images" accept="image/*,video/*,.heic,.heif" multiple class="hidden">
         <div id="img-preview" class="img-preview-grid mt-3"></div>
       </div>
       <div class="flex gap-3 pt-2">
@@ -1388,8 +1402,10 @@
 <!-- Versionado de caché: al modificar app.js, calculadora.js o los CSS,
      incrementa ?v= en las 4 referencias para invalidar la caché del
      navegador de inmediato (evita ejecutar JS viejo con HTML nuevo). -->
+<script defer src="/hero-carousel.js?v=20260903"></script>
+<script defer src="/media-upload.js?v=20260903"></script>
 <script defer src="/roles.js?v=20260728"></script>
-<script defer src="/app.js?v=20260902"></script>
+<script defer src="/app.js?v=20260903"></script>
 <script defer src="/auth.js?v=20260728"></script>
 <script defer src="/auth-ui.js?v=20260728"></script>
 <script defer src="/invite-modal.js?v=20260811"></script>
