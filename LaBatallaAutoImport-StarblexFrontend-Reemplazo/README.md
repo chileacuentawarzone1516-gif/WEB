@@ -58,6 +58,16 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
   `styles.css`, o en un teléfono el botón "Publicar" vuelve a salirse de
   la pantalla (era el síntoma original). La clase es solo presentación:
   la autorización real sigue siendo `firestore.rules`.
+- **Subida de fotos de vehículo (`uploadToCloudinary`):** las fotos se
+  comprimen en el navegador antes de subir (`compressImageForUpload`:
+  máx. 1920 px, JPEG q0.82, orientación EXIF aplicada), con reintentos
+  (`retryUpload`, 3 intentos) y tiempo límite (`fetchWithTimeout`). El
+  motivo real del fallo se lee del cuerpo de la respuesta y se muestra al
+  administrador: no lo sustituyas por un mensaje genérico, era justo lo
+  que impedía diagnosticar los errores de publicación desde el móvil.
+  `MAX_IMAGE_MB` (25) es el límite de SELECCIÓN; el límite duro de
+  Cloudinary (10 MB) se comprueba después de comprimir, por si el
+  navegador no supo decodificar el formato (HEIC en Android).
 - **Bloqueo del scroll de fondo de los modales:** un único contador
   (`lockBodyScroll()`/`unlockBodyScroll()` en app.js, expuesto como
   `window.LB_SCROLL_LOCK`) lo comparten el lightbox, el modal de
@@ -150,15 +160,29 @@ sensibles).
 # Hero — carrusel
 
 6 slides con título/subtítulo propios (crossfade sincronizado), flechas
-prev/next y dots — todos funcionales en desktop, tablet y móvil (dots
+prev/next, dots, **deslizamiento táctil** y **botón de pausa**
+(`#hero-playpause`) — todos funcionales en desktop, tablet y móvil (dots
 verificados con eventos táctiles reales; antes quedaban tapados por la
 sección "Explorar por Marca" debido a un empate de `z-index`, ya corregido).
-Autoplay cada 5.5s, se pausa con la pestaña oculta y respeta
-`prefers-reduced-motion` (no avanza si el usuario tiene esa preferencia
-activada — comportamiento intencional, no un bug). El `<h1>`/subtítulo del
-hero corresponden siempre al slide realmente activo, incluida su
-restauración correcta al volver desde las páginas de Empresa (nunca un
-valor fijo hardcodeado).
+
+Autoplay cada 5.5 s. Se detiene con la pestaña oculta, mientras el hero
+está fuera de pantalla (`IntersectionObserver`) y cuando el usuario pulsa
+Pausa. El `<h1>`/subtítulo del hero corresponden siempre al slide realmente
+activo, incluida su restauración correcta al volver desde las páginas de
+Empresa (nunca un valor fijo hardcodeado).
+
+⚠️ **`prefers-reduced-motion` NO detiene el carrusel.** Antes sí, y era un
+fallo real: el ahorro de batería de Android activa esa preferencia, así que
+el hero se quedaba congelado en la primera foto en el teléfono mientras en
+el PC del mismo usuario rotaba. Ahora esa preferencia solo quita el fundido
+(el cambio es instantáneo, ver el bloque `@media (prefers-reduced-motion:
+reduce)` en `styles.css`), y el control obligatorio de WCAG 2.2.2 para
+detener el movimiento es el botón de pausa. Si vuelves a atar el autoplay a
+`prefers-reduced-motion`, reintroduces el fallo.
+
+Una foto del hero que no cargue se oculta (`onerror`) y queda **excluida de
+la rotación** (`nextUsableHeroSlide`): antes el carrusel la seleccionaba
+igual y la pantalla se quedaba en el degradado oscuro.
 
 # Páginas de Empresa
 

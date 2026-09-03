@@ -80,7 +80,7 @@
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
-<link rel="stylesheet" href="/styles.css?v=20260902">
+<link rel="stylesheet" href="/styles.css?v=20260903">
 <link rel="stylesheet" href="/dashboard.css?v=20260902">
 </head>
 <body style="background: rgb(15, 23, 42);" class="w-full min-h-screen">
@@ -193,7 +193,18 @@
     </div>
     <button type="button" id="hero-prev" class="hero-arrow hero-arrow--prev" aria-label="Diapositiva anterior">‹</button>
     <button type="button" id="hero-next" class="hero-arrow hero-arrow--next" aria-label="Siguiente diapositiva">›</button>
-    <div id="hero-dots" class="hero-dots" role="tablist" aria-label="Seleccionar diapositiva"></div>
+    <!-- Controles del carrusel. El botón de pausa es obligatorio: hay
+         contenido que se mueve solo durante más de 5 s (WCAG 2.2.2
+         "Pause, Stop, Hide") y ahora rota también para quien tiene las
+         animaciones reducidas del sistema activadas, así que debe poder
+         detenerlo. -->
+    <div class="hero-controls">
+      <div id="hero-dots" class="hero-dots" role="tablist" aria-label="Seleccionar diapositiva"></div>
+      <button type="button" id="hero-playpause" class="hero-playpause" aria-label="Pausar el carrusel">
+        <svg class="hero-icon hero-icon--pause" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="5" width="3.6" height="14" rx="1.2"/><rect x="13.4" y="5" width="3.6" height="14" rx="1.2"/></svg>
+        <svg class="hero-icon hero-icon--play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.2v13.6a1 1 0 0 0 1.53.85l10.6-6.8a1 1 0 0 0 0-1.7L9.53 4.35A1 1 0 0 0 8 5.2z"/></svg>
+      </button>
+    </div>
   </header>
 
   <!-- BRAND LOGO FILTER -->
@@ -1389,7 +1400,7 @@
      incrementa ?v= en las 4 referencias para invalidar la caché del
      navegador de inmediato (evita ejecutar JS viejo con HTML nuevo). -->
 <script defer src="/roles.js?v=20260728"></script>
-<script defer src="/app.js?v=20260902"></script>
+<script defer src="/app.js?v=20260903"></script>
 <script defer src="/auth.js?v=20260728"></script>
 <script defer src="/auth-ui.js?v=20260728"></script>
 <script defer src="/invite-modal.js?v=20260811"></script>

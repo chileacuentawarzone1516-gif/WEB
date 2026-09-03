@@ -573,11 +573,16 @@ function injectBreadcrumbJsonLd(v) {
 function genId() {
   return 'v' + Date.now() + Math.floor(Math.random()*1000);
 }
+// El temporizador se guarda para poder cancelarlo: sin esto, un aviso
+// corto mostrado justo antes ocultaba el siguiente antes de tiempo (los
+// mensajes de error de subida duran 7 s y se cortaban a los 2,5 s).
+let toastTimer = null;
 function showToast(msg, duration=2500) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), duration);
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.classList.remove('show'); toastTimer = null; }, duration);
 }
 // Un clic con Ctrl/Cmd/Shift/Alt o con el botón central significa "ábrelo
 // en otra pestaña/ventana". Interceptarlo con preventDefault() rompía esa
@@ -1118,9 +1123,22 @@ const heroTitleEl = document.getElementById('hero-title');
 const heroSubtitleEl = document.getElementById('hero-subtitle');
 const heroTextWrap = document.getElementById('hero-text-wrap');
 const heroDotsEl = document.getElementById('hero-dots');
-const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// `prefers-reduced-motion` se consulta en vivo (no una vez al cargar):
+// el ahorro de batería de Android puede activarse o desactivarse con la
+// pestaña ya abierta. Solo decide si el cambio de slide se anima, NUNCA
+// si el carrusel avanza — ver la nota de "Movimiento reducido" en
+// styles.css y el botón de pausa (#hero-playpause).
+const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+function prefersReducedMotion() { return reducedMotionQuery.matches; }
 let slideIdx = 0;
 let heroAutoplayTimer = null;
+// El carrusel se detiene por tres motivos independientes; se guardan por
+// separado para que reanudar uno no pise a los otros (p. ej. soltar el
+// dedo no debe volver a arrancarlo si el usuario pulsó Pausa).
+let heroPausedByUser = false;   // botón de pausa
+let heroPausedByTouch = false;  // dedo/ratón encima
+let heroOffscreen = false;      // hero fuera de pantalla
+const HERO_INTERVAL_MS = 5500;
 
 function renderHeroDots() {
   if (!heroDotsEl) return;
@@ -1132,10 +1150,29 @@ function renderHeroDots() {
   });
 }
 
+// Una foto del hero que no carga se oculta con style.display='none'
+// (atributo onerror en index.html). Si el carrusel la selecciona igual,
+// la pantalla se queda con el degradado oscuro y parece que se rompió.
+// Se salta a la siguiente que sí se vea.
+function heroSlideUsable(i) {
+  const el = slides[i];
+  return !!el && el.style.display !== 'none';
+}
+function nextUsableHeroSlide(from, step) {
+  const n = slides.length;
+  for (let k = 1; k <= n; k++) {
+    const i = (((from + step * k) % n) + n) % n;
+    if (heroSlideUsable(i)) return i;
+  }
+  return from; // ninguna cargó: no tiene sentido rotar
+}
+
 function goToHeroSlide(newIdx, userInitiated = false) {
-  if (slides.length === 0 || newIdx === slideIdx) return;
+  if (slides.length === 0) return;
+  const target = ((newIdx % slides.length) + slides.length) % slides.length;
+  if (target === slideIdx) return;
   slides[slideIdx].classList.remove('active');
-  slideIdx = ((newIdx % slides.length) + slides.length) % slides.length;
+  slideIdx = target;
   slides[slideIdx].classList.add('active');
 
   // Crossfade del texto en sincronía con la transición de la imagen
@@ -1147,13 +1184,18 @@ function goToHeroSlide(newIdx, userInitiated = false) {
   // contenido (verificado en navegador). La imagen sí sigue rotando.
   const enEmpresa = !document.getElementById('empresa-page')?.classList.contains('hidden');
   if (heroTextWrap && !enEmpresa) {
-    heroTextWrap.style.opacity = '0';
-    setTimeout(() => {
+    const aplicarTexto = () => {
       const active = slides[slideIdx];
       if (heroTitleEl) heroTitleEl.textContent = active.dataset.title || heroTitleEl.textContent;
       if (heroSubtitleEl) heroSubtitleEl.textContent = active.dataset.subtitle || heroSubtitleEl.textContent;
       heroTextWrap.style.opacity = '1';
-    }, 280);
+    };
+    if (prefersReducedMotion()) {
+      aplicarTexto(); // sin fundido: el texto cambia a la vez que la foto
+    } else {
+      heroTextWrap.style.opacity = '0';
+      setTimeout(aplicarTexto, 280);
+    }
   }
 
   heroDotsEl?.querySelectorAll('.hero-dot').forEach((dot, i) => {
@@ -1166,20 +1208,94 @@ function goToHeroSlide(newIdx, userInitiated = false) {
   if (userInitiated) startHeroAutoplay();
 }
 
+function stopHeroAutoplay() {
+  if (heroAutoplayTimer) { clearInterval(heroAutoplayTimer); heroAutoplayTimer = null; }
+}
 function startHeroAutoplay() {
-  if (reducedMotion || slides.length === 0) return; // Respeta WCAG 2.3.3
-  if (heroAutoplayTimer) clearInterval(heroAutoplayTimer);
+  stopHeroAutoplay();
+  if (slides.length < 2) return;
+  if (heroPausedByUser || heroPausedByTouch || heroOffscreen) return;
   heroAutoplayTimer = setInterval(() => {
     if (document.hidden) return; // no rota con la pestaña oculta
-    goToHeroSlide(slideIdx + 1);
-  }, 5500);
+    goToHeroSlide(nextUsableHeroSlide(slideIdx, 1));
+  }, HERO_INTERVAL_MS);
+}
+
+// ————— Botón de pausa (WCAG 2.2.2) —————
+function updateHeroPlayPauseUI() {
+  const btn = document.getElementById('hero-playpause');
+  if (!btn) return;
+  btn.classList.toggle('is-paused', heroPausedByUser);
+  btn.setAttribute('aria-label', heroPausedByUser ? 'Reanudar el carrusel' : 'Pausar el carrusel');
+}
+function toggleHeroAutoplay() {
+  heroPausedByUser = !heroPausedByUser;
+  updateHeroPlayPauseUI();
+  startHeroAutoplay(); // no arranca si sigue pausado — lo decide la propia función
+}
+
+// ————— Deslizar con el dedo —————
+// En un teléfono el gesto natural es arrastrar, no acertar una flecha de
+// 40 px pegada al borde. Solo se considera deslizamiento si el
+// movimiento es claramente horizontal, para no secuestrar el scroll
+// vertical de la página.
+const HERO_SWIPE_MIN_PX = 45;
+function initHeroSwipe() {
+  const header = document.querySelector('header[role="region"]') || document.querySelector('header');
+  if (!header) return;
+  let x0 = null, y0 = null;
+  header.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) { x0 = null; return; }
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+    heroPausedByTouch = true; stopHeroAutoplay();
+  }, { passive: true });
+  header.addEventListener('touchend', e => {
+    heroPausedByTouch = false;
+    const t = e.changedTouches && e.changedTouches[0];
+    if (x0 !== null && t) {
+      const dx = t.clientX - x0;
+      const dy = t.clientY - y0;
+      if (Math.abs(dx) >= HERO_SWIPE_MIN_PX && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        goToHeroSlide(nextUsableHeroSlide(slideIdx, dx < 0 ? 1 : -1), true);
+        x0 = null;
+        return; // goToHeroSlide(userInitiated) ya reinicia el temporizador
+      }
+    }
+    x0 = null;
+    startHeroAutoplay();
+  }, { passive: true });
+  header.addEventListener('touchcancel', () => {
+    x0 = null; heroPausedByTouch = false; startHeroAutoplay();
+  }, { passive: true });
 }
 
 if (slides.length > 0) {
   renderHeroDots();
+  updateHeroPlayPauseUI();
   startHeroAutoplay();
-  document.getElementById('hero-prev')?.addEventListener('click', () => goToHeroSlide(slideIdx - 1, true));
-  document.getElementById('hero-next')?.addEventListener('click', () => goToHeroSlide(slideIdx + 1, true));
+  document.getElementById('hero-prev')?.addEventListener('click', () => goToHeroSlide(nextUsableHeroSlide(slideIdx, -1), true));
+  document.getElementById('hero-next')?.addEventListener('click', () => goToHeroSlide(nextUsableHeroSlide(slideIdx, 1), true));
+  document.getElementById('hero-playpause')?.addEventListener('click', toggleHeroAutoplay);
+  initHeroSwipe();
+
+  // Deliberadamente NO se pausa al pasar el ratón por encima: en un
+  // teléfono el navegador emite un `mouseenter` sintético después de
+  // cada toque y no hay `mouseleave` que lo compense, así que el
+  // carrusel se quedaría parado para siempre justo en el dispositivo
+  // que estamos arreglando. Para detenerlo está #hero-playpause.
+  const heroEl = document.querySelector('header[role="region"]');
+
+  // Sin temporizador mientras el hero no se ve: en un teléfono el
+  // usuario pasa la mayor parte del tiempo en el catálogo, más abajo.
+  if (heroEl && 'IntersectionObserver' in window) {
+    new IntersectionObserver(entries => {
+      heroOffscreen = !entries[0].isIntersecting;
+      startHeroAutoplay();
+    }, { threshold: 0 }).observe(heroEl);
+  }
+  // Volver a la pestaña reanuda de inmediato en vez de esperar al
+  // siguiente tick de 5,5 s.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) startHeroAutoplay(); });
 }
 // ============================================================
 // YEAR OPTIONS (filter + publish form)
@@ -1754,31 +1870,168 @@ function openPublishModal(vehicle) {
 // Cloudinary sin pasar primero por nuestra lógica de negocio.
 const CLOUDINARY_SIGN_URL = 'https://labatalla-cloudinary-sign.chileacuentawarzone1516.workers.dev';
 
-// Sube un archivo a Cloudinary usando firma generada en el Worker.
-async function uploadToCloudinary(file) {
-  const { user } = getCurrentUser();
-  if (!canManageVehicles() || !user) {
-    throw new Error('Debes iniciar sesión con un rol autorizado para subir archivos.');
+// ============================================================
+// SUBIDA DE FOTOS DE VEHÍCULO — robustez en red móvil
+// ------------------------------------------------------------
+// Síntoma reportado: al publicar un vehículo con 10 fotos desde un
+// teléfono aparecía "Error subiendo fotos — intenta de nuevo" y nada
+// más. Tres carencias lo provocaban y lo hacían imposible de
+// diagnosticar:
+//
+//   1. Ni tiempo límite ni reintentos. Una sola petición atascada —lo
+//      normal en datos móviles— tumbaba las 10 subidas de golpe.
+//   2. El motivo real se descartaba: `throw new Error('Cloudinary
+//      upload failed')` sin leer el cuerpo de la respuesta, así que
+//      daba igual si era falta de permisos, sesión caducada, archivo
+//      pesado, formato no admitido o cobertura.
+//   3. Se subía el archivo ORIGINAL de la cámara. Un teléfono actual
+//      hace fotos de 4-9 MB; diez son hasta 90 MB por publicación. La
+//      web las sirve por Cloudinary con `f_auto,q_auto,w_...`, así que
+//      ese peso no aporta nada visible y multiplica las
+//      probabilidades de que la subida se caiga a medias.
+//
+// Lo que ya funcionaba y se conserva: cada foto guarda su `cloudUrl` en
+// cuanto sube, así que reintentar NO vuelve a subir las que ya están.
+// ============================================================
+
+// Error de subida con causa legible. `retriable` separa un fallo
+// pasajero (cobertura, 5xx) de uno definitivo (permisos, formato), para
+// no insistir en algo que nunca va a funcionar.
+class UploadError extends Error {
+  constructor(message, { retriable = false } = {}) {
+    super(message);
+    this.name = 'UploadError';
+    this.retriable = retriable;
   }
+}
+
+const UPLOAD_SIGN_TIMEOUT_MS = 20000;
+const UPLOAD_FILE_TIMEOUT_MS = 120000;
+const UPLOAD_MAX_ATTEMPTS = 3;
+
+// fetch con tiempo límite: sin esto una petición atascada en una red
+// móvil mala espera indefinidamente y el administrador se queda mirando
+// "Subiendo foto 4 de 10..." sin desenlace.
+async function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw new UploadError('la conexión tardó demasiado', { retriable: true });
+    // Un TypeError de fetch significa fallo de red: sin cobertura, DNS, CORS caído.
+    throw new UploadError('no se pudo conectar', { retriable: true });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function retryUpload(fn) {
+  let lastError;
+  for (let attempt = 1; attempt <= UPLOAD_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await fn(attempt);
+    } catch (e) {
+      lastError = e;
+      if (e instanceof UploadError && !e.retriable) throw e; // no insistir
+      if (attempt === UPLOAD_MAX_ATTEMPTS) break;
+      await new Promise(r => setTimeout(r, 1000 * attempt)); // 1 s, luego 2 s
+    }
+  }
+  throw lastError;
+}
+
+// ————— Compresión en el navegador antes de subir —————
+// Deja una foto de cámara (4-9 MB) en ~300-600 KB sin pérdida visible:
+// el sitio nunca muestra el original, siempre la versión que sirve
+// Cloudinary con el ancho limitado. Si algo falla (un formato que el
+// navegador no sabe decodificar, como HEIC en Android) se devuelve el
+// archivo original y la subida sigue: comprimir es una optimización,
+// nunca un requisito para poder publicar.
+const COMPRESS_MAX_DIM = 1920;
+const COMPRESS_QUALITY = 0.82;
+const COMPRESS_SKIP_UNDER_BYTES = 900 * 1024; // ya es ligera: no tocarla
+
+async function compressImageForUpload(file) {
+  if (!file || !(file.type || '').startsWith('image/')) return file;
+  if (file.size <= COMPRESS_SKIP_UNDER_BYTES) return file;
+  if (typeof createImageBitmap !== 'function') return file;
+
+  let bitmap = null;
+  try {
+    // `imageOrientation: 'from-image'` aplica la orientación EXIF: sin
+    // esto las fotos hechas en vertical se subirían giradas.
+    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const scale = Math.min(1, COMPRESS_MAX_DIM / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    // Fondo blanco antes de dibujar: un PNG con transparencia pasado a
+    // JPEG dejaría en negro las zonas transparentes.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', COMPRESS_QUALITY));
+    if (!blob || blob.size >= file.size) return file; // no mejoró: original
+    const name = (file.name || 'foto').replace(/\.[^.]+$/, '') + '.jpg';
+    return new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() });
+  } catch (e) {
+    console.warn('No se pudo comprimir la foto, se sube el original:', e);
+    return file;
+  } finally {
+    bitmap?.close?.();
+  }
+}
+
+// Lee el motivo real que devuelve el servidor. Sin esto todos los
+// fallos se veían igual y no había forma de saber qué corregir.
+async function readErrorMessage(res) {
+  try {
+    const text = await res.text();
+    if (!text) return '';
+    try {
+      const data = JSON.parse(text);
+      return (data && (data.error?.message || data.error || data.message)) || '';
+    } catch (e) {
+      return text.slice(0, 160);
+    }
+  } catch (e) {
+    return '';
+  }
+}
+
+async function requestUploadSignature(user) {
   const idToken = await user.getIdToken();
-
-  // 1. Pedir la firma al Worker (timestamp + signature + apiKey + cloudName)
-  const signRes = await fetch(CLOUDINARY_SIGN_URL, {
+  const res = await fetchWithTimeout(CLOUDINARY_SIGN_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${idToken}`
-    },
-    body: JSON.stringify({ folder: 'labatalla' })
-  });
-  if (signRes.status === 401 || signRes.status === 403) {
-    throw new Error('No autorizado para subir archivos.');
-  }
-  if (!signRes.ok) throw new Error('No se pudo firmar la subida');
-  const { signature, timestamp, apiKey, cloudName, folder } = await signRes.json();
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+    // El Worker solo acepta "purpose" del cliente y decide él la carpeta.
+    body: JSON.stringify({ purpose: 'vehicle' })
+  }, UPLOAD_SIGN_TIMEOUT_MS);
 
-  // 2. Subir el archivo con la firma — Cloudinary rechaza cualquier
-  // request cuya firma no coincida exactamente con estos parámetros.
+  if (res.status === 401) {
+    throw new UploadError('tu sesión caducó — cierra sesión, vuelve a entrar y reintenta');
+  }
+  if (res.status === 403) {
+    throw new UploadError('tu cuenta no tiene permiso para subir fotos');
+  }
+  if (res.status === 429 || res.status >= 500) {
+    throw new UploadError('el servidor de firmas no responde', { retriable: true });
+  }
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    throw new UploadError(`no se pudo autorizar la subida${detail ? ' (' + detail + ')' : ''}`);
+  }
+  return res.json();
+}
+
+async function sendToCloudinary(file, sign) {
+  const { signature, timestamp, apiKey, cloudName, folder } = sign;
+  // Cloudinary rechaza cualquier request cuya firma no coincida
+  // exactamente con estos parámetros.
   const formData = new FormData();
   formData.append('file', file);
   formData.append('api_key', apiKey);
@@ -1786,13 +2039,53 @@ async function uploadToCloudinary(file) {
   formData.append('signature', signature);
   formData.append('folder', folder);
 
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
-    method: 'POST',
-    body: formData
-  });
-  if (!res.ok) throw new Error('Cloudinary upload failed');
+  const res = await fetchWithTimeout(
+    `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
+    { method: 'POST', body: formData },
+    UPLOAD_FILE_TIMEOUT_MS
+  );
+
+  if (!res.ok) {
+    const detail = await readErrorMessage(res);
+    // Una firma rechazada puede ser simplemente una firma caducada: se
+    // reintenta, y cada intento pide una nueva.
+    if (res.status === 401) throw new UploadError('firma de subida rechazada', { retriable: true });
+    if (res.status === 420 || res.status === 429 || res.status >= 500) {
+      throw new UploadError('Cloudinary no responde ahora mismo', { retriable: true });
+    }
+    throw new UploadError(detail || `Cloudinary rechazó el archivo (HTTP ${res.status})`);
+  }
   const data = await res.json();
-  return { url: data.secure_url, type: file.type.startsWith('video') ? 'video' : 'image' };
+  if (!data.secure_url) throw new UploadError('Cloudinary no devolvió la dirección del archivo');
+  return { url: data.secure_url, type: (file.type || '').startsWith('video') ? 'video' : 'image' };
+}
+
+// Límite duro de Cloudinary para imágenes. Se comprueba DESPUÉS de
+// comprimir: una foto de 20 MB comprimida baja de 1 MB y sube sin
+// problema, así que esto solo salta si la compresión no fue posible.
+const CLOUDINARY_HARD_LIMIT_MB = 10;
+
+// Sube un archivo a Cloudinary usando firma generada en el Worker.
+async function uploadToCloudinary(file) {
+  const { user } = getCurrentUser();
+  if (!canManageVehicles() || !user) {
+    throw new UploadError('debes iniciar sesión con un rol autorizado para subir archivos');
+  }
+
+  const toUpload = await compressImageForUpload(file);
+
+  if ((toUpload.type || '').startsWith('image/') &&
+      toUpload.size > CLOUDINARY_HARD_LIMIT_MB * 1024 * 1024) {
+    throw new UploadError('pesa demasiado y el navegador no pudo reducirla — usa una foto más ligera');
+  }
+
+  // Firma y subida van dentro del mismo reintento para que cada intento
+  // use una firma recién generada, en vez de reutilizar una que pudo
+  // caducar mientras se reintentaba.
+  return retryUpload(async () => {
+    const sign = await requestUploadSignature(user);
+    return sendToCloudinary(toUpload, sign);
+  });
 }
 
 // Fase 1 — foto de perfil: mismo flujo firmado y seguro que las
@@ -1866,8 +2159,14 @@ function updateImgLabel() {
     if (labelEl) { labelEl.style.opacity = '1'; labelEl.style.pointerEvents = 'auto'; }
   }
 }
-// Límites de tamaño — evita subidas gigantes que traben el flujo o llenen la cuota de Cloudinary
-const MAX_IMAGE_MB = 10;
+// Límites de tamaño — evitan subidas gigantes que traben el flujo o
+// llenen la cuota de Cloudinary.
+// El de fotos subió de 10 a 25 MB porque ahora se comprimen en el
+// navegador antes de subir (ver compressImageForUpload): una foto de
+// 20 MB de un móvil actual se queda por debajo de 1 MB. El límite duro
+// de Cloudinary (10 MB) se sigue comprobando después de comprimir, para
+// el caso en que el navegador no pueda decodificar el formato.
+const MAX_IMAGE_MB = 25;
 const MAX_VIDEO_MB = 50;
 // Image upload handler — preview inmediato, sube a Cloudinary al publicar
 document.getElementById('pub-images').addEventListener('change', function() {
@@ -2054,9 +2353,23 @@ async function resolvePublishMedia(editId, onProgress, userClearedAll) {
       const item = pendingFiles[i];
       onProgress?.(i + 1, pendingFiles.length);
       if (!item.cloudUrl) {
-        const result = await uploadToCloudinary(item.file);
-        item.cloudUrl = result.url;
-        item.type = result.type;
+        try {
+          const result = await uploadToCloudinary(item.file);
+          item.cloudUrl = result.url;   // ya subida: un reintento la salta
+          item.type = result.type;
+        } catch (e) {
+          // Se envuelve indicando QUÉ foto falló y cuántas quedaron ya
+          // subidas. Antes el aviso era el mismo para las 10 y no había
+          // forma de saber cuál corregir ni si había que repetirlo todo.
+          const yaSubidas = pendingFiles.filter(f => f.cloudUrl).length;
+          const motivo = (e && e.message) ? e.message : 'error desconocido';
+          const err = new UploadError(
+            `La foto ${i + 1} de ${pendingFiles.length} no se pudo subir: ${motivo}.` +
+            (yaSubidas > 0 ? ` Las ${yaSubidas} anteriores ya están guardadas — al reintentar solo sube lo que falta.` : '')
+          );
+          err.cause = e;
+          throw err;
+        }
       }
       media.push({ type: item.type, src: item.cloudUrl });
     }
@@ -2148,11 +2461,19 @@ document.getElementById('publish-submit-btn').addEventListener('click', async ()
     try {
       media = await resolvePublishMedia(form.editId, (i, total) => {
         const label = btn.querySelector('.btn-label') || btn;
-        label.textContent = `⏳ Subiendo foto ${i} de ${total}...`;
+        label.textContent = `⏳ Subiendo ${i} de ${total}...`;
       }, mediaClearedByUser);
     } catch (e) {
       console.error('Error subiendo a Cloudinary:', e);
-      if (token === currentSaveToken) showToast('❌ Error subiendo fotos — intenta de nuevo');
+      if (token === currentSaveToken) {
+        // El motivo concreto (sesión caducada, foto muy pesada, sin
+        // cobertura...) llega hasta aquí desde uploadToCloudinary; antes
+        // se perdía y el aviso era siempre el mismo.
+        const msg = (e instanceof UploadError && e.message)
+          ? `❌ ${e.message}`
+          : '❌ No se pudieron subir las fotos — revisa tu conexión e intenta de nuevo';
+        showToast(msg, 7000);
+      }
       return; // el modal permanece abierto — el usuario no pierde lo que escribió
     }
     if (token !== currentSaveToken) return;
