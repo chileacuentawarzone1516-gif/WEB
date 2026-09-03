@@ -422,3 +422,94 @@ footer a, #empresa-page a.inline-flex, #contacto a:not([class*="rounded"]) {
   .account-tab { min-height: 44px; }
   #account-modal > div { margin-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
 }
+
+/* ============================================================
+   HERO CAROUSEL — piezas añadidas al rehacer el carrusel para que
+   funcione igual en teléfono que en PC (ver hero-carousel.js).
+   ============================================================ */
+
+/* El navegador necesita saber que el eje horizontal del hero es nuestro
+   (swipe entre diapositivas) y que el vertical sigue siendo suyo
+   (scroll de la página). Sin `pan-y` el gesto horizontal se pierde en
+   Chrome Android y el deslizamiento no cambia de foto. */
+#hero { touch-action: pan-y; }
+
+/* Una diapositiva cuya imagen no cargó se saca de la rotación desde JS.
+   Ocultarla aquí evita que quede un hueco negro si el atributo inline
+   `onerror` no llegó a ejecutarse. */
+.slide--broken { display: none !important; }
+
+/* ————— Botón pausar / reanudar (WCAG 2.2.2) ————— */
+.hero-toggle {
+  position: absolute; bottom: 34px; right: 16px; z-index: 20;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+  cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.hero-toggle:hover { background: rgba(56,189,248,0.25); border-color: rgba(56,189,248,0.5); }
+/* Los dos iconos se dibujan con CSS puro: son dos formas triviales y no
+   justifican una dependencia de iconos ni una petición extra. */
+.hero-toggle__pause {
+  width: 10px; height: 12px;
+  border-left: 3px solid #fff; border-right: 3px solid #fff;
+}
+.hero-toggle__play {
+  display: none;
+  width: 0; height: 0; margin-left: 3px;
+  border-left: 11px solid #fff;
+  border-top: 7px solid transparent; border-bottom: 7px solid transparent;
+}
+.hero-toggle.is-paused .hero-toggle__pause { display: none; }
+.hero-toggle.is-paused .hero-toggle__play { display: block; }
+
+/* En teléfono el objetivo táctil sube a 44×44 (WCAG 2.5.8) y el botón se
+   separa de los indicadores para no competir con ellos al pulsar. */
+@media (max-width: 767px) {
+  .hero-toggle { width: 44px; height: 44px; bottom: 28px; right: 8px; }
+}
+@media (max-width: 380px) {
+  .hero-toggle { width: 40px; height: 40px; right: 6px; }
+}
+
+/* ————— Preferencia de movimiento reducido —————
+   `prefers-reduced-motion: reduce` se activa en Android con el ahorro de
+   batería o con "Quitar animaciones". Antes eso apagaba el carrusel
+   entero y en el teléfono se quedaba clavado en la primera foto. Lo que
+   la preferencia pide es que no haya MOVIMIENTO, no que el contenido
+   deje de existir: se elimina el fundido (cambio instantáneo) y
+   hero-carousel.js alarga el intervalo. El botón de pausa sigue ahí para
+   quien quiera detenerlo del todo. */
+.lb-reduced-motion .slide { transition: none !important; }
+.lb-reduced-motion #hero-text-wrap { transition: none !important; }
+.lb-reduced-motion .hero-arrow,
+.lb-reduced-motion .hero-toggle,
+.lb-reduced-motion .hero-dot::after { transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .slide { transition: none !important; }
+  #hero-text-wrap { transition: none !important; }
+}
+
+/* ============================================================
+   TOAST — los mensajes de error de la subida de fotos son mucho más
+   descriptivos que antes ("sin conexión", "la foto 3 fue rechazada"…).
+   Con `white-space: nowrap` y sin ancho máximo, en un teléfono se salían
+   de la pantalla y no se podían leer. Ahora se ajustan al ancho
+   disponible y respetan el área segura del sistema.
+   ============================================================ */
+#toast {
+  white-space: normal;
+  max-width: min(92vw, 420px);
+  text-align: center;
+  line-height: 1.45;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ============================================================
+   GALERÍA DE LA FICHA — se añadió deslizamiento horizontal en el
+   visor y en el lightbox (ver app.js). Igual que en el hero, hay que
+   cederle el eje horizontal al gesto.
+   ============================================================ */
+#detail-media-container, #lightbox { touch-action: pan-y; }

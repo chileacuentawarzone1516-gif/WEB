@@ -1110,77 +1110,18 @@ function updateAdminUI() {
   }
 }
 // ============================================================
-// HERO SLIDESHOW — 6 slides con título/subtítulo propio +
-// indicadores (dots) y flechas de navegación manual.
+// HERO SLIDESHOW — movido a hero-carousel.js
+// ------------------------------------------------------------
+// El carrusel dejó de vivir aquí: mezclaba responsabilidades con el
+// catálogo y necesitaba lógica propia (swipe, control de pausa,
+// diapositivas rotas, re-armado del temporizador en móvil). app.js solo
+// conserva las referencias al <h1>/<p> del hero porque las subpáginas de
+// Empresa los reutilizan como cabecera de sección; el carrusel expone
+// window.LBHero.takeOverText() / releaseText() para cederlos y
+// recuperarlos sin pisarse con el autoplay.
 // ============================================================
-const slides = document.querySelectorAll('.slide');
 const heroTitleEl = document.getElementById('hero-title');
 const heroSubtitleEl = document.getElementById('hero-subtitle');
-const heroTextWrap = document.getElementById('hero-text-wrap');
-const heroDotsEl = document.getElementById('hero-dots');
-const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-let slideIdx = 0;
-let heroAutoplayTimer = null;
-
-function renderHeroDots() {
-  if (!heroDotsEl) return;
-  heroDotsEl.innerHTML = Array.from(slides).map((_, i) =>
-    `<button type="button" class="hero-dot${i === slideIdx ? ' active' : ''}" data-idx="${i}" role="tab" aria-label="Ir a la diapositiva ${i + 1}" aria-selected="${i === slideIdx}"></button>`
-  ).join('');
-  heroDotsEl.querySelectorAll('.hero-dot').forEach(dot => {
-    dot.addEventListener('click', () => goToHeroSlide(Number(dot.dataset.idx), true));
-  });
-}
-
-function goToHeroSlide(newIdx, userInitiated = false) {
-  if (slides.length === 0 || newIdx === slideIdx) return;
-  slides[slideIdx].classList.remove('active');
-  slideIdx = ((newIdx % slides.length) + slides.length) % slides.length;
-  slides[slideIdx].classList.add('active');
-
-  // Crossfade del texto en sincronía con la transición de la imagen
-  // (misma duración que .slide en styles.css) para que título/subtítulo
-  // cambien sin sensación de "salto" brusco.
-  // Mientras se muestra una subpágina de Empresa, el <h1> del hero lleva el
-  // título de esa sección ("Quiénes somos", …). El autoplay lo sobrescribía
-  // a los 5,5 s con el título del slide, dejando un H1 que no correspondía al
-  // contenido (verificado en navegador). La imagen sí sigue rotando.
-  const enEmpresa = !document.getElementById('empresa-page')?.classList.contains('hidden');
-  if (heroTextWrap && !enEmpresa) {
-    heroTextWrap.style.opacity = '0';
-    setTimeout(() => {
-      const active = slides[slideIdx];
-      if (heroTitleEl) heroTitleEl.textContent = active.dataset.title || heroTitleEl.textContent;
-      if (heroSubtitleEl) heroSubtitleEl.textContent = active.dataset.subtitle || heroSubtitleEl.textContent;
-      heroTextWrap.style.opacity = '1';
-    }, 280);
-  }
-
-  heroDotsEl?.querySelectorAll('.hero-dot').forEach((dot, i) => {
-    dot.classList.toggle('active', i === slideIdx);
-    dot.setAttribute('aria-selected', i === slideIdx);
-  });
-
-  // Si el usuario navegó manualmente, reiniciamos el temporizador de
-  // autoplay para que no "compita" con el cambio recién hecho.
-  if (userInitiated) startHeroAutoplay();
-}
-
-function startHeroAutoplay() {
-  if (reducedMotion || slides.length === 0) return; // Respeta WCAG 2.3.3
-  if (heroAutoplayTimer) clearInterval(heroAutoplayTimer);
-  heroAutoplayTimer = setInterval(() => {
-    if (document.hidden) return; // no rota con la pestaña oculta
-    goToHeroSlide(slideIdx + 1);
-  }, 5500);
-}
-
-if (slides.length > 0) {
-  renderHeroDots();
-  startHeroAutoplay();
-  document.getElementById('hero-prev')?.addEventListener('click', () => goToHeroSlide(slideIdx - 1, true));
-  document.getElementById('hero-next')?.addEventListener('click', () => goToHeroSlide(slideIdx + 1, true));
-}
 // ============================================================
 // YEAR OPTIONS (filter + publish form)
 // ============================================================
@@ -1462,14 +1403,56 @@ function renderSimilarPage(page) {
   }
   if (window.lucide) lucide.createIcons();
 }
-document.getElementById('gallery-prev').addEventListener('click', () => {
-  galleryIdx = (galleryIdx - 1 + galleryMedia.length) % galleryMedia.length;
+function goToGalleryMedia(step) {
+  if (galleryMedia.length < 2) return;
+  galleryIdx = (galleryIdx + step + galleryMedia.length) % galleryMedia.length;
   renderGalleryMedia();
-});
-document.getElementById('gallery-next').addEventListener('click', () => {
-  galleryIdx = (galleryIdx + 1) % galleryMedia.length;
-  renderGalleryMedia();
-});
+}
+document.getElementById('gallery-prev').addEventListener('click', () => goToGalleryMedia(-1));
+document.getElementById('gallery-next').addEventListener('click', () => goToGalleryMedia(1));
+
+// ============================================================
+// GESTO TÁCTIL — deslizar entre fotos
+// ------------------------------------------------------------
+// En un teléfono, cambiar de foto pulsando una flecha de 32 px es un
+// objetivo táctil pequeño y poco natural: la expectativa universal en
+// una galería es deslizar. Se implementa una sola vez y se reutiliza en
+// la ficha y en el lightbox.
+//
+// No se llama a preventDefault(): el scroll vertical de la página debe
+// seguir funcionando. Es `touch-action: pan-y` (styles.css) lo que le
+// cede el eje horizontal al gesto sin robarle el vertical al navegador.
+// ============================================================
+const SWIPE_MIN_PX = 40;
+const SWIPE_MAX_MS = 800;
+// Marca de tiempo del último deslizamiento reconocido. El navegador
+// dispara `click` después de `pointerup`, así que sin esto un swipe sobre
+// el fondo del lightbox lo cerraba en vez de pasar a la foto siguiente.
+let lastSwipeAt = 0;
+function attachSwipe(el, onSwipe) {
+  if (!el) return;
+  let start = null;
+  el.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse') return; // con ratón están las flechas
+    if (e.target.closest('button, video')) return; // controles nativos primero
+    start = { x: e.clientX, y: e.clientY, t: Date.now() };
+  }, { passive: true });
+  // `pointerup` en window: si el dedo se levanta fuera del elemento, el
+  // listener local nunca se dispararía y el gesto se perdería.
+  window.addEventListener('pointerup', e => {
+    if (!start) return;
+    const { x, y, t } = start;
+    start = null;
+    const dx = e.clientX - x;
+    const dy = e.clientY - y;
+    if (Date.now() - t > SWIPE_MAX_MS) return;
+    if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) <= Math.abs(dy)) return;
+    lastSwipeAt = Date.now();
+    onSwipe(dx < 0 ? 1 : -1);
+  }, { passive: true });
+  window.addEventListener('pointercancel', () => { start = null; }, { passive: true });
+}
+attachSwipe(document.getElementById('detail-media-container'), step => goToGalleryMedia(step));
 // ============================================================
 // LIGHTBOX — click foto para ampliar
 // ============================================================
@@ -1505,9 +1488,20 @@ function closeLightbox() {
   unlockBodyScroll();
 }
 document.getElementById('lightbox-close')?.addEventListener('click', closeLightbox);
-document.getElementById('lightbox')?.addEventListener('click', e => { if (e.target === document.getElementById('lightbox')) closeLightbox(); });
+document.getElementById('lightbox')?.addEventListener('click', e => {
+  // Un deslizamiento sobre el fondo termina en `click`: sin esta guarda,
+  // pasar a la foto siguiente con el dedo cerraba la vista ampliada.
+  if (Date.now() - lastSwipeAt < 400) return;
+  if (e.target === document.getElementById('lightbox')) closeLightbox();
+});
 document.getElementById('lightbox-prev')?.addEventListener('click', e => { e.stopPropagation(); openLightbox((galleryIdx - 1 + galleryMedia.length) % galleryMedia.length); });
 document.getElementById('lightbox-next')?.addEventListener('click', e => { e.stopPropagation(); openLightbox((galleryIdx + 1) % galleryMedia.length); });
+// Mismo gesto dentro de la vista ampliada, donde la flecha queda aún más
+// lejos del pulgar que en la ficha.
+attachSwipe(document.getElementById('lightbox'), step => {
+  if (galleryMedia.length < 2) return;
+  openLightbox((galleryIdx + step + galleryMedia.length) % galleryMedia.length);
+});
 document.addEventListener('keydown', e => {
   if (!document.getElementById('lightbox')?.classList.contains('open')) return;
   if (e.key === 'Escape') closeLightbox();
@@ -1745,96 +1739,55 @@ function openPublishModal(vehicle) {
   if (vehicle) document.getElementById('pub-year').value = vehicle.year || '';
 }
 // ============================================================
-// CLOUDINARY CONFIG — subida firmada vía Cloudflare Worker
-// ============================================================
-// El API Secret de Cloudinary YA NO vive aquí. Este Worker de Cloudflare
+// CLOUDINARY — subida firmada vía Cloudflare Worker
+// ------------------------------------------------------------
+// El API Secret de Cloudinary NO vive aquí. Un Worker de Cloudflare
 // calcula la firma en su propio servidor (donde guarda el secreto como
-// variable de entorno tipo "Secret") y solo nos devuelve la firma ya
-// calculada — así nadie puede subir archivos a nuestra cuenta de
-// Cloudinary sin pasar primero por nuestra lógica de negocio.
-const CLOUDINARY_SIGN_URL = 'https://labatalla-cloudinary-sign.chileacuentawarzone1516.workers.dev';
+// variable de entorno) y solo devuelve la firma ya calculada — así nadie
+// puede subir archivos a nuestra cuenta sin pasar antes por nuestra
+// lógica de negocio.
+//
+// La mecánica de red (compresión previa, reintentos, temporizador de
+// inactividad, caché de firma, Wake Lock) vive en media-upload.js. Aquí
+// solo queda la AUTORIZACIÓN de nuestro dominio: quién puede subir qué.
+// ============================================================
 
-// Sube un archivo a Cloudinary usando firma generada en el Worker.
-async function uploadToCloudinary(file) {
+// Sube una foto/vídeo de vehículo. Solo staff con sesión activa.
+async function uploadToCloudinary(file, onProgress) {
   const { user } = getCurrentUser();
   if (!canManageVehicles() || !user) {
     throw new Error('Debes iniciar sesión con un rol autorizado para subir archivos.');
   }
-  const idToken = await user.getIdToken();
-
-  // 1. Pedir la firma al Worker (timestamp + signature + apiKey + cloudName)
-  const signRes = await fetch(CLOUDINARY_SIGN_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${idToken}`
-    },
-    body: JSON.stringify({ folder: 'labatalla' })
+  return LBMedia.uploadFile(file, {
+    purpose: 'vehicle',
+    uid: user.uid,
+    // El token se pide en cada intento, no una sola vez: si una tanda de
+    // diez fotos tarda más que la vigencia del token, Firebase lo renueva
+    // aquí de forma transparente en lugar de fallar a mitad.
+    getIdToken: () => user.getIdToken(),
+    onProgress,
   });
-  if (signRes.status === 401 || signRes.status === 403) {
-    throw new Error('No autorizado para subir archivos.');
-  }
-  if (!signRes.ok) throw new Error('No se pudo firmar la subida');
-  const { signature, timestamp, apiKey, cloudName, folder } = await signRes.json();
-
-  // 2. Subir el archivo con la firma — Cloudinary rechaza cualquier
-  // request cuya firma no coincida exactamente con estos parámetros.
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('api_key', apiKey);
-  formData.append('timestamp', timestamp);
-  formData.append('signature', signature);
-  formData.append('folder', folder);
-
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
-    method: 'POST',
-    body: formData
-  });
-  if (!res.ok) throw new Error('Cloudinary upload failed');
-  const data = await res.json();
-  return { url: data.secure_url, type: file.type.startsWith('video') ? 'video' : 'image' };
 }
 
-// Fase 1 — foto de perfil: mismo flujo firmado y seguro que las
-// imágenes de vehículos, pero con purpose:'profile'. El Worker exige
-// solo status:active (no role admin/editor) y fuerza folder/public_id
-// propios del uid verificado — un usuario nunca puede escribir en la
-// carpeta de vehículos ni en la foto de otro usuario.
+// Foto de perfil: mismo flujo firmado, con purpose:'profile'. El Worker
+// exige solo status:active (no rol admin/editor) y fuerza folder y
+// public_id derivados del uid verificado — un usuario nunca puede
+// escribir en la carpeta de vehículos ni sobre la foto de otro.
 async function uploadProfilePhoto(file) {
   const { user } = getCurrentUser();
   if (!user) throw new Error('Debes iniciar sesión para subir una foto.');
   if (!file.type.startsWith('image/')) throw new Error('El archivo debe ser una imagen.');
-  if (file.size > 5 * 1024 * 1024) throw new Error('La imagen no puede superar 5 MB.');
-
-  const idToken = await user.getIdToken();
-  const signRes = await fetch(CLOUDINARY_SIGN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-    body: JSON.stringify({ purpose: 'profile' }),
-  });
-  if (signRes.status === 401 || signRes.status === 403) {
-    throw new Error('No autorizado para subir tu foto — tu cuenta debe estar activa.');
+  if (file.size > PROFILE_PHOTO_MAX_MB * 1024 * 1024) {
+    throw new Error(`La imagen no puede superar ${PROFILE_PHOTO_MAX_MB} MB.`);
   }
-  if (!signRes.ok) throw new Error('No se pudo firmar la subida de la foto');
-  const { signature, timestamp, apiKey, cloudName, folder, publicId, overwrite } = await signRes.json();
-
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('api_key', apiKey);
-  formData.append('timestamp', timestamp);
-  formData.append('signature', signature);
-  formData.append('folder', folder);
-  formData.append('public_id', publicId);
-  formData.append('overwrite', String(overwrite));
-
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
-    method: 'POST',
-    body: formData,
+  const { url } = await LBMedia.uploadFile(file, {
+    purpose: 'profile',
+    uid: user.uid,
+    getIdToken: () => user.getIdToken(),
   });
-  if (!res.ok) throw new Error('No se pudo subir la foto a Cloudinary');
-  const data = await res.json();
-  return data.secure_url;
+  return url;
 }
+
 // ————— Preview local mientras suben —————
 let pendingFiles = []; // archivos originales para subir a Cloudinary
 // true cuando el admin dejó la lista de fotos vacía QUITÁNDOLAS él mismo
@@ -1866,9 +1819,21 @@ function updateImgLabel() {
     if (labelEl) { labelEl.style.opacity = '1'; labelEl.style.pointerEvents = 'auto'; }
   }
 }
-// Límites de tamaño — evita subidas gigantes que traben el flujo o llenen la cuota de Cloudinary
-const MAX_IMAGE_MB = 10;
+// ============================================================
+// LÍMITES DE TAMAÑO
+// ------------------------------------------------------------
+// El tope de las FOTOS subió de 10 MB a 25 MB porque ya no se sube el
+// archivo original: media-upload.js lo redimensiona a 1920 px y lo
+// recomprime en el navegador antes de salir (una foto de 12 MB acaba en
+// ~250 KB). El límite de 10 MB rechazaba fotos perfectamente válidas de
+// móviles actuales y era, en la práctica, un obstáculo para publicar.
+// Los VÍDEOS siguen en 50 MB: no se pueden recomprimir en el navegador
+// de forma razonable, así que el archivo viaja tal cual.
+const MAX_IMAGE_MB = 25;
 const MAX_VIDEO_MB = 50;
+// Foto de perfil — también se comprime antes de subir, así que el tope
+// es el del archivo de origen, no el del que llega a Cloudinary.
+const PROFILE_PHOTO_MAX_MB = 15;
 // Image upload handler — preview inmediato, sube a Cloudinary al publicar
 document.getElementById('pub-images').addEventListener('change', function() {
   let files = Array.from(this.files);
@@ -1887,8 +1852,8 @@ document.getElementById('pub-images').addEventListener('change', function() {
     // terminaba con una <img> que nunca podía renderizar. El atributo
     // `accept` del input no basta — el usuario puede saltárselo eligiendo
     // "todos los archivos" en el diálogo del sistema.
-    const isVideo = (file.type || '').startsWith('video/');
-    const isImage = (file.type || '').startsWith('image/') || isPreviewUnrenderable(file);
+    const isVideo = LBMedia.isVideoFile(file);
+    const isImage = LBMedia.isImageFile(file);
     if (!isVideo && !isImage) { wrongType.push(file.name); return false; }
     const limitMB = isVideo ? MAX_VIDEO_MB : MAX_IMAGE_MB;
     const okSize = file.size <= limitMB * 1024 * 1024;
@@ -1917,16 +1882,13 @@ document.getElementById('pub-images').addEventListener('change', function() {
 // la cámara del iPhone desde iOS 11 ("Alta Eficiencia"). Esto NO
 // significa que la foto esté dañada ni que la subida vaya a fallar —
 // Cloudinary sí decodifica y convierte HEIC correctamente en el
-// servidor (resolvePublishMedia sube item.file, el archivo original,
-// nunca esta preview). El problema era puramente de la vista previa
-// local, mostrando un "?" que parecía un error real.
-function isPreviewUnrenderable(file) {
-  if (!file) return false;
-  const type = (file.type || '').toLowerCase();
-  const name = (file.name || '').toLowerCase();
-  return type === 'image/heic' || type === 'image/heif' ||
-    name.endsWith('.heic') || name.endsWith('.heif');
-}
+// servidor. El problema era puramente de la vista previa local, que
+// mostraba un "?" con pinta de error real.
+// La detección vive en media-upload.js (allí decide además si la imagen
+// se puede comprimir en el navegador); aquí solo se reexporta con el
+// nombre que usa la vista previa.
+const isPreviewUnrenderable = file => LBMedia.isHeic(file);
+
 function renderImgPreview() {
   const container = document.getElementById('img-preview');
   container.innerHTML = '';
@@ -2041,6 +2003,12 @@ function validatePublishForm(form) {
 
 // Sube las fotos pendientes o reutiliza las existentes al editar sin
 // fotos nuevas. Lanza si alguna subida falla — el llamador decide qué hacer.
+//
+// Cada archivo ya subido guarda su `cloudUrl` en `pendingFiles`, así que
+// un segundo intento tras un corte NO vuelve a subir lo que ya está en
+// Cloudinary: continúa donde se quedó. Es la diferencia entre "se cayó la
+// conexión en la foto 8, vuelve a empezar desde la 1" y "pulsa Publicar
+// otra vez y termina en segundos".
 async function resolvePublishMedia(editId, onProgress, userClearedAll) {
   // Si el admin quitó a propósito todas las fotos al editar, debe quedarse
   // sin fotos. Antes, `pendingFiles.length === 0` se interpretaba siempre
@@ -2050,15 +2018,31 @@ async function resolvePublishMedia(editId, onProgress, userClearedAll) {
   if (pendingFiles.length === 0 && userClearedAll) return [];
   if (pendingFiles.length > 0) {
     const media = [];
-    for (let i = 0; i < pendingFiles.length; i++) {
-      const item = pendingFiles[i];
-      onProgress?.(i + 1, pendingFiles.length);
-      if (!item.cloudUrl) {
-        const result = await uploadToCloudinary(item.file);
-        item.cloudUrl = result.url;
-        item.type = result.type;
+    const total = pendingFiles.length;
+    // Mantiene la pantalla encendida mientras dura la tanda: en Android,
+    // bloquear el teléfono a mitad de la subida la congelaba y la
+    // publicación se quedaba a medias.
+    await LBMedia.acquireWakeLock();
+    try {
+      for (let i = 0; i < total; i++) {
+        const item = pendingFiles[i];
+        if (!item.cloudUrl) {
+          onProgress?.(i + 1, total, 0);
+          try {
+            const result = await uploadToCloudinary(item.file, percent => onProgress?.(i + 1, total, percent));
+            item.cloudUrl = result.url;
+            item.type = result.type;
+          } catch (error) {
+            // Se enriquece el error con la posición para que el mensaje
+            // diga QUÉ archivo falló, no un genérico inútil.
+            error.uploadContext = { index: i + 1, total, uploaded: i };
+            throw error;
+          }
+        }
+        media.push({ type: item.type, src: item.cloudUrl });
       }
-      media.push({ type: item.type, src: item.cloudUrl });
+    } finally {
+      LBMedia.releaseWakeLock();
     }
     return media;
   }
@@ -2146,13 +2130,31 @@ document.getElementById('publish-submit-btn').addEventListener('click', async ()
   try {
     let media;
     try {
-      media = await resolvePublishMedia(form.editId, (i, total) => {
+      media = await resolvePublishMedia(form.editId, (i, total, percent) => {
         const label = btn.querySelector('.btn-label') || btn;
-        label.textContent = `⏳ Subiendo foto ${i} de ${total}...`;
+        // El porcentaje real importa en móvil: sin él, una subida lenta
+        // pero sana se lee como "se colgó" y el usuario recarga la página
+        // a mitad de la publicación.
+        label.textContent = percent > 0
+          ? `⏳ Subiendo ${i} de ${total} · ${percent}%`
+          : `⏳ Subiendo ${i} de ${total}...`;
       }, mediaClearedByUser);
     } catch (e) {
       console.error('Error subiendo a Cloudinary:', e);
-      if (token === currentSaveToken) showToast('❌ Error subiendo fotos — intenta de nuevo');
+      if (token === currentSaveToken) {
+        const context = e.uploadContext;
+        const message = LBMedia.describeError(e, context);
+        showToast(message, 6000);
+        // Si algo ya llegó a Cloudinary, decirlo evita que el usuario
+        // piense que tiene que volver a seleccionar las diez fotos.
+        if (context && context.uploaded > 0) {
+          setTimeout(() => {
+            if (token === currentSaveToken) {
+              showToast(`ℹ️ ${context.uploaded} de ${context.total} ya se subieron — pulsa Publicar de nuevo para continuar`, 6000);
+            }
+          }, 6200);
+        }
+      }
       return; // el modal permanece abierto — el usuario no pierde lo que escribió
     }
     if (token !== currentSaveToken) return;
@@ -2678,13 +2680,13 @@ function showEmpresaPage(sectionId, push = true) {
   document.getElementById('main-page')?.classList.remove('page-hidden');
   catalog.classList.add('hidden');
   empresa.classList.remove('hidden');
-  // H1 contextual — ver EMPRESA_HERO_H1. heroTitleEl/heroSubtitleEl son
-  // el <h1>/<p> compartidos del hero, declarados más abajo en este mismo
-  // archivo (disponibles aquí porque solo se leen cuando esta función se
-  // EJECUTA, no cuando se define -- para entonces el script ya corrió
-  // completo).
-  if (typeof heroTitleEl !== 'undefined' && heroTitleEl) heroTitleEl.textContent = EMPRESA_HERO_H1[sectionId] || heroTitleEl.textContent;
-  if (typeof heroSubtitleEl !== 'undefined' && heroSubtitleEl) heroSubtitleEl.style.display = 'none';
+  // H1 contextual — ver EMPRESA_HERO_H1. El <h1>/<p> del hero se comparten
+  // con el carrusel, así que primero se le pide que deje de escribirlos:
+  // sin eso el autoplay sobrescribía el título de la sección a los 5,5 s
+  // y quedaba un H1 que no correspondía al contenido mostrado.
+  window.LBHero?.takeOverText();
+  if (heroTitleEl) heroTitleEl.textContent = EMPRESA_HERO_H1[sectionId] || heroTitleEl.textContent;
+  if (heroSubtitleEl) heroSubtitleEl.style.display = 'none';
   try {
     if (push && window.self === window.top && window.location.pathname !== `/empresa/${sectionId}`) {
       history.pushState({ empresa: sectionId }, '', `/empresa/${sectionId}`);
@@ -2712,18 +2714,10 @@ function hideEmpresaPage(push = true, skipScroll = false) {
   if (!empresa || !catalog) return;
   empresa.classList.add('hidden');
   catalog.classList.remove('hidden');
-  // Restaurar H1/subtítulo del hero al slide REALMENTE activo (no un
-  // texto fijo): el carrusel tiene 6 slides con título/subtítulo propio
-  // que rotan solos vía autoplay -- si el usuario pasó tiempo en Empresa,
-  // el slide activo pudo cambiar mientras tanto.
-  if (typeof slides !== 'undefined' && slides.length > 0) {
-    const active = slides[slideIdx];
-    if (heroTitleEl && active?.dataset.title) heroTitleEl.textContent = active.dataset.title;
-    if (heroSubtitleEl) {
-      if (active?.dataset.subtitle) heroSubtitleEl.textContent = active.dataset.subtitle;
-      heroSubtitleEl.style.display = '';
-    }
-  }
+  // Devolver el H1/subtítulo al carrusel, que los repinta con la
+  // diapositiva REALMENTE activa (no con un texto fijo): si el usuario
+  // pasó tiempo en Empresa, la diapositiva pudo cambiar mientras tanto.
+  window.LBHero?.releaseText();
   try {
     if (push && window.self === window.top && /^\/empresa\//.test(window.location.pathname)) {
       history.pushState(null, '', '/');
