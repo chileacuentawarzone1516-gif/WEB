@@ -530,8 +530,30 @@ async function dbRenderHistory() {
   if (window.lucide) window.lucide.createIcons();
 }
 
+// La barra de pestañas scrollea en horizontal cuando no caben todas.
+// Con rol de administración aparece una 6ª ("Mis Publicaciones") que en
+// un teléfono nace fuera del área visible: a 320 px empezaba en x=379.
+// Estas dos funciones la traen a la vista al activarse y muestran el
+// degradado que avisa de que la lista continúa. Es solo visibilidad —
+// no altera qué pestañas existen ni quién puede verlas.
+function dbUpdateTabsOverflow() {
+  const bar = document.querySelector('.db-tabs');
+  const wrap = document.querySelector('.db-tabs-wrap');
+  if (!bar || !wrap) return;
+  const more = bar.scrollWidth - bar.clientWidth - bar.scrollLeft > 4;
+  wrap.classList.toggle('has-overflow', more);
+}
+function dbScrollActiveTabIntoView() {
+  const active = document.querySelector('.db-tab.active');
+  if (!active || typeof active.scrollIntoView !== 'function') return;
+  try { active.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); }
+  catch (e) { active.scrollIntoView(); }
+}
+
 function dbSetTab(tab) {
   document.querySelectorAll('.db-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  dbScrollActiveTabIntoView();
+  dbUpdateTabsOverflow();
   document.getElementById('db-panel-resumen').classList.toggle('hidden', tab !== 'resumen');
   document.getElementById('db-panel-historial').classList.toggle('hidden', tab !== 'historial');
   document.getElementById('db-panel-perfil').classList.toggle('hidden', tab !== 'perfil');
@@ -587,6 +609,7 @@ async function openDashboardPage(push = true) {
   dbRenderQuickActions();
   dbRenderCards();
   dbSetTab('resumen');
+  dbUpdateTabsOverflow(); // el ancho real solo se conoce con el panel visible
   window.scrollTo(0, 0);
   try { if (push && window.self === window.top) history.pushState({ dashboard: true }, '', '/dashboard'); } catch (e) {}
 }
@@ -595,6 +618,9 @@ function closeDashboardPage(push = true) {
   document.getElementById('main-page').classList.remove('page-hidden');
   try { if (push && window.self === window.top) history.pushState(null, '', '/'); } catch (e) {}
 }
+
+document.querySelector('.db-tabs')?.addEventListener('scroll', dbUpdateTabsOverflow, { passive: true });
+window.addEventListener('resize', dbUpdateTabsOverflow);
 
 window.LB_DASHBOARD = { trackView: dbTrackView, open: openDashboardPage, close: closeDashboardPage };
 

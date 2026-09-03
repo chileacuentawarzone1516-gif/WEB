@@ -364,7 +364,9 @@ function openCalcModal(vehicle) {
   const overlay = document.getElementById('calc-modal-overlay');
   calcModalLastFocused = document.activeElement;
   overlay.classList.remove('hidden');
-  document.body.style.overflow = 'hidden';
+  // Contador compartido con app.js — evita desbloquear el fondo si
+  // todavía hay otro modal abierto (ver LB_SCROLL_LOCK en app.js).
+  window.LB_SCROLL_LOCK?.lock();
   requestAnimationFrame(() => {
     overlay.classList.add('open');
     document.getElementById('calc-modal-close')?.focus();
@@ -374,7 +376,7 @@ function openCalcModal(vehicle) {
 function closeCalcModal() {
   const overlay = document.getElementById('calc-modal-overlay');
   overlay.classList.remove('open');
-  document.body.style.overflow = '';
+  window.LB_SCROLL_LOCK?.unlock();
   setTimeout(() => overlay.classList.add('hidden'), 200);
   if (calcModalLastFocused && typeof calcModalLastFocused.focus === 'function') calcModalLastFocused.focus();
 }

@@ -48,6 +48,24 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 - El `slug` se genera UNA vez al crear el vehículo y es inmutable. `slugify()` existe en **app.js**, **scripts/generar-sitemap.js** y **netlify/edge-functions/vehicle-og.js**. Si cambias uno, cambia los tres.
 - La autorización ya no usa un UID fijo: `canManageVehicles()`/`canManageUsers()` en firestore.rules deben coincidir con `ROLE_PERMISSIONS` en roles.js — mismos roles (`customer`/`sales`/`editor`/`admin`) y mismos campos (`role`, `status`) en ambos lados.
 - Si agregas un dominio externo nuevo (CDN, API), añádelo a la CSP en `netlify.toml` o el navegador lo bloqueará.
+- **Barra de navegación en modo administración:** `updateAdminUI()` (app.js)
+  pone/quita la clase `.nav--admin` en el `<nav>` del catálogo según
+  `canManageVehicles()`. Los estilos responsive de esa barra viven en
+  `styles.css` y dependen de tres ganchos del HTML: `.nav-bar` (la fila),
+  `.nav-cats` (las categorías) y `.nav-actions` (Mi Cuenta + insignia +
+  Publicar). Si renombras o mueves alguno de esos contenedores, actualiza
+  también el bloque "MODO ADMINISTRADOR — CORRECCIÓN RESPONSIVE" de
+  `styles.css`, o en un teléfono el botón "Publicar" vuelve a salirse de
+  la pantalla (era el síntoma original). La clase es solo presentación:
+  la autorización real sigue siendo `firestore.rules`.
+- **Bloqueo del scroll de fondo de los modales:** un único contador
+  (`lockBodyScroll()`/`unlockBodyScroll()` en app.js, expuesto como
+  `window.LB_SCROLL_LOCK`) lo comparten el lightbox, el modal de
+  publicar/editar, el de eliminar y el de la calculadora
+  (`calculadora.js`). Todo modal nuevo debe usarlo en vez de tocar
+  `document.body.style.overflow` a mano: si un modal desbloquea por su
+  cuenta mientras otro sigue abierto, el fondo vuelve a desplazarse
+  debajo.
 - **Subpáginas de Empresa (`/empresa/*`):** cada sección de `EMPRESA_SECTIONS` (app.js) tiene su propio `title`/`description` en `EMPRESA_META` y su `canonical` se reescribe en tiempo real vía `setPageMeta()`. Si agregas una sección nueva al menú `#nav-empresa-menu`, súmala también a `EMPRESA_SECTIONS` y `EMPRESA_META`, o heredará el título genérico "Empresa". El `<h1>` del hero también cambia de texto al entrar a Empresa (`EMPRESA_HERO_H1`) y se restaura al slide del carrusel realmente activo al salir — si agregas una sección nueva, súmala también a ese mapa.
 - **FAQ de Empresa:** las preguntas de `#preguntas-frecuentes` (index.html) y el array `FAQ_ENTRIES` (app.js, usado para el schema `FAQPage`) deben mantenerse idénticos. El schema se inyecta/retira dinámicamente en `showEmpresaPage()`/`hideEmpresaPage()` para no exponerlo en páginas donde el contenido no existe (home, fichas de vehículo).
 - Cada vez que edites `app.js`, `calculadora.js`, `dashboard.js`, `styles.css` o `invite-modal.js`, incrementa el `?v=` de ese archivo en `index.html` (evita servir JS/CSS cacheado desacoplado del HTML nuevo). No hace falta subir el número de los archivos que no tocaste.

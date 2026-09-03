@@ -80,8 +80,8 @@
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
-<link rel="stylesheet" href="/styles.css?v=20260829">
-<link rel="stylesheet" href="/dashboard.css?v=20260825">
+<link rel="stylesheet" href="/styles.css?v=20260902">
+<link rel="stylesheet" href="/dashboard.css?v=20260902">
 </head>
 <body style="background: rgb(15, 23, 42);" class="w-full min-h-screen">
 
@@ -122,8 +122,8 @@
 <!-- MAIN PAGE -->
 <div id="main-page">
   <nav class="sticky top-0 z-30 shadow-md relative" style="background: rgb(30, 41, 59);">
-    <div class="max-w-6xl mx-auto flex items-center px-4 py-3 gap-3 relative">
-      <div class="flex items-center gap-4 md:gap-10 flex-1 justify-center">
+    <div class="nav-bar max-w-6xl mx-auto flex items-center px-4 py-3 gap-3 relative">
+      <div class="nav-cats flex items-center gap-4 md:gap-10 flex-1 justify-center">
         <a href="#sedanes" class="nav-cat-link whitespace-nowrap text-sm md:text-base" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;">Sedanes</a>
         <a href="#suvs" class="nav-cat-link whitespace-nowrap text-sm md:text-base" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;">SUVs</a>
         <a href="#pickups" class="nav-cat-link whitespace-nowrap text-sm md:text-base" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;">Camionetas</a>
@@ -143,7 +143,7 @@
         </div>
       </div>
       <!-- Cuenta / Favoritos + Admin badge + publish button -->
-      <div class="flex items-center gap-2 flex-shrink-0">
+      <div class="nav-actions flex items-center gap-2 flex-shrink-0">
         <button id="nav-account-btn" type="button" class="flex items-center gap-1.5 bg-slate-700/60 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg font-medium transition text-sm border border-white/5" aria-label="Mi cuenta y favoritos">
           <i data-lucide="user-circle" class="w-4 h-4 pointer-events-none"></i>
           <span class="hidden sm:inline">Mi Cuenta</span>
@@ -815,17 +815,17 @@
       </div>
       <div>
         <label class="text-slate-300 text-sm font-medium block mb-2">Etiquetas destacadas</label>
-        <div class="grid grid-cols-2 gap-2">
-          <label class="flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 cursor-pointer text-sm text-slate-300">
+        <div class="pub-tag-grid grid grid-cols-2 gap-2">
+          <label class="pub-tag-row flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 cursor-pointer text-sm text-slate-300">
             <input type="checkbox" id="pub-tag-financiamiento" class="pub-tag-cb accent-sky-500"> 💰 Financiamiento disponible
           </label>
-          <label class="flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 cursor-pointer text-sm text-slate-300">
+          <label class="pub-tag-row flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 cursor-pointer text-sm text-slate-300">
             <input type="checkbox" id="pub-tag-negociable" class="pub-tag-cb accent-sky-500"> 🤝 Negociable
           </label>
-          <label class="flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 cursor-pointer text-sm text-slate-300">
+          <label class="pub-tag-row flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 cursor-pointer text-sm text-slate-300">
             <input type="checkbox" id="pub-tag-unicodueno" class="pub-tag-cb accent-sky-500"> 👤 Único dueño
           </label>
-          <label class="flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 cursor-pointer text-sm text-slate-300">
+          <label class="pub-tag-row flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 cursor-pointer text-sm text-slate-300">
             <input type="checkbox" id="pub-tag-importado" class="pub-tag-cb accent-sky-500"> 🌎 Importado
           </label>
         </div>
@@ -1067,13 +1067,18 @@
       <div class="db-quick-grid" id="db-quick-grid"></div>
     </section>
 
-    <div class="db-tabs">
-      <button type="button" class="db-tab active" data-tab="resumen">Resumen</button>
-      <button type="button" class="db-tab" data-tab="historial">Historial</button>
-      <button type="button" class="db-tab" data-tab="favoritos">Favoritos</button>
-      <button type="button" class="db-tab" data-tab="cotizaciones">Cotizaciones</button>
-      <button type="button" class="db-tab" data-tab="perfil">Perfil</button>
-      <button type="button" class="db-tab hidden" data-tab="publicaciones" id="db-tab-publicaciones">Mis Publicaciones</button>
+    <!-- .db-tabs-wrap existe solo para pintar el degradado que avisa de
+         que la barra continúa hacia la derecha (ver dashboard.css); la
+         barra scrolleable sigue siendo .db-tabs. -->
+    <div class="db-tabs-wrap">
+      <div class="db-tabs" role="tablist" aria-label="Secciones del panel">
+        <button type="button" class="db-tab active" data-tab="resumen">Resumen</button>
+        <button type="button" class="db-tab" data-tab="historial">Historial</button>
+        <button type="button" class="db-tab" data-tab="favoritos">Favoritos</button>
+        <button type="button" class="db-tab" data-tab="cotizaciones">Cotizaciones</button>
+        <button type="button" class="db-tab" data-tab="perfil">Perfil</button>
+        <button type="button" class="db-tab hidden" data-tab="publicaciones" id="db-tab-publicaciones">Mis Publicaciones</button>
+      </div>
     </div>
 
     <section id="db-panel-resumen">
@@ -1384,11 +1389,11 @@
      incrementa ?v= en las 4 referencias para invalidar la caché del
      navegador de inmediato (evita ejecutar JS viejo con HTML nuevo). -->
 <script defer src="/roles.js?v=20260728"></script>
-<script defer src="/app.js?v=20260829"></script>
+<script defer src="/app.js?v=20260902"></script>
 <script defer src="/auth.js?v=20260728"></script>
 <script defer src="/auth-ui.js?v=20260728"></script>
 <script defer src="/invite-modal.js?v=20260811"></script>
-<script defer src="/calculadora.js?v=20260813"></script>
-<script defer src="/dashboard.js?v=20260825"></script>
+<script defer src="/calculadora.js?v=20260902"></script>
+<script defer src="/dashboard.js?v=20260902"></script>
 </body>
 </html>
