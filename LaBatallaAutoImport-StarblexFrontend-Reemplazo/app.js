@@ -1042,6 +1042,48 @@ document.querySelectorAll('a[href^="#"]').forEach(a => {
     }
   });
 });
+// ============================================================
+// BLOQUEO DE SCROLL DEL FONDO — helper único para TODOS los modales
+// ------------------------------------------------------------
+// Antes cada modal hacía `document.body.style.overflow = 'hidden'` por
+// su cuenta y lo limpiaba al cerrar. Dos problemas reales:
+//   1. En iOS Safari `overflow:hidden` sobre <body> NO detiene el
+//      scroll del fondo: al arrastrar dentro del formulario de
+//      publicación se movía el catálogo de detrás (scroll chaining) y
+//      al cerrar el modal el administrador aparecía en otro punto de
+//      la página. Se soluciona fijando el body y restaurando la
+//      posición exacta al desbloquear.
+//   2. Al cerrar un modal se desbloqueaba aunque siguiera abierto
+//      otro. El contador evita ese caso.
+// ============================================================
+let scrollLockCount = 0;
+let scrollLockY = 0;
+function lockBodyScroll() {
+  if (++scrollLockCount > 1) return;
+  scrollLockY = window.scrollY || window.pageYOffset || 0;
+  const b = document.body;
+  b.style.position = 'fixed';
+  b.style.top = `-${scrollLockY}px`;
+  b.style.left = '0';
+  b.style.right = '0';
+  b.style.width = '100%';
+  b.style.overflow = 'hidden';
+}
+function unlockBodyScroll() {
+  if (scrollLockCount === 0) return;
+  if (--scrollLockCount > 0) return;
+  const b = document.body;
+  b.style.position = '';
+  b.style.top = '';
+  b.style.left = '';
+  b.style.right = '';
+  b.style.width = '';
+  b.style.overflow = '';
+  window.scrollTo(0, scrollLockY);
+}
+// calculadora.js vive en otro archivo y necesita el mismo contador.
+window.LB_SCROLL_LOCK = { lock: lockBodyScroll, unlock: unlockBodyScroll };
+
 function updateAdminUI() {
   const { profile } = getCurrentUser();
   const canManage = canManageVehicles();
@@ -1049,6 +1091,10 @@ function updateAdminUI() {
   const badgeLabel = document.getElementById('admin-badge-label');
   const btn = document.getElementById('nav-publish-btn');
   const detailCtrl = document.getElementById('detail-admin-controls');
+  // El nav pasa de 1 a 3 controles a la derecha en modo administración.
+  // `.nav--admin` habilita en CSS el ajuste responsive de esa barra
+  // (ver styles.css). No cambia nada para el visitante normal.
+  document.querySelector('#main-page nav')?.classList.toggle('nav--admin', canManage);
 
   if (canManage) {
     badge.classList.add('show');
@@ -1449,14 +1495,14 @@ function openLightbox(idx) {
     lbImg.alt = `${lbName} — foto ${galleryIdx + 1} de ${galleryMedia.length} (ampliada)`;
   }
   lb.classList.add('open');
-  document.body.style.overflow = 'hidden';
+  lockBodyScroll();
 }
 function closeLightbox() {
   const lb = document.getElementById('lightbox');
   const lbVid = document.getElementById('lightbox-video');
   if (lb) lb.classList.remove('open');
   if (lbVid) { try { lbVid.pause(); lbVid.src = ''; } catch(e){} }
-  document.body.style.overflow = '';
+  unlockBodyScroll();
 }
 document.getElementById('lightbox-close')?.addEventListener('click', closeLightbox);
 document.getElementById('lightbox')?.addEventListener('click', e => { if (e.target === document.getElementById('lightbox')) closeLightbox(); });
@@ -1557,14 +1603,24 @@ let deleteOrigin = 'detail';
 function requestVehicleDelete(id, origin = 'dashboard') {
   pendingDeleteId = id;
   deleteOrigin = origin;
-  document.getElementById('delete-modal').classList.remove('hidden');
+  const modal = document.getElementById('delete-modal');
+  if (modal.classList.contains('hidden')) lockBodyScroll();
+  modal.classList.remove('hidden');
+}
+// Cierra #delete-modal liberando el bloqueo de scroll una sola vez,
+// se llame desde donde se llame (Cancelar, Escape o borrado correcto).
+function closeDeleteModal() {
+  const modal = document.getElementById('delete-modal');
+  if (modal.classList.contains('hidden')) return;
+  modal.classList.add('hidden');
+  unlockBodyScroll();
 }
 document.getElementById('detail-delete-btn').addEventListener('click', () => {
   if (!currentVehicleId) return;
   requestVehicleDelete(currentVehicleId, 'detail');
 });
 document.getElementById('delete-cancel-btn').addEventListener('click', () => {
-  document.getElementById('delete-modal').classList.add('hidden');
+  closeDeleteModal();
   pendingDeleteId = null;
 });
 document.getElementById('delete-confirm-btn').addEventListener('click', async () => {
@@ -1581,7 +1637,7 @@ document.getElementById('delete-confirm-btn').addEventListener('click', async ()
     const result = await removeVehicle(idToDelete, token);
     if (result.stale) return;
 
-    document.getElementById('delete-modal').classList.add('hidden');
+    closeDeleteModal();
     pendingDeleteId = null;
 
     if (!result.success) {
@@ -1680,6 +1736,10 @@ function openPublishModal(vehicle) {
     document.getElementById('pub-tag-unicodueno').checked = false;
     document.getElementById('pub-tag-importado').checked = false;
   }
+  // Solo bloquea si venía cerrado: openPublishModal() puede llamarse
+  // sobre un modal ya abierto (editar otro vehículo) y el contador no
+  // debe descuadrarse.
+  if (modal.classList.contains('hidden')) lockBodyScroll();
   modal.classList.remove('hidden');
   populateYears('pub-year');
   if (vehicle) document.getElementById('pub-year').value = vehicle.year || '';
@@ -2121,7 +2181,9 @@ document.getElementById('publish-submit-btn').addEventListener('click', async ()
 });
 // Limpiar pendingFiles al cerrar modal
 function closePublishModal() {
-  document.getElementById('publish-modal').classList.add('hidden');
+  const modal = document.getElementById('publish-modal');
+  if (!modal.classList.contains('hidden')) unlockBodyScroll();
+  modal.classList.add('hidden');
   revokePendingObjectUrls();
   pendingFiles = [];
   mediaClearedByUser = false;

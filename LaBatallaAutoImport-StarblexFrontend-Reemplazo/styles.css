@@ -256,3 +256,169 @@ footer a, #empresa-page a.inline-flex, #contacto a:not([class*="rounded"]) {
   }
   .scroll-section > * { width: 100%; min-width: 0; flex-shrink: unset; scroll-snap-align: unset; }
 }
+
+/* ============================================================
+   MODO ADMINISTRADOR — CORRECCIÓN RESPONSIVE (móvil / tablet)
+   ------------------------------------------------------------
+   Auditado en Chromium real a 320, 360, 375, 390, 412, 430, 768 y
+   1280 px con sesión de rol `admin` simulada.
+
+   CAUSA RAÍZ del problema principal: con sesión de administrador el
+   nav pasa de 1 control a 3 (Mi Cuenta + insignia ADMIN + Publicar
+   = ~136 px en móvil). El contenedor de categorías es un flex item
+   `flex-1` cuyo `min-width` por defecto es `auto`, así que NO puede
+   encogerse por debajo de su contenido (~260 px a 320 px) y los
+   enlaces son `whitespace-nowrap`. Resultado medido: el nav ocupaba
+   408 px en una pantalla de 320 (y 776 en una de 768), es decir el
+   botón "Publicar" quedaba ENTERO fuera de la pantalla, sin forma de
+   pulsarlo. Además, al desbordarse el documento, Chrome móvil amplía
+   el viewport de referencia de los elementos `position:fixed`: los
+   modales de publicar y eliminar se dibujaban más anchos que la
+   pantalla y aparecían recortados.
+
+   SOLUCIÓN: permitir que la barra envuelva SOLO cuando hay controles
+   de administración. `flex-wrap` únicamente parte la línea si el
+   contenido no cabe, así que en escritorio (donde sí cabe) el
+   resultado es idéntico al actual, y para el visitante sin sesión de
+   administrador la clase `.nav--admin` ni siquiera existe.
+============================================================ */
+.nav--admin .nav-bar { flex-wrap: wrap; row-gap: 8px; }
+/* Cuando la barra parte en dos líneas, el grupo de acciones queda solo
+   en la segunda: `margin-left:auto` lo mantiene alineado a la derecha,
+   igual que en una sola línea (donde .nav-cats es flex-1 y ya lo
+   empuja, por lo que esta regla es inocua). */
+.nav--admin .nav-actions { margin-left: auto; }
+
+/* Los anclajes de categoría se compensan con la altura real del nav;
+   en modo administración es más alto al partirse en dos líneas. */
+@media (max-width: 1023px) {
+  #main-page:has(.nav--admin) #sedanes,
+  #main-page:has(.nav--admin) #suvs,
+  #main-page:has(.nav--admin) #pickups { scroll-margin-top: 128px; }
+}
+
+/* ————————————————————————————————————————————————
+   MODAL PUBLICAR / EDITAR VEHÍCULO
+   ———————————————————————————————————————————————— */
+@media (max-width: 1023px) {
+  /* `max-h-[90vh]` mide contra el viewport GRANDE (barra de
+     direcciones oculta). Con la barra visible —el estado normal— el
+     90 % calculado sobrepassa la zona visible y el final del
+     formulario, incluidos "Publicar"/"Cancelar", quedaba por debajo
+     del borde de la pantalla. `dvh` mide el viewport realmente
+     visible; el `vh` anterior queda como respaldo para navegadores
+     sin soporte. Selector con ID → gana a la utilidad de Tailwind sin
+     necesitar !important. */
+  #publish-modal > div {
+    max-height: calc(100vh - 48px);
+    max-height: calc(100dvh - 48px);
+  }
+  /* Espacio para el indicador de inicio / gestos del sistema, para que
+     el último campo no quede debajo de él. */
+  #publish-modal > div > div:last-child {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* La "X" de cerrar medía 20×20 px: por debajo del mínimo táctil. Se
+     amplía el área pulsable sin mover el icono ni el diseño. */
+  #publish-close-btn {
+    min-width: 44px; min-height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+    margin: -10px -10px -10px 0;
+  }
+
+  /* Campos cómodos de tocar. 16 px de fuente es además el umbral por
+     debajo del cual iOS Safari hace zoom automático al enfocar un
+     campo (y deja la página desplazada de lado al salir). */
+  #publish-modal input:not([type="checkbox"]):not([type="file"]),
+  #publish-modal select,
+  #publish-modal textarea {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  #publish-modal textarea { min-height: 88px; }
+
+  /* #pub-price convive con el selector de moneda dentro de un flex row.
+     Como flex item hereda `min-width: auto`, que equivale a su ancho
+     intrínseco de campo (~233 px a 16 px de fuente): no se encogía y a
+     320-360 px se salía de la tarjeta. `min-width: 0` le devuelve la
+     capacidad de encogerse; `flex-1` sigue repartiendo el resto. */
+  #pub-price { min-width: 0; }
+
+  /* Etiquetas destacadas: la casilla medía 13×13 px y la fila 40 px. */
+  #publish-modal .pub-tag-cb { width: 20px; height: 20px; flex-shrink: 0; }
+  #publish-modal .pub-tag-cb + * { min-width: 0; }
+  #publish-modal .pub-tag-row { min-height: 44px; line-height: 1.25; }
+
+  /* Botones de acción: alto táctil y "Cancelar" con ancho suficiente
+     para no quedar como un objetivo estrecho al lado del principal. */
+  #publish-submit-btn, #publish-cancel-btn { min-height: 48px; }
+  #publish-cancel-btn { min-width: 96px; }
+
+  /* Quitar una foto del carrusel de vista previa era un objetivo de
+     20×20 px sobre la propia miniatura. */
+  .img-preview-grid .remove-img { width: 28px; height: 28px; font-size: 15px; }
+
+  /* Las listas desplegables de marca/color no deben tapar el resto del
+     formulario cuando el teclado virtual reduce el alto disponible. */
+  #brand-dropdown, #color-dropdown { max-height: 40vh; max-height: 40dvh; }
+  /* Cada opción medía 37 px de alto (px-3 py-2 sobre texto de 14 px):
+     elegir la marca correcta de una lista larga con el pulgar era
+     propenso a fallos. Solo cambia el alto de la fila, no el diseño. */
+  #brand-dropdown [role="option"], #color-dropdown [role="option"] {
+    min-height: 44px; display: flex; align-items: center;
+  }
+}
+
+/* A partir de ~400 px de ancho las dos columnas de etiquetas
+   destacadas caben; por debajo el texto se parte en 3-4 líneas y
+   descuadra la rejilla. */
+@media (max-width: 399px) {
+  #publish-modal .pub-tag-grid { grid-template-columns: 1fr; }
+}
+
+/* ————————————————————————————————————————————————
+   MODAL DE CONFIRMACIÓN DE BORRADO
+   ———————————————————————————————————————————————— */
+@media (max-width: 1023px) {
+  #delete-confirm-btn, #delete-cancel-btn { min-height: 48px; }
+  #delete-modal > div { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ————————————————————————————————————————————————
+   CONTROLES DE ADMINISTRACIÓN DE LA FICHA DE VEHÍCULO
+   (#detail-admin-controls: Editar / Eliminar)
+   ———————————————————————————————————————————————— */
+@media (max-width: 1023px) {
+  #detail-admin-controls { flex-wrap: wrap; }
+  /* Reparto a partes iguales del ancho disponible: dos objetivos
+     grandes y simétricos en vez de dos botones estrechos pegados. */
+  #detail-edit-btn, #detail-delete-btn {
+    flex: 1 1 0; min-width: 0; justify-content: center;
+  }
+}
+
+/* Por debajo de 768 px el overlay usa márgenes más ajustados
+   (12 px arriba / 6 px abajo, ver el bloque MOBILE REDESIGN), así que
+   el alto disponible para la tarjeta es mayor que en tablet. */
+@media (max-width: 767px) {
+  #publish-modal > div {
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+}
+
+/* ————————————————————————————————————————————————
+   MODAL "MI CUENTA" — es la puerta de entrada del administrador
+   (iniciar sesión) además del panel de favoritos del visitante.
+   Sus campos usaban `text-sm` (14 px): por debajo de 16 px iOS Safari
+   hace zoom al enfocar y deja la página desplazada en horizontal al
+   salir del campo. Alto táctil unificado con el resto de formularios.
+   ———————————————————————————————————————————————— */
+@media (max-width: 1023px) {
+  #account-panel-login input:not([type="checkbox"]) { font-size: 16px; min-height: 44px; }
+  #auth-submit-btn, #auth-google-btn, #auth-reset-submit-btn,
+  #auth-goto-dashboard-btn, #auth-logout-btn { min-height: 44px; }
+  .account-tab { min-height: 44px; }
+  #account-modal > div { margin-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+}

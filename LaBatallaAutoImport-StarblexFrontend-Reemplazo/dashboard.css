@@ -256,7 +256,7 @@
   .db-hist-item img, .db-skeleton-thumb, .db-quote-icon { width: 36px; height: 36px; }
   .db-section-block { margin-top: 20px; padding-top: 18px; }
   /* Botones más cómodos al tacto (mínimo ~44px de alto recomendado) */
-  .db-profile-form input, .db-profile-form select { padding-top: 11px; padding-bottom: 11px; font-size: 14px; }
+  .db-profile-form input, .db-profile-form select { padding-top: 11px; padding-bottom: 11px; }
   #db-profile-save-btn, #db-change-password-btn, #db-pref-save-btn { width: 100%; padding-top: 13px; padding-bottom: 13px; justify-self: stretch; }
   .db-remove-btn { width: 40px; height: 40px; }
   .db-edit-btn { width: 40px; height: 40px; }
@@ -266,4 +266,78 @@
     height: 44px;
   }
   .db-empty { padding: 28px 16px; }
+}
+
+/* ============================================================
+   AUDITORÍA MÓVIL DEL MODO ADMINISTRADOR — correcciones
+   ------------------------------------------------------------
+   Medido en Chromium real a 320/360/375/390/412/430/768/1280 px con
+   un perfil de rol `admin`. Todo lo de aquí es tamaño/posición: no
+   toca la lógica de permisos, ni Firestore, ni el CRUD.
+============================================================ */
+
+/* `100vh` en móvil equivale al viewport GRANDE (barra de direcciones
+   oculta), así que el panel reservaba más alto del visible y el pie
+   quedaba bajo el borde de la pantalla. `dvh` mide el visible real;
+   la línea `vh` anterior sigue como respaldo. */
+#dashboard-page { min-height: 100dvh; }
+
+/* Aire inferior para el indicador de inicio/gestos de iOS y Android. */
+#dashboard-page > .max-w-6xl { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+
+/* ————— Barra superior del panel —————
+   "Volver al catálogo" medía 137×20 px y "Cerrar sesión" 36×36 px
+   (con la etiqueta oculta por debajo de 480 px): ambos por debajo del
+   objetivo táctil mínimo. Se amplía el área pulsable sin mover nada
+   de sitio ni cambiar el aspecto. */
+.db-back-btn { min-height: 44px; padding: 4px 6px 4px 0; margin-left: -6px; }
+.db-logout-btn { min-height: 44px; }
+@media (max-width: 480px) {
+  .db-logout-btn { min-width: 44px; justify-content: center; }
+}
+
+/* ————— Botones de fila de "Mis Publicaciones" (editar/eliminar) —————
+   Solo se agrandaban por debajo de 480 px, así que entre 481 y 767 px
+   (móviles grandes en horizontal, plegables y tablets en vertical)
+   seguían midiendo 34×34 px. Se unifica en todo el rango táctil. */
+@media (max-width: 1023px) {
+  .db-edit-btn, .db-remove-btn { width: 44px; height: 44px; }
+}
+
+/* Un nombre de vehículo largo sin espacios desbordaba su columna en
+   las filas del historial y de "Mis Publicaciones". */
+.db-hist-item-name, .db-hist-item-meta { overflow-wrap: anywhere; }
+
+/* ————— Pestañas del panel —————
+   Con rol de administración aparece una 6ª pestaña ("Mis
+   Publicaciones") que en móvil queda fuera del área visible de la
+   barra: a 320 px empezaba en x=379 px. La barra ya scrollea en
+   horizontal, pero no había ninguna señal de que hubiera más
+   contenido ni la pestaña activa se traía a la vista (eso último se
+   resuelve en dashboard.js). Aquí se añade el degradado que indica
+   que la lista continúa y un margen de scroll para que la pestaña
+   activa nunca quede pegada al borde. */
+.db-tabs { scroll-padding-inline: 16px; position: relative; }
+/* Las pestañas medían 41 px de alto: justo por debajo del objetivo
+   táctil mínimo recomendado. El diseño no cambia, solo el área
+   pulsable (el subrayado de la activa sigue en el borde inferior). */
+@media (max-width: 1023px) {
+  .db-tab { min-height: 44px; padding-inline: 8px; }
+}
+.db-tabs-wrap { position: relative; }
+.db-tabs-wrap::after {
+  content: ''; position: absolute; top: 0; right: 0; bottom: 1px; width: 28px;
+  pointer-events: none; opacity: 0; transition: opacity 0.2s;
+  background: linear-gradient(to right, rgba(15,23,42,0), rgb(15,23,42));
+}
+.db-tabs-wrap.has-overflow::after { opacity: 1; }
+
+/* ————— Formularios del panel —————
+   Por debajo de 16 px de fuente, iOS Safari hace zoom automático al
+   enfocar un campo y la página queda desplazada en horizontal al
+   salir. Los campos del perfil estaban fijados a 14 px. */
+@media (max-width: 1023px) {
+  .db-profile-form input, .db-profile-form select, .db-profile-form textarea {
+    font-size: 16px; min-height: 44px;
+  }
 }
