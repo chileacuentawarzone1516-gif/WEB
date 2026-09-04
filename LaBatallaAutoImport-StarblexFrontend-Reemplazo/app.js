@@ -2242,6 +2242,38 @@ const BRAND_LOGO_MAP = {
   'Fiat': { slug: 'fiat', initial: 'FT', color: '#941711' },
   'Opel': { slug: 'opel', initial: 'OP', color: '#F7A800' },
 };
+// Convierte el color de marca (#RGB o #RRGGBB) en un tinte translúcido. El
+// color crudo no servía de fondo: los muchos negros del mapa desaparecían
+// sobre la tarjeta oscura y esas marcas parecían un hueco.
+function brandTint(hex, alpha) {
+  let h = String(hex || '').replace('#', '');
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  if (h.length !== 6 || /[^0-9a-f]/i.test(h)) return `rgba(56,189,248,${alpha})`;
+  const n = parseInt(h, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+
+// Marco de la marca: logo e iniciales comparten caja, fondo y borde. Antes
+// eran dos piezas visuales distintas —un símbolo blanco suelto frente a un
+// cuadro de color saturado—, así que el grid parecía roto en cuanto alguna
+// marca faltaba en el CDN, que es lo habitual con los fabricantes.
+function crearMarcaVisual(meta, brand) {
+  const mark = document.createElement('div');
+  mark.className = 'brand-mark';
+  mark.setAttribute('aria-hidden', 'true'); // el <button> ya lleva aria-label
+  mark.style.setProperty('--brand-tint', brandTint(meta.color, 0.38));
+  const ponerIniciales = () => { mark.textContent = meta.initial || brand.charAt(0); };
+  if (!meta.slug) { ponerIniciales(); return mark; }
+  const logo = document.createElement('img');
+  logo.src = `https://cdn.jsdelivr.net/npm/simple-icons@v13/icons/${meta.slug}.svg`;
+  logo.alt = '';
+  logo.loading = 'lazy';
+  logo.decoding = 'async';
+  logo.addEventListener('error', () => { logo.remove(); ponerIniciales(); }, { once: true });
+  mark.appendChild(logo);
+  return mark;
+}
+
 function renderBrandLogoFilter() {
   const grid = document.getElementById('brand-logo-grid');
   if (!grid) return;
@@ -2264,32 +2296,12 @@ function renderBrandLogoFilter() {
     card.dataset.brand = brand;
     card.setAttribute('aria-pressed', 'false');
     card.setAttribute('aria-label', `Filtrar por ${brand} (${count} ${count === 1 ? 'vehículo' : 'vehículos'})`);
-    if (meta.slug) {
-      // El respaldo del logo se resuelve con un listener, no con un atributo
-      // onerror inline que anidaba comillas escapadas dentro de HTML dentro
-      // de JS: era ilegible y se rompía con cualquier dato inesperado.
-      const logo = document.createElement('img');
-      logo.src = `https://cdn.jsdelivr.net/npm/simple-icons@v13/icons/${meta.slug}.svg`;
-      logo.alt = '';
-      logo.setAttribute('aria-hidden', 'true');
-      logo.addEventListener('error', () => {
-        const ph = document.createElement('div');
-        ph.style.cssText = `width:36px;height:36px;border-radius:9px;background:${meta.color};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;`;
-        ph.textContent = meta.initial;
-        logo.replaceWith(ph);
-      }, { once: true });
-      card.appendChild(logo);
-      const nm = document.createElement('span');
-      nm.className = 'brand-name'; nm.textContent = brand;
-      const ct = document.createElement('span');
-      ct.className = 'brand-count'; ct.textContent = `${count} ${count === 1 ? 'auto' : 'autos'}`;
-      card.appendChild(nm); card.appendChild(ct);
-    } else {
-      card.innerHTML = `
-        <div style="width:36px;height:36px;border-radius:9px;background:${meta.color};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;">${escapeHtml(meta.initial)}</div>
-        <span class="brand-name">${escapeHtml(brand)}</span>
-        <span class="brand-count">${count} ${count === 1 ? 'auto' : 'autos'}</span>`;
-    }
+    card.appendChild(crearMarcaVisual(meta, brand));
+    const nm = document.createElement('span');
+    nm.className = 'brand-name'; nm.textContent = brand;
+    const ct = document.createElement('span');
+    ct.className = 'brand-count'; ct.textContent = `${count} ${count === 1 ? 'auto' : 'autos'}`;
+    card.appendChild(nm); card.appendChild(ct);
     card.addEventListener('click', () => {
       const isActive = card.classList.contains('active');
       document.querySelectorAll('.brand-logo-card').forEach(c => {

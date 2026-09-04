@@ -18,9 +18,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://images.pexels.com">
   <link rel="preconnect" href="https://firestore.googleapis.com">
+  <!-- gstatic sirve los 4 SDK de Firebase y jsdelivr los iconos: son los
+       scripts mas pesados del arranque y no tenian preconnect, asi que se
+       pagaba DNS+TLS de ambos en el camino critico. -->
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <!-- ⚠️ HERO/CLOUDINARY: esta URL debe ser SIEMPRE la misma que la primera
        imagen del slideshow del hero (ver bloque marcado en el <header>). -->
-  <link rel="preload" as="image" fetchpriority="high" href="https://images.pexels.com/photos/16176576/pexels-photo-16176576.jpeg?auto=compress&cs=tinysrgb&w=1280">
+  <link rel="preload" as="image" fetchpriority="high" href="https://images.pexels.com/photos/16176576/pexels-photo-16176576.jpeg?auto=compress&cs=tinysrgb&w=1280"
+        imagesrcset="https://images.pexels.com/photos/16176576/pexels-photo-16176576.jpeg?auto=compress&cs=tinysrgb&w=640 640w, https://images.pexels.com/photos/16176576/pexels-photo-16176576.jpeg?auto=compress&cs=tinysrgb&w=960 960w, https://images.pexels.com/photos/16176576/pexels-photo-16176576.jpeg?auto=compress&cs=tinysrgb&w=1280 1280w" imagesizes="100vw">
 
   <!-- Open Graph — preview al compartir en WhatsApp / Facebook / Instagram -->
   <meta property="og:type" content="website">
@@ -75,7 +81,7 @@
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
-<link rel="stylesheet" href="/styles.css?v=20260904">
+<link rel="stylesheet" href="/styles.css?v=20260904b">
 <link rel="stylesheet" href="/dashboard.css?v=20260902">
 </head>
 <body style="background: rgb(15, 23, 42);" class="w-full min-h-screen">
@@ -165,12 +171,12 @@
            (marcado con el mismo aviso) con la URL de la PRIMERA imagen.
         Mientras tanto se usan fotos de stock de Pexels (temporal).
       ════════════════════════════════════════════════════════ -->
-      <img data-fallback="hide" class="slide active w-full h-full object-cover" fetchpriority="high" src="https://images.pexels.com/photos/16176576/pexels-photo-16176576.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Vehículos en exhibición en La Batalla Auto Import" data-title="Tu Próximo Vehículo Te Espera" data-subtitle="Sedanes, SUVs y Camionetas al mejor precio">
-      <img data-fallback="hide" class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/11205815/pexels-photo-11205815.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Sedán deportivo disponible en el inventario" data-title="Sedanes Elegantes Para Cada Trayecto" data-subtitle="Diseño, tecnología y eficiencia en un solo vehículo">
-      <img data-fallback="hide" class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/19908577/pexels-photo-19908577.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="SUV familiar en venta" data-title="SUVs Espaciosas Para Toda la Familia" data-subtitle="Comodidad y seguridad en cada kilómetro">
-      <img data-fallback="hide" class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/16419610/pexels-photo-16419610.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Camioneta pickup de trabajo y aventura" data-title="Camionetas Listas Para el Trabajo y la Aventura" data-subtitle="Potencia y versatilidad cuando más las necesitas">
-      <img data-fallback="hide" class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/395537/pexels-photo-395537.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Patio de vehículos del dealer" data-title="Amplio Inventario, Siempre Actualizado" data-subtitle="Nuevos vehículos cada semana en Santo Domingo">
-      <img data-fallback="hide" class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/29566862/pexels-photo-29566862.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Sedán de lujo exhibido en showroom elegante" data-title="Compra con Confianza y Financiamiento a tu Medida" data-subtitle="Te acompañamos en cada paso de tu compra">
+      <img data-fallback="hide" class="slide active w-full h-full object-cover" fetchpriority="high" decoding="async" src="https://images.pexels.com/photos/16176576/pexels-photo-16176576.jpeg?auto=compress&cs=tinysrgb&w=1280" srcset="https://images.pexels.com/photos/16176576/pexels-photo-16176576.jpeg?auto=compress&cs=tinysrgb&w=640 640w, https://images.pexels.com/photos/16176576/pexels-photo-16176576.jpeg?auto=compress&cs=tinysrgb&w=960 960w, https://images.pexels.com/photos/16176576/pexels-photo-16176576.jpeg?auto=compress&cs=tinysrgb&w=1280 1280w" sizes="100vw" alt="Vehículos en exhibición en La Batalla Auto Import" data-title="Tu Próximo Vehículo Te Espera" data-subtitle="Sedanes, SUVs y Camionetas al mejor precio">
+      <img data-fallback="hide" class="slide w-full h-full object-cover" loading="lazy" decoding="async" fetchpriority="low" src="https://images.pexels.com/photos/11205815/pexels-photo-11205815.jpeg?auto=compress&cs=tinysrgb&w=1280" srcset="https://images.pexels.com/photos/11205815/pexels-photo-11205815.jpeg?auto=compress&cs=tinysrgb&w=640 640w, https://images.pexels.com/photos/11205815/pexels-photo-11205815.jpeg?auto=compress&cs=tinysrgb&w=960 960w, https://images.pexels.com/photos/11205815/pexels-photo-11205815.jpeg?auto=compress&cs=tinysrgb&w=1280 1280w" sizes="100vw" alt="Sedán deportivo disponible en el inventario" data-title="Sedanes Elegantes Para Cada Trayecto" data-subtitle="Diseño, tecnología y eficiencia en un solo vehículo">
+      <img data-fallback="hide" class="slide w-full h-full object-cover" loading="lazy" decoding="async" fetchpriority="low" src="https://images.pexels.com/photos/19908577/pexels-photo-19908577.jpeg?auto=compress&cs=tinysrgb&w=1280" srcset="https://images.pexels.com/photos/19908577/pexels-photo-19908577.jpeg?auto=compress&cs=tinysrgb&w=640 640w, https://images.pexels.com/photos/19908577/pexels-photo-19908577.jpeg?auto=compress&cs=tinysrgb&w=960 960w, https://images.pexels.com/photos/19908577/pexels-photo-19908577.jpeg?auto=compress&cs=tinysrgb&w=1280 1280w" sizes="100vw" alt="SUV familiar en venta" data-title="SUVs Espaciosas Para Toda la Familia" data-subtitle="Comodidad y seguridad en cada kilómetro">
+      <img data-fallback="hide" class="slide w-full h-full object-cover" loading="lazy" decoding="async" fetchpriority="low" src="https://images.pexels.com/photos/16419610/pexels-photo-16419610.jpeg?auto=compress&cs=tinysrgb&w=1280" srcset="https://images.pexels.com/photos/16419610/pexels-photo-16419610.jpeg?auto=compress&cs=tinysrgb&w=640 640w, https://images.pexels.com/photos/16419610/pexels-photo-16419610.jpeg?auto=compress&cs=tinysrgb&w=960 960w, https://images.pexels.com/photos/16419610/pexels-photo-16419610.jpeg?auto=compress&cs=tinysrgb&w=1280 1280w" sizes="100vw" alt="Camioneta pickup de trabajo y aventura" data-title="Camionetas Listas Para el Trabajo y la Aventura" data-subtitle="Potencia y versatilidad cuando más las necesitas">
+      <img data-fallback="hide" class="slide w-full h-full object-cover" loading="lazy" decoding="async" fetchpriority="low" src="https://images.pexels.com/photos/395537/pexels-photo-395537.jpeg?auto=compress&cs=tinysrgb&w=1280" srcset="https://images.pexels.com/photos/395537/pexels-photo-395537.jpeg?auto=compress&cs=tinysrgb&w=640 640w, https://images.pexels.com/photos/395537/pexels-photo-395537.jpeg?auto=compress&cs=tinysrgb&w=960 960w, https://images.pexels.com/photos/395537/pexels-photo-395537.jpeg?auto=compress&cs=tinysrgb&w=1280 1280w" sizes="100vw" alt="Patio de vehículos del dealer" data-title="Amplio Inventario, Siempre Actualizado" data-subtitle="Nuevos vehículos cada semana en Santo Domingo">
+      <img data-fallback="hide" class="slide w-full h-full object-cover" loading="lazy" decoding="async" fetchpriority="low" src="https://images.pexels.com/photos/29566862/pexels-photo-29566862.jpeg?auto=compress&cs=tinysrgb&w=1280" srcset="https://images.pexels.com/photos/29566862/pexels-photo-29566862.jpeg?auto=compress&cs=tinysrgb&w=640 640w, https://images.pexels.com/photos/29566862/pexels-photo-29566862.jpeg?auto=compress&cs=tinysrgb&w=960 960w, https://images.pexels.com/photos/29566862/pexels-photo-29566862.jpeg?auto=compress&cs=tinysrgb&w=1280 1280w" sizes="100vw" alt="Sedán de lujo exhibido en showroom elegante" data-title="Compra con Confianza y Financiamiento a tu Medida" data-subtitle="Te acompañamos en cada paso de tu compra">
     </div>
     <div class="absolute inset-0 bg-black/50"></div>
     <!-- Logo de marca — esquina superior izquierda del hero. Imagen
@@ -181,7 +187,7 @@
          siempre visible en la carga inicial. -->
     <img id="hero-brand-logo" src="/logo-hero.png" width="360" height="360"
       alt="La Batalla Auto Import" fetchpriority="low" data-fallback="hide">
-    <div class="relative z-10 text-center px-4 flex flex-col items-center gap-6" id="hero-text-wrap" style="transition:opacity 0.5s ease;">
+    <div class="relative z-10 text-center px-4 flex flex-col items-center gap-6" id="hero-text-wrap" style="transition:opacity 0.25s ease;">
       <h1 id="hero-title" class="font-black mb-4" style="color:#fff; font-size:44px; line-height:1.1; text-shadow:0 2px 20px rgba(0,0,0,0.4); letter-spacing:-0.5px;">Tu Próximo Vehículo Te Espera</h1>
       <p id="hero-subtitle" style="color:rgb(226,232,240); font-size:20px; font-weight:500;">Sedanes, SUVs y Camionetas al mejor precio</p>
     </div>
@@ -190,10 +196,10 @@
     <div id="hero-dots" class="hero-dots" role="tablist" aria-label="Seleccionar diapositiva"></div>
     <!-- WCAG 2.2.2 (Pause, Stop, Hide): todo contenido que se mueve solo
          durante más de 5 s necesita un control explícito para detenerlo.
-         El carrusel también se pausa con el puntero encima, con el foco
-         dentro y mientras se desliza con el dedo, pero eso no sustituye
-         al botón: un usuario que solo quiere leer el titular necesita
-         poder congelarlo sin mantener el ratón quieto. -->
+         Este botón ES ese control: el carrusel ya no se pausa al pasar el
+         ratón por encima (dejaba la portada congelada en escritorio), así
+         que quien solo quiere leer el titular lo congela aquí. El foco de
+         teclado y el gesto táctil sí lo detienen mientras duran. -->
     <button type="button" id="hero-toggle" class="hero-toggle" aria-pressed="false" aria-label="Pausar el carrusel" title="Pausar el carrusel">
       <span class="hero-toggle__pause" aria-hidden="true"></span>
       <span class="hero-toggle__play" aria-hidden="true"></span>
@@ -1058,10 +1064,10 @@
 <!-- Versionado de caché: al modificar app.js, calculadora.js o los CSS,
      incrementa ?v= en las 4 referencias para invalidar la caché del
      navegador de inmediato (evita ejecutar JS viejo con HTML nuevo). -->
-<script defer src="/hero-carousel.js?v=20260904"></script>
+<script defer src="/hero-carousel.js?v=20260904b"></script>
 <script defer src="/media-upload.js?v=20260903"></script>
 <script defer src="/roles.js?v=20260728"></script>
-<script defer src="/app.js?v=20260904"></script>
+<script defer src="/app.js?v=20260904b"></script>
 <script defer src="/auth.js?v=20260728"></script>
 <script defer src="/auth-ui.js?v=20260728"></script>
 <script defer src="/invite-modal.js?v=20260811"></script>
