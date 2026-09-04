@@ -42,10 +42,12 @@ function showDataLoadError() {
     <i data-lucide="wifi-off" style="width:48px;height:48px;color:#f87171;margin:0 auto 16px;"></i>
     <p style="color:#f1f5f9;font-weight:700;font-size:16px;margin-bottom:8px;">No pudimos cargar el inventario</p>
     <p style="color:#94a3b8;font-size:13px;margin-bottom:20px;line-height:1.5;">Verifica tu conexión a internet o intenta recargar la página. Si usas modo incógnito, prueba en modo normal.</p>
-    <button onclick="window.location.reload()" style="background:#38bdf8;color:#0f172a;font-weight:800;padding:10px 24px;border:none;border-radius:10px;cursor:pointer;font-size:14px;">Recargar página</button>
+    <button id="reload-btn" style="background:#38bdf8;color:#0f172a;font-weight:800;padding:10px 24px;border:none;border-radius:10px;cursor:pointer;font-size:14px;">Recargar página</button>
   </div>`;
   overlay.style.display = 'flex';
   if (window.lucide) lucide.createIcons();
+  const reloadBtn = overlay.querySelector('#reload-btn');
+  if (reloadBtn) reloadBtn.addEventListener('click', () => window.location.reload());
 }
 // ————— Modo local —————
 // Fallback si Firebase falla. Orden de prioridad:
@@ -619,8 +621,7 @@ function renderCard(v) {
   const vehiclePath = getVehiclePath(v);
   div.innerHTML = `
     <div class="relative card-image-link">
-      <img src="${escapeAttr(cldOptimize(imgSrc, 500))}" class="w-full h-44 object-cover" loading="lazy" alt="${escapeAttr(v.name)}"
-        onerror="this.src='https://placehold.co/300x176/1e293b/38bdf8?text=Auto'">
+      <img src="${escapeAttr(cldOptimize(imgSrc, 500))}" class="w-full h-44 object-cover card-image-link" loading="lazy" alt="${escapeAttr(v.name)}">
       <a href="${escapeAttr(vehiclePath)}" class="card-image-overlay" data-id="${escapeAttr(v.id)}" aria-label="Ver ${escapeAttr(v.name)}"></a>
       ${isNew ? `<span class="absolute top-2 left-2 text-xs font-bold px-2 py-1 rounded-full" style="background:#38bdf8;color:#0f172a;">✨ NUEVO</span>` : ''}
       <button type="button" class="fav-btn absolute top-2 right-2 w-9 h-9 rounded-full flex items-center justify-center transition" data-id="${escapeAttr(v.id)}" aria-label="Agregar a favoritos" style="background:rgba(15,23,42,0.65);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.1);z-index:2;">
@@ -859,8 +860,7 @@ function renderAccountFavorites() {
     card.style.cssText = 'background:rgb(30,41,59);border:1px solid rgba(255,255,255,0.07);';
     card.innerHTML = `
       <div style="height:90px;overflow:hidden;position:relative;">
-        <img src="${escapeAttr(cldOptimize(imgSrc, 300))}" alt="${escapeAttr(v.name)}" style="width:100%;height:100%;object-fit:cover;"
-          onerror="this.src='https://placehold.co/300x120/1e293b/38bdf8?text=Auto'">
+        <img src="${escapeAttr(cldOptimize(imgSrc, 300))}" alt="${escapeAttr(v.name)}" class="vehicle-thumb" style="width:100%;height:100%;object-fit:cover;">
         <button type="button" class="account-fav-remove-btn absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center" data-id="${escapeAttr(v.id)}" style="background:rgba(15,23,42,0.75);">
           <i data-lucide="x" class="w-3 h-3 text-white pointer-events-none"></i>
         </button>
@@ -1355,9 +1355,8 @@ function renderSimilarPage(page) {
     card.style.cssText = 'background:rgb(30,41,59);border:1px solid rgba(255,255,255,0.07);transition:transform 0.18s,box-shadow 0.18s;';
     card.innerHTML = `
       <div style="height:120px;overflow:hidden;position:relative;">
-        <img src="${escapeAttr(cldOptimize(imgSrc, 400))}" alt="${escapeAttr(sv.name)}"
-          style="width:100%;height:100%;object-fit:cover;transition:transform 0.3s;"
-          onerror="this.src='https://placehold.co/300x120/1e293b/38bdf8?text=Auto'">
+        <img src="${escapeAttr(cldOptimize(imgSrc, 400))}" alt="${escapeAttr(sv.name)}" class="vehicle-thumb"
+          style="width:100%;height:100%;object-fit:cover;transition:transform 0.3s;">
         <button type="button" class="fav-btn absolute top-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center transition" data-id="${escapeAttr(sv.id)}" aria-label="Agregar a favoritos" style="background:rgba(15,23,42,0.65);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.1);">
           <i data-lucide="heart" class="fav-icon w-3.5 h-3.5 pointer-events-none" style="color:${svIsFav ? '#f87171' : '#fff'};fill:${svIsFav ? '#f87171' : 'none'};"></i>
         </button>
@@ -2585,9 +2584,54 @@ function openCalcFromHash() {
 window.addEventListener('hashchange', openCalcFromHash);
 
 // ============================================================
+// EVENT LISTENERS — Migración desde inline handlers a addEventListener
+// ============================================================
+function initImageErrorHandlers() {
+  const heroBrandLogo = document.getElementById('hero-brand-logo');
+  const lightboxImg = document.getElementById('lightbox-img');
+  const authLogo = document.getElementById('auth-logo');
+
+  if (heroBrandLogo) {
+    heroBrandLogo.addEventListener('error', function() {
+      this.style.display = 'none';
+    });
+  }
+
+  if (lightboxImg) {
+    lightboxImg.addEventListener('error', function() {
+      this.src = 'https://placehold.co/800x600/1e293b/38bdf8?text=Sin+imagen';
+    });
+  }
+
+  if (authLogo) {
+    authLogo.addEventListener('error', function() {
+      this.style.display = 'none';
+    });
+  }
+
+  document.querySelectorAll('.slide').forEach(slide => {
+    slide.addEventListener('error', function() {
+      this.style.display = 'none';
+    });
+  });
+
+  // Event delegation para imágenes dinámicas (tarjetas, favoritos, etc.)
+  document.addEventListener('error', function(e) {
+    if (e.target.tagName === 'IMG') {
+      if (e.target.classList.contains('card-image-link')) {
+        e.target.src = 'https://placehold.co/300x176/1e293b/38bdf8?text=Auto';
+      } else if (e.target.classList.contains('vehicle-thumb')) {
+        e.target.src = 'https://placehold.co/300x120/1e293b/38bdf8?text=Auto';
+      }
+    }
+  }, true);
+}
+
+// ============================================================
 // INIT
 // ============================================================
 window.addEventListener('DOMContentLoaded', () => {
+  initImageErrorHandlers();
   updateAdminUI();
   populateYears('pub-year');
   initBrandSearch();

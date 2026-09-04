@@ -237,10 +237,15 @@ async function dbRenderFavoritos() {
 
   wrap.innerHTML = favVehicles.map(v => `
     <div class="db-hist-item" data-veh-id="${escapeAttr(v.id)}">
-      <img src="${escapeAttr(dbThumb(v))}" alt="${escapeAttr(v.name)}" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=Auto'">
+      <img src="${escapeAttr(dbThumb(v))}" alt="${escapeAttr(v.name)}" class="db-thumb">
       <div style="flex:1;min-width:0;"><p class="db-hist-item-name">${escapeHtml(v.name)}</p><p class="db-hist-item-meta">${escapeHtml(fmtPrice(v.price, v))}</p></div>
       <button type="button" class="db-remove-btn" data-remove-fav="${escapeAttr(v.id)}" aria-label="Quitar de favoritos"><i data-lucide="trash-2"></i></button>
     </div>`).join('');
+  wrap.querySelectorAll('.db-thumb').forEach(img => {
+    img.addEventListener('error', function() {
+      this.src = 'https://placehold.co/80x80/1e293b/38bdf8?text=Auto';
+    });
+  });
 
   wrap.querySelectorAll('[data-veh-id]').forEach(el => {
     el.addEventListener('click', (e) => {
@@ -334,7 +339,7 @@ function dbRenderPublicaciones() {
 
   const listHtml = vehicles.map(v => `
     <div class="db-hist-item" data-veh-id="${escapeAttr(v.id)}">
-      <img src="${escapeAttr(dbThumb(v))}" alt="${escapeAttr(v.name)}" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=Auto'">
+      <img src="${escapeAttr(dbThumb(v))}" alt="${escapeAttr(v.name)}" class="db-thumb">
       <div style="flex:1;min-width:0;">
         <p class="db-hist-item-name">${escapeHtml(v.name)}</p>
         <p class="db-hist-item-meta">${escapeHtml(fmtPrice(v.price, v))} · ${escapeHtml(dbCategoryLabel(v.category))}</p>
@@ -444,10 +449,15 @@ function dbRenderCards() {
       <div class="db-card-head"><div class="db-card-icon"><i data-lucide="${c.icon}"></i></div><span class="db-card-count">${c.count}</span></div>
       <p class="db-card-title">${escapeHtml(c.title)}</p>
       <p class="db-card-sub">${escapeHtml(c.sub)}</p>
-      ${c.preview && c.preview.length ? `<div class="db-card-preview">${c.preview.map(v => `<img class="db-mini-thumb" src="${escapeAttr(dbThumb(v))}" alt="${escapeAttr(v.name)}" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=Auto'">`).join('')}</div>` : ''}
+      ${c.preview && c.preview.length ? `<div class="db-card-preview">${c.preview.map(v => `<img class="db-mini-thumb db-thumb" src="${escapeAttr(dbThumb(v))}" alt="${escapeAttr(v.name)}">`).join('')}</div>` : ''}
       <span class="db-card-cta">${escapeHtml(c.cta || 'Ver más')} <i data-lucide="arrow-right" style="width:13px;height:13px;"></i></span>
     </div>`).join('');
   grid.querySelectorAll('.db-card').forEach(el => el.addEventListener('click', () => cards[Number(el.dataset.cardIdx)].onClick()));
+  grid.querySelectorAll('.db-thumb').forEach(img => {
+    img.addEventListener('error', function() {
+      this.src = 'https://placehold.co/80x80/1e293b/38bdf8?text=Auto';
+    });
+  });
   if (window.lucide) window.lucide.createIcons();
 
   // El conteo real de cotizaciones se pide aparte (async) para no bloquear
@@ -492,7 +502,7 @@ async function dbRenderHistory() {
 
   const histItem = (v, metaText, removable) => `
     <div class="db-hist-item" ${removable ? `data-hist-veh-id="${escapeAttr(v.id)}"` : ''}>
-      <img src="${escapeAttr(dbThumb(v))}" alt="${escapeAttr(v.name)}" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=Auto'">
+      <img src="${escapeAttr(dbThumb(v))}" alt="${escapeAttr(v.name)}" class="db-thumb">
       <div style="flex:1;min-width:0;"><p class="db-hist-item-name">${escapeHtml(v.name)}</p><p class="db-hist-item-meta">${escapeHtml(metaText)}</p></div>
       ${removable ? `<button type="button" class="db-remove-btn" data-remove-hist="${escapeAttr(v.id)}" aria-label="Quitar del historial"><i data-lucide="trash-2"></i></button>` : ''}
     </div>`;
@@ -501,6 +511,11 @@ async function dbRenderHistory() {
     <div class="db-hist-group" id="db-hist-vistos"><h3><i data-lucide="eye"></i> Vehículos vistos</h3>${recent.length ? recent.map(x => histItem(x.v, dbFormatRelative(x.ts), true)).join('') : emptyBlock('Aún no has visto ningún vehículo')}</div>
     <div class="db-hist-group"><h3><i data-lucide="heart"></i> Favoritos agregados</h3>${favVehicles.length ? favVehicles.map(v => histItem(v, 'En tus favoritos', false)).join('') : emptyBlock('Aún no tienes favoritos')}</div>
     <div class="db-hist-group"><h3><i data-lucide="file-text"></i> Cotizaciones realizadas</h3><p style="color:#8b99ad;font-size:12px;">Ver detalle completo en la pestaña "Cotizaciones".</p></div>`;
+  wrap.querySelectorAll('.db-thumb').forEach(img => {
+    img.addEventListener('error', function() {
+      this.src = 'https://placehold.co/80x80/1e293b/38bdf8?text=Auto';
+    });
+  });
   wrap.querySelectorAll('.db-hist-item').forEach((el, idx) => {
     const allClickable = [...recent.map(x => x.v), ...favVehicles];
     const v = allClickable[idx];
