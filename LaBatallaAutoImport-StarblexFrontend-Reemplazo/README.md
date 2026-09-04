@@ -13,7 +13,7 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 ## Estructura
 
 ```
-├── index.html                 SPA principal (catálogo, fichas, empresa, modales)
+├── index.html                 SPA principal (catálogo, fichas, modales)
 ├── app.js                     Lógica: Firestore, CRUD admin, SEO dinámico, favoritos, galería
 ├── calculadora.js             Calculadora de financiamiento (modal + FAB)
 ├── invite-modal.js            Invitación opcional de registro al contactar por WhatsApp
@@ -22,8 +22,14 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 ├── styles.css                 Estilos propios (complementa Tailwind)
 ├── tailwind.css                Tailwind compilado (no editar a mano)
 ├── 404.html                   Página de error de Netlify
+├── empresa/                   Páginas institucionales (HTML estático, una por sección)
+│   ├── por-que-elegirnos.html
+│   ├── quienes-somos.html
+│   ├── mision-vision.html
+│   └── nuestros-valores.html
 ├── politica-privacidad.html   Página legal
 ├── terminos-y-condiciones.html Página legal
+├── pagina-estatica.css        Estilos compartidos por /empresa/* y las páginas legales
 ├── site.webmanifest           Web App Manifest (PWA / pantalla de inicio)
 ├── robots.txt / sitemap.xml   SEO — el sitemap se regenera automáticamente
 ├── favicon-16.png / favicon-32.png / apple-touch-icon.png / icon192.png / icon512.png
@@ -66,8 +72,18 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
   `document.body.style.overflow` a mano: si un modal desbloquea por su
   cuenta mientras otro sigue abierto, el fondo vuelve a desplazarse
   debajo.
-- **Subpáginas de Empresa (`/empresa/*`):** cada sección de `EMPRESA_SECTIONS` (app.js) tiene su propio `title`/`description` en `EMPRESA_META` y su `canonical` se reescribe en tiempo real vía `setPageMeta()`. Si agregas una sección nueva al menú `#nav-empresa-menu`, súmala también a `EMPRESA_SECTIONS` y `EMPRESA_META`, o heredará el título genérico "Empresa". El `<h1>` del hero también cambia de texto al entrar a Empresa (`EMPRESA_HERO_H1`) y se restaura al slide del carrusel realmente activo al salir — si agregas una sección nueva, súmala también a ese mapa.
-- **FAQ de Empresa:** las preguntas de `#preguntas-frecuentes` (index.html) y el array `FAQ_ENTRIES` (app.js, usado para el schema `FAQPage`) deben mantenerse idénticos. El schema se inyecta/retira dinámicamente en `showEmpresaPage()`/`hideEmpresaPage()` para no exponerlo en páginas donde el contenido no existe (home, fichas de vehículo).
+- **Subpáginas de Empresa (`/empresa/*`):** son documentos HTML propios
+  (`empresa/*.html`), no vistas de la SPA. Cada una lleva su `title`,
+  `description`, `canonical`, `og:*`, `twitter:*` y JSON-LD escritos en el
+  HTML, así que no dependen de que el rastreador ejecute JavaScript. Para
+  añadir una sección nueva: crea el archivo, enlázalo en el menú
+  `#nav-empresa-menu` y en el pie de `index.html`, añade la reescritura en
+  `netlify.toml`, súmalo a `scripts/generar-sitemap.js` y a la subnavegación
+  de las cuatro páginas existentes.
+- **FAQ de Empresa:** el bloque de preguntas y su schema `FAQPage` viven
+  juntos en `empresa/por-que-elegirnos.html`; si editas una pregunta, edita
+  también su entrada en el JSON-LD de esa misma página (y en ninguna otra:
+  el schema solo debe existir donde el contenido existe).
 - Cada vez que edites `app.js`, `calculadora.js`, `dashboard.js`, `styles.css` o `invite-modal.js`, incrementa el `?v=` de ese archivo en `index.html` (evita servir JS/CSS cacheado desacoplado del HTML nuevo). No hace falta subir el número de los archivos que no tocaste.
 
 ## Tareas pendientes del propietario (una sola vez)
@@ -156,9 +172,8 @@ sección "Explorar por Marca" debido a un empate de `z-index`, ya corregido).
 Autoplay cada 5.5s, se pausa con la pestaña oculta y respeta
 `prefers-reduced-motion` (no avanza si el usuario tiene esa preferencia
 activada — comportamiento intencional, no un bug). El `<h1>`/subtítulo del
-hero corresponden siempre al slide realmente activo, incluida su
-restauración correcta al volver desde las páginas de Empresa (nunca un
-valor fijo hardcodeado).
+hero corresponden siempre al slide realmente activo (nunca un valor fijo
+hardcodeado).
 
 # Páginas de Empresa
 
@@ -169,12 +184,15 @@ valor fijo hardcodeado).
 /empresa/nuestros-valores
 ```
 
-Rutas SPA reales (no anchors ni archivos `.html` separados — viven dentro de
-`index.html`) — `history.pushState`, `title`/`description`/`canonical`/
-`og:*`/`twitter:*` propios por página vía `setPageMeta()`, H1 contextual (ver
-nota en "Reglas de sincronización crítica"), `FAQPage` structured data,
-incluidas en `sitemap.xml`. Netlify sirve `index.html` (200) para cualquier
-ruta bajo `/empresa/*` vía redirect en `netlify.toml`.
+Cada sección es una página HTML independiente en `empresa/*.html`, servida
+en su URL limpia mediante reescrituras 200 en `netlify.toml`. No cargan
+Tailwind ni `app.js`: solo `pagina-estatica.css` (compartida con las páginas
+legales) y los iconos de Lucide, así que se renderizan sin ejecutar lógica
+de la SPA. Cada una lleva su propio `title`/`description`/`canonical`/`og:*`/
+`twitter:*` y `BreadcrumbList`; el `FAQPage` vive en `por-que-elegirnos`.
+Todas están en `sitemap.xml`, se enlazan entre sí (subnavegación superior +
+bloque final) y desde el menú Empresa y el pie de `index.html`. Cualquier
+ruta `/empresa/*` que no exista devuelve un 404 real.
 
 # Seguridad — deuda conocida
 

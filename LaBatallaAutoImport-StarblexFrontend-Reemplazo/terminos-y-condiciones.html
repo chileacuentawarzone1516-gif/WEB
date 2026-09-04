@@ -11,121 +11,27 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
-  <meta name="theme-color" content="#38bdf8">
+  <meta name="theme-color" content="#0f172a">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="/pagina-estatica.css?v=20260904">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
   <script defer src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js" integrity="sha384-JNhb/AfQ8tCvhjfm2WXKx9qovmn7LcndXYllHYDf2CcTBaBMAiPsjRJeC3f9U8V6" crossorigin="anonymous"></script>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      font-family: 'DM Sans', sans-serif;
-      background: rgb(15, 23, 42);
-      color: rgb(226, 232, 240);
-      margin: 0;
-      line-height: 1.7;
-    }
-    .top-bar {
-      background: rgb(30, 41, 59);
-      border-bottom: 1px solid rgba(56,189,248,0.15);
-      padding: 16px 20px;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    .top-bar-inner {
-      max-width: 780px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .back-link {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: #f8fafc;
-      text-decoration: none;
-      font-weight: 700;
-      font-size: 14px;
-      transition: color 0.15s;
-    }
-    .back-link:hover { color: #38bdf8; }
-    main {
-      max-width: 780px;
-      margin: 0 auto;
-      padding: 48px 20px 80px;
-    }
-    h1 {
-      color: #f8fafc;
-      font-size: 30px;
-      font-weight: 800;
-      margin-bottom: 6px;
-      line-height: 1.2;
-    }
-    .updated {
-      color: #8b99ad;
-      font-size: 13px;
-      margin-bottom: 40px;
-    }
-    h2 {
-      color: #38bdf8;
-      font-size: 18px;
-      font-weight: 800;
-      margin-top: 40px;
-      margin-bottom: 14px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    p { color: rgb(203, 213, 225); font-size: 15px; margin-bottom: 14px; }
-    ul { margin: 0 0 14px; padding-left: 20px; }
-    li { color: rgb(203, 213, 225); font-size: 15px; margin-bottom: 8px; }
-    strong { color: #f1f5f9; }
-    .box {
-      background: rgba(56,189,248,0.06);
-      border: 1px solid rgba(56,189,248,0.2);
-      border-radius: 14px;
-      padding: 20px;
-      margin: 20px 0;
-    }
-    .box p:last-child { margin-bottom: 0; }
-    a.inline-link { color: #38bdf8; text-decoration: underline; }
-    .contact-card {
-      background: rgb(30,41,59);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 16px;
-      padding: 24px;
-      margin-top: 40px;
-    }
-    .contact-card h2 { margin-top: 0; }
-    .contact-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 10px;
-      font-size: 14px;
-    }
-    footer {
-      text-align: center;
-      padding: 24px;
-      color: rgb(148,163,184);
-      font-size: 13px;
-    }
-  </style>
 </head>
 <body>
 
-  <div class="top-bar">
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+  <header class="top-bar">
     <div class="top-bar-inner">
       <a href="/" class="back-link">
         <i data-lucide="arrow-left" style="width:18px;height:18px;"></i>
         Volver a La Batalla Auto Import
       </a>
     </div>
-  </div>
+  </header>
 
-  <main>
+  <main id="contenido">
     <h1>Términos y Condiciones</h1>
     <p class="updated">Última actualización: julio de 2026</p>
 
@@ -188,10 +94,24 @@
     </div>
   </main>
 
-  <footer>
-    © 2026 La Batalla Auto Import. Todos los derechos reservados.
+  <footer class="site-footer">
+    <nav class="footer-nav" aria-label="Enlaces de Empresa">
+      <a href="/empresa/por-que-elegirnos">¿Por qué elegirnos?</a>
+      <span class="footer-sep" aria-hidden="true">•</span>
+      <a href="/empresa/quienes-somos">Quiénes somos</a>
+      <span class="footer-sep" aria-hidden="true">•</span>
+      <a href="/empresa/mision-vision">Misión y Visión</a>
+      <span class="footer-sep" aria-hidden="true">•</span>
+      <a href="/empresa/nuestros-valores">Nuestros valores</a>
+    </nav>
+    <nav class="footer-nav" aria-label="Enlaces legales">
+      <a href="/politica-privacidad.html">Política de Privacidad</a>
+      <span class="footer-sep" aria-hidden="true">•</span>
+      <a href="/terminos-y-condiciones.html">Términos y Condiciones</a>
+    </nav>
+    <p style="margin:8px 0 0;">© 2026 La Batalla Auto Import. Todos los derechos reservados.</p>
   </footer>
 
-  <script>window.addEventListener('DOMContentLoaded', () => { if (window.lucide) lucide.createIcons(); });</script>
+  <script defer src="/iconos.js"></script>
 </body>
 </html>

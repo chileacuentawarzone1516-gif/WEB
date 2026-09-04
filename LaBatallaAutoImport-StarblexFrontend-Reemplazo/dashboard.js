@@ -237,7 +237,7 @@ async function dbRenderFavoritos() {
 
   wrap.innerHTML = favVehicles.map(v => `
     <div class="db-hist-item" data-veh-id="${escapeAttr(v.id)}">
-      <img src="${escapeAttr(dbThumb(v))}" alt="${escapeAttr(v.name)}" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=Auto'">
+      <img src="${escapeAttr(dbThumb(v))}" alt="${escapeAttr(v.name)}" data-fallback="https://placehold.co/80x80/1e293b/38bdf8?text=Auto">
       <div style="flex:1;min-width:0;"><p class="db-hist-item-name">${escapeHtml(v.name)}</p><p class="db-hist-item-meta">${escapeHtml(fmtPrice(v.price, v))}</p></div>
       <button type="button" class="db-remove-btn" data-remove-fav="${escapeAttr(v.id)}" aria-label="Quitar de favoritos"><i data-lucide="trash-2"></i></button>
     </div>`).join('');
@@ -334,7 +334,7 @@ function dbRenderPublicaciones() {
 
   const listHtml = vehicles.map(v => `
     <div class="db-hist-item" data-veh-id="${escapeAttr(v.id)}">
-      <img src="${escapeAttr(dbThumb(v))}" alt="${escapeAttr(v.name)}" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=Auto'">
+      <img src="${escapeAttr(dbThumb(v))}" alt="${escapeAttr(v.name)}" data-fallback="https://placehold.co/80x80/1e293b/38bdf8?text=Auto">
       <div style="flex:1;min-width:0;">
         <p class="db-hist-item-name">${escapeHtml(v.name)}</p>
         <p class="db-hist-item-meta">${escapeHtml(fmtPrice(v.price, v))} · ${escapeHtml(dbCategoryLabel(v.category))}</p>
@@ -444,7 +444,7 @@ function dbRenderCards() {
       <div class="db-card-head"><div class="db-card-icon"><i data-lucide="${c.icon}"></i></div><span class="db-card-count">${c.count}</span></div>
       <p class="db-card-title">${escapeHtml(c.title)}</p>
       <p class="db-card-sub">${escapeHtml(c.sub)}</p>
-      ${c.preview && c.preview.length ? `<div class="db-card-preview">${c.preview.map(v => `<img class="db-mini-thumb" src="${escapeAttr(dbThumb(v))}" alt="${escapeAttr(v.name)}" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=Auto'">`).join('')}</div>` : ''}
+      ${c.preview && c.preview.length ? `<div class="db-card-preview">${c.preview.map(v => `<img class="db-mini-thumb" data-fallback="https://placehold.co/80x80/1e293b/38bdf8?text=Auto" src="${escapeAttr(dbThumb(v))}" alt="${escapeAttr(v.name)}">`).join('')}</div>` : ''}
       <span class="db-card-cta">${escapeHtml(c.cta || 'Ver más')} <i data-lucide="arrow-right" style="width:13px;height:13px;"></i></span>
     </div>`).join('');
   grid.querySelectorAll('.db-card').forEach(el => el.addEventListener('click', () => cards[Number(el.dataset.cardIdx)].onClick()));
@@ -492,7 +492,7 @@ async function dbRenderHistory() {
 
   const histItem = (v, metaText, removable) => `
     <div class="db-hist-item" ${removable ? `data-hist-veh-id="${escapeAttr(v.id)}"` : ''}>
-      <img src="${escapeAttr(dbThumb(v))}" alt="${escapeAttr(v.name)}" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=Auto'">
+      <img src="${escapeAttr(dbThumb(v))}" alt="${escapeAttr(v.name)}" data-fallback="https://placehold.co/80x80/1e293b/38bdf8?text=Auto">
       <div style="flex:1;min-width:0;"><p class="db-hist-item-name">${escapeHtml(v.name)}</p><p class="db-hist-item-meta">${escapeHtml(metaText)}</p></div>
       ${removable ? `<button type="button" class="db-remove-btn" data-remove-hist="${escapeAttr(v.id)}" aria-label="Quitar del historial"><i data-lucide="trash-2"></i></button>` : ''}
     </div>`;

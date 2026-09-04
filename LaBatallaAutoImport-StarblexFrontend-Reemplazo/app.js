@@ -42,10 +42,12 @@ function showDataLoadError() {
     <i data-lucide="wifi-off" style="width:48px;height:48px;color:#f87171;margin:0 auto 16px;"></i>
     <p style="color:#f1f5f9;font-weight:700;font-size:16px;margin-bottom:8px;">No pudimos cargar el inventario</p>
     <p style="color:#94a3b8;font-size:13px;margin-bottom:20px;line-height:1.5;">Verifica tu conexión a internet o intenta recargar la página. Si usas modo incógnito, prueba en modo normal.</p>
-    <button onclick="window.location.reload()" style="background:#38bdf8;color:#0f172a;font-weight:800;padding:10px 24px;border:none;border-radius:10px;cursor:pointer;font-size:14px;">Recargar página</button>
+    <button id="reload-btn" style="background:#38bdf8;color:#0f172a;font-weight:800;padding:10px 24px;border:none;border-radius:10px;cursor:pointer;font-size:14px;">Recargar página</button>
   </div>`;
   overlay.style.display = 'flex';
   if (window.lucide) lucide.createIcons();
+  const reloadBtn = overlay.querySelector('#reload-btn');
+  if (reloadBtn) reloadBtn.addEventListener('click', () => window.location.reload());
 }
 // ————— Modo local —————
 // Fallback si Firebase falla. Orden de prioridad:
@@ -619,8 +621,7 @@ function renderCard(v) {
   const vehiclePath = getVehiclePath(v);
   div.innerHTML = `
     <div class="relative card-image-link">
-      <img src="${escapeAttr(cldOptimize(imgSrc, 500))}" class="w-full h-44 object-cover" loading="lazy" alt="${escapeAttr(v.name)}"
-        onerror="this.src='https://placehold.co/300x176/1e293b/38bdf8?text=Auto'">
+      <img src="${escapeAttr(cldOptimize(imgSrc, 500))}" class="w-full h-44 object-cover" loading="lazy" alt="${escapeAttr(v.name)}" data-fallback="https://placehold.co/300x176/1e293b/38bdf8?text=Auto">
       <a href="${escapeAttr(vehiclePath)}" class="card-image-overlay" data-id="${escapeAttr(v.id)}" aria-label="Ver ${escapeAttr(v.name)}"></a>
       ${isNew ? `<span class="absolute top-2 left-2 text-xs font-bold px-2 py-1 rounded-full" style="background:#38bdf8;color:#0f172a;">✨ NUEVO</span>` : ''}
       <button type="button" class="fav-btn absolute top-2 right-2 w-9 h-9 rounded-full flex items-center justify-center transition" data-id="${escapeAttr(v.id)}" aria-label="Agregar a favoritos" style="background:rgba(15,23,42,0.65);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.1);z-index:2;">
@@ -859,8 +860,7 @@ function renderAccountFavorites() {
     card.style.cssText = 'background:rgb(30,41,59);border:1px solid rgba(255,255,255,0.07);';
     card.innerHTML = `
       <div style="height:90px;overflow:hidden;position:relative;">
-        <img src="${escapeAttr(cldOptimize(imgSrc, 300))}" alt="${escapeAttr(v.name)}" style="width:100%;height:100%;object-fit:cover;"
-          onerror="this.src='https://placehold.co/300x120/1e293b/38bdf8?text=Auto'">
+        <img src="${escapeAttr(cldOptimize(imgSrc, 300))}" alt="${escapeAttr(v.name)}" style="width:100%;height:100%;object-fit:cover;" data-fallback="https://placehold.co/300x120/1e293b/38bdf8?text=Auto">
         <button type="button" class="account-fav-remove-btn absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center" data-id="${escapeAttr(v.id)}" style="background:rgba(15,23,42,0.75);">
           <i data-lucide="x" class="w-3 h-3 text-white pointer-events-none"></i>
         </button>
@@ -1114,14 +1114,11 @@ function updateAdminUI() {
 // ------------------------------------------------------------
 // El carrusel dejó de vivir aquí: mezclaba responsabilidades con el
 // catálogo y necesitaba lógica propia (swipe, control de pausa,
-// diapositivas rotas, re-armado del temporizador en móvil). app.js solo
-// conserva las referencias al <h1>/<p> del hero porque las subpáginas de
-// Empresa los reutilizan como cabecera de sección; el carrusel expone
-// window.LBHero.takeOverText() / releaseText() para cederlos y
-// recuperarlos sin pisarse con el autoplay.
+// diapositivas rotas, re-armado del temporizador en móvil). El <h1>/<p>
+// del hero son suyos en exclusiva desde que las subpáginas de Empresa
+// pasaron a ser documentos HTML independientes.
 // ============================================================
-const heroTitleEl = document.getElementById('hero-title');
-const heroSubtitleEl = document.getElementById('hero-subtitle');
+
 // ============================================================
 // YEAR OPTIONS (filter + publish form)
 // ============================================================
@@ -1271,24 +1268,16 @@ function routeFromLocation() {
     // checkPathVehicle() lo reintente en su propio ciclo al inicio.
     if (vehicles.length > 0) { showNotFound(); return; }
   }
-  // Rutas de Empresa — /empresa/quienes-somos, /empresa/mision-vision, etc.
-  const empMatch = path.match(/^\/empresa\/([^\/]+)\/?$/);
-  if (empMatch) {
-    const section = decodeURIComponent(empMatch[1]);
-    if (EMPRESA_SECTIONS.includes(section)) { showEmpresaPage(section, false); return; }
-    showNotFound(); return;
-  }
+  // Las subpáginas de Empresa (/empresa/*) ya no son vistas de la SPA:
+  // son documentos HTML propios servidos por el hosting, así que aquí
+  // no hay nada que enrutar para ellas.
   if (!document.getElementById('detail-page').classList.contains('page-hidden')) {
     goBackToMain();
   }
-  // Volver a "/" con el botón atrás desde una subpágina de Empresa
-  if (path === '/' && !document.getElementById('empresa-page').classList.contains('hidden')) {
-    hideEmpresaPage(false);
-  }
   // Volver a "/" con el botón atrás desde el Dashboard — faltaba este
-  // caso (bug real encontrado en auditoría): a diferencia de detail-page
-  // y empresa-page, nada comprobaba si dashboard-page seguía visible al
-  // navegar con "atrás", dejándolo abierto con la URL ya en "/".
+  // caso (bug real encontrado en auditoría): a diferencia de detail-page,
+  // nada comprobaba si dashboard-page seguía visible al navegar con
+  // "atrás", dejándolo abierto con la URL ya en "/".
   if (path === '/' && !document.getElementById('dashboard-page').classList.contains('page-hidden')) {
     closeDashboardPage(false);
   }
@@ -1368,7 +1357,7 @@ function renderSimilarPage(page) {
       <div style="height:120px;overflow:hidden;position:relative;">
         <img src="${escapeAttr(cldOptimize(imgSrc, 400))}" alt="${escapeAttr(sv.name)}"
           style="width:100%;height:100%;object-fit:cover;transition:transform 0.3s;"
-          onerror="this.src='https://placehold.co/300x120/1e293b/38bdf8?text=Auto'">
+          data-fallback="https://placehold.co/300x120/1e293b/38bdf8?text=Auto">
         <button type="button" class="fav-btn absolute top-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center transition" data-id="${escapeAttr(sv.id)}" aria-label="Agregar a favoritos" style="background:rgba(15,23,42,0.65);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.1);">
           <i data-lucide="heart" class="fav-icon w-3.5 h-3.5 pointer-events-none" style="color:${svIsFav ? '#f87171' : '#fff'};fill:${svIsFav ? '#f87171' : 'none'};"></i>
         </button>
@@ -2253,6 +2242,38 @@ const BRAND_LOGO_MAP = {
   'Fiat': { slug: 'fiat', initial: 'FT', color: '#941711' },
   'Opel': { slug: 'opel', initial: 'OP', color: '#F7A800' },
 };
+// Convierte el color de marca (#RGB o #RRGGBB) en un tinte translúcido. El
+// color crudo no servía de fondo: los muchos negros del mapa desaparecían
+// sobre la tarjeta oscura y esas marcas parecían un hueco.
+function brandTint(hex, alpha) {
+  let h = String(hex || '').replace('#', '');
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  if (h.length !== 6 || /[^0-9a-f]/i.test(h)) return `rgba(56,189,248,${alpha})`;
+  const n = parseInt(h, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+
+// Marco de la marca: logo e iniciales comparten caja, fondo y borde. Antes
+// eran dos piezas visuales distintas —un símbolo blanco suelto frente a un
+// cuadro de color saturado—, así que el grid parecía roto en cuanto alguna
+// marca faltaba en el CDN, que es lo habitual con los fabricantes.
+function crearMarcaVisual(meta, brand) {
+  const mark = document.createElement('div');
+  mark.className = 'brand-mark';
+  mark.setAttribute('aria-hidden', 'true'); // el <button> ya lleva aria-label
+  mark.style.setProperty('--brand-tint', brandTint(meta.color, 0.38));
+  const ponerIniciales = () => { mark.textContent = meta.initial || brand.charAt(0); };
+  if (!meta.slug) { ponerIniciales(); return mark; }
+  const logo = document.createElement('img');
+  logo.src = `https://cdn.jsdelivr.net/npm/simple-icons@v13/icons/${meta.slug}.svg`;
+  logo.alt = '';
+  logo.loading = 'lazy';
+  logo.decoding = 'async';
+  logo.addEventListener('error', () => { logo.remove(); ponerIniciales(); }, { once: true });
+  mark.appendChild(logo);
+  return mark;
+}
+
 function renderBrandLogoFilter() {
   const grid = document.getElementById('brand-logo-grid');
   if (!grid) return;
@@ -2275,32 +2296,12 @@ function renderBrandLogoFilter() {
     card.dataset.brand = brand;
     card.setAttribute('aria-pressed', 'false');
     card.setAttribute('aria-label', `Filtrar por ${brand} (${count} ${count === 1 ? 'vehículo' : 'vehículos'})`);
-    if (meta.slug) {
-      // El respaldo del logo se resuelve con un listener, no con un atributo
-      // onerror inline que anidaba comillas escapadas dentro de HTML dentro
-      // de JS: era ilegible y se rompía con cualquier dato inesperado.
-      const logo = document.createElement('img');
-      logo.src = `https://cdn.jsdelivr.net/npm/simple-icons@v13/icons/${meta.slug}.svg`;
-      logo.alt = '';
-      logo.setAttribute('aria-hidden', 'true');
-      logo.addEventListener('error', () => {
-        const ph = document.createElement('div');
-        ph.style.cssText = `width:36px;height:36px;border-radius:9px;background:${meta.color};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;`;
-        ph.textContent = meta.initial;
-        logo.replaceWith(ph);
-      }, { once: true });
-      card.appendChild(logo);
-      const nm = document.createElement('span');
-      nm.className = 'brand-name'; nm.textContent = brand;
-      const ct = document.createElement('span');
-      ct.className = 'brand-count'; ct.textContent = `${count} ${count === 1 ? 'auto' : 'autos'}`;
-      card.appendChild(nm); card.appendChild(ct);
-    } else {
-      card.innerHTML = `
-        <div style="width:36px;height:36px;border-radius:9px;background:${meta.color};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;">${escapeHtml(meta.initial)}</div>
-        <span class="brand-name">${escapeHtml(brand)}</span>
-        <span class="brand-count">${count} ${count === 1 ? 'auto' : 'autos'}</span>`;
-    }
+    card.appendChild(crearMarcaVisual(meta, brand));
+    const nm = document.createElement('span');
+    nm.className = 'brand-name'; nm.textContent = brand;
+    const ct = document.createElement('span');
+    ct.className = 'brand-count'; ct.textContent = `${count} ${count === 1 ? 'auto' : 'autos'}`;
+    card.appendChild(nm); card.appendChild(ct);
     card.addEventListener('click', () => {
       const isActive = card.classList.contains('active');
       document.querySelectorAll('.brand-logo-card').forEach(c => {
@@ -2564,226 +2565,82 @@ function initNavEmpresa() {
 }
 
 // ============================================================
-// SUBPÁGINAS DE EMPRESA — SPA routing con URLs reales (/empresa/slug).
-// Cada opción del menú Empresa abre la vista institucional dentro de
-// index.html y hace scroll a su sección, con historial navegable.
+// SUBPÁGINAS DE EMPRESA — ahora son páginas HTML reales
+// ------------------------------------------------------------
+// /empresa/por-que-elegirnos, /empresa/quienes-somos,
+// /empresa/mision-vision y /empresa/nuestros-valores dejaron de ser
+// vistas ocultas dentro de index.html: cada una es su propio documento
+// en /empresa/*.html, igual que las páginas legales. Por eso aquí ya no
+// hay routing, ni meta tags dinámicas, ni FAQ inyectada por JS — cada
+// página lleva su <title>, su canonical, su Open Graph y su JSON-LD
+// escritos en el HTML, que es lo que los rastreadores leen sin ejecutar
+// JavaScript. Los enlaces del menú Empresa son enlaces normales.
 // ============================================================
-const EMPRESA_SECTIONS = ['por-que-elegirnos', 'quienes-somos', 'mision-vision', 'nuestros-valores'];
-
-// Metadatos SEO propios por sub-página de Empresa — sin esto, las 4 rutas
-// /empresa/* comparten el <title>/description/canonical genéricos de la
-// home, lo que Google puede interpretar como contenido duplicado.
-const EMPRESA_META = {
-  'por-que-elegirnos': {
-    title: '¿Por qué elegirnos? | La Batalla Auto Import',
-    description: 'Vehículos verificados, financiamiento a tu medida y atención personalizada. Descubre por qué comprar en La Batalla Auto Import.'
-  },
-  'quienes-somos': {
-    title: 'Quiénes somos | La Batalla Auto Import',
-    description: 'Conoce a La Batalla Auto Import: concesionario dominicano de sedanes, SUVs y camionetas en Santo Domingo, San Francisco de Macorís y Nagua.'
-  },
-  'mision-vision': {
-    title: 'Misión y Visión | La Batalla Auto Import',
-    description: 'La misión y visión de La Batalla Auto Import como concesionario de vehículos nuevos, usados e importados en República Dominicana.'
-  },
-  'nuestros-valores': {
-    title: 'Nuestros Valores | La Batalla Auto Import',
-    description: 'Honestidad, transparencia, calidad y compromiso: los valores que guían cada venta en La Batalla Auto Import.'
-  }
-};
-
-// Metadatos por defecto de la home — se restauran al salir de /empresa/*.
-const DEFAULT_META = {
-  title: 'La Batalla Auto Import | Sedanes, SUVs y Camionetas en República Dominicana',
-  description: 'Compra tu próximo vehículo en La Batalla Auto Import. Sedanes, SUVs y camionetas nuevas, usadas e importadas en Santo Domingo, San Francisco de Macorís y Nagua. Financiamiento disponible.',
-  canonical: 'https://labatallaautoimport.netlify.app/'
-};
-
-function setPageMeta({ title, description, canonical }) {
-  if (title) document.title = title;
-  const descTag = document.querySelector('meta[name="description"]');
-  if (descTag && description) descTag.setAttribute('content', description);
-  const canonicalTag = document.querySelector('link[rel="canonical"]');
-  if (canonicalTag && canonical) canonicalTag.setAttribute('href', canonical);
-  // FASE Empresa (SEO, gap real encontrado en auditoría): antes solo se
-  // actualizaban title/description/canonical -- compartir /empresa/* en
-  // WhatsApp, Facebook o Twitter mostraba la tarjeta genérica de la home
-  // ("La Batalla Auto Import" para las 4 páginas por igual). og:image y
-  // twitter:image NO se tocan a propósito: no existe un asset dedicado
-  // por sección, y reutilizar la imagen de marca general es correcto.
-  const ogTitle = document.querySelector('meta[property="og:title"]');
-  if (ogTitle && title) ogTitle.setAttribute('content', title);
-  const ogDesc = document.querySelector('meta[property="og:description"]');
-  if (ogDesc && description) ogDesc.setAttribute('content', description);
-  const ogUrl = document.querySelector('meta[property="og:url"]');
-  if (ogUrl && canonical) ogUrl.setAttribute('content', canonical);
-  const twTitle = document.querySelector('meta[name="twitter:title"]');
-  if (twTitle && title) twTitle.setAttribute('content', title);
-  const twDesc = document.querySelector('meta[name="twitter:description"]');
-  if (twDesc && description) twDesc.setAttribute('content', description);
-}
-
-// FAQPage structured data — se inyecta SOLO mientras el usuario está en
-// /empresa/*, porque el bloque de preguntas frecuentes vive únicamente en
-// esa vista. Insertarlo de forma estática en el <head> lo expondría también
-// en la home y en cada ficha de vehículo, sin relación con ese contenido.
-const FAQ_JSONLD_ID = 'faq-jsonld';
-const FAQ_ENTRIES = [
-  ['¿Los vehículos son nuevos, usados o importados?', 'Manejamos las tres opciones. Cada ficha indica claramente la condición del vehículo para que decidas con información completa.'],
-  ['¿Puedo financiar aunque no tenga historial crediticio extenso?', 'Trabajamos con varias instituciones financieras, cada una con criterios distintos. Un asesor revisa tu caso y te dice qué opciones aplican, sin compromiso.'],
-  ['¿Qué pasa si tengo un problema después de comprar?', 'Nuestro acompañamiento no termina con la entrega. Contáctanos por WhatsApp y te orientamos sobre los siguientes pasos.'],
-  ['¿Atienden fuera de Santo Domingo?', 'Sí, tenemos presencia en Santo Domingo, San Francisco de Macorís y Nagua. Escríbenos y coordinamos según tu ubicación.'],
-  ['¿Cuánto tiempo toma todo el proceso?', 'Depende de la aprobación de la institución financiera, pero la simulación y la solicitud inicial toman solo minutos.']
-];
-
-// H1 contextual por sección — el <h1> real de la página (compartido con
-// el hero de la Home) decía siempre "Tu Próximo Vehículo Te Espera"
-// incluso mientras se mostraba contenido de Empresa: un H1 que no
-// correspondía al contenido real (hallazgo de la auditoría SEO). Se
-// reutiliza el mismo texto ya usado en EMPRESA_META.title, sin el sufijo
-// de marca, para no inventar redacción nueva.
-const EMPRESA_HERO_H1 = {
-  'por-que-elegirnos': '¿Por qué elegirnos?',
-  'quienes-somos': 'Quiénes somos',
-  'mision-vision': 'Misión y Visión',
-  'nuestros-valores': 'Nuestros Valores',
-};
-
-function injectFaqSchema() {
-  if (document.getElementById(FAQ_JSONLD_ID)) return;
-  const script = document.createElement('script');
-  script.type = 'application/ld+json';
-  script.id = FAQ_JSONLD_ID;
-  script.textContent = JSON.stringify({
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: FAQ_ENTRIES.map(([q, a]) => ({
-      '@type': 'Question',
-      name: q,
-      acceptedAnswer: { '@type': 'Answer', text: a }
-    }))
-  });
-  document.head.appendChild(script);
-}
-
-function removeFaqSchema() {
-  document.getElementById(FAQ_JSONLD_ID)?.remove();
-}
-
-function showEmpresaPage(sectionId, push = true) {
-  const empresa = document.getElementById('empresa-page');
-  const catalog = document.getElementById('catalog-view');
-  if (!empresa || !catalog) return;
-  // Asegurar que estamos en la vista principal (no ficha ni 404)
-  document.getElementById('detail-page')?.classList.add('page-hidden');
-  document.getElementById('not-found-page')?.classList.add('page-hidden');
-  document.getElementById('main-page')?.classList.remove('page-hidden');
-  catalog.classList.add('hidden');
-  empresa.classList.remove('hidden');
-  // H1 contextual — ver EMPRESA_HERO_H1. El <h1>/<p> del hero se comparten
-  // con el carrusel, así que primero se le pide que deje de escribirlos:
-  // sin eso el autoplay sobrescribía el título de la sección a los 5,5 s
-  // y quedaba un H1 que no correspondía al contenido mostrado.
-  window.LBHero?.takeOverText();
-  if (heroTitleEl) heroTitleEl.textContent = EMPRESA_HERO_H1[sectionId] || heroTitleEl.textContent;
-  if (heroSubtitleEl) heroSubtitleEl.style.display = 'none';
-  try {
-    if (push && window.self === window.top && window.location.pathname !== `/empresa/${sectionId}`) {
-      history.pushState({ empresa: sectionId }, '', `/empresa/${sectionId}`);
-    }
-  } catch (e) { /* iframe/sandbox — ignorar */ }
-  const meta = EMPRESA_META[sectionId];
-  setPageMeta({
-    title: meta ? meta.title : 'Empresa | La Batalla Auto Import',
-    description: meta ? meta.description : DEFAULT_META.description,
-    canonical: `https://labatallaautoimport.netlify.app/empresa/${sectionId}`
-  });
-  injectFaqSchema();
-  if (window.lucide) lucide.createIcons();
-  // Scroll a la sección una vez visible
-  requestAnimationFrame(() => {
-    const target = document.getElementById(sectionId);
-    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    else window.scrollTo(0, 0);
-  });
-}
-
-function hideEmpresaPage(push = true, skipScroll = false) {
-  const empresa = document.getElementById('empresa-page');
-  const catalog = document.getElementById('catalog-view');
-  if (!empresa || !catalog) return;
-  empresa.classList.add('hidden');
-  catalog.classList.remove('hidden');
-  // Devolver el H1/subtítulo al carrusel, que los repinta con la
-  // diapositiva REALMENTE activa (no con un texto fijo): si el usuario
-  // pasó tiempo en Empresa, la diapositiva pudo cambiar mientras tanto.
-  window.LBHero?.releaseText();
-  try {
-    if (push && window.self === window.top && /^\/empresa\//.test(window.location.pathname)) {
-      history.pushState(null, '', '/');
-    }
-  } catch (e) {}
-  setPageMeta(DEFAULT_META);
-  removeFaqSchema();
-  if (!skipScroll) window.scrollTo(0, 0);
-  if (window.lucide) lucide.createIcons();
-}
-
-function initEmpresaRouting() {
-  // Interceptar los enlaces del dropdown que apuntan a /empresa/*
-  document.querySelectorAll('[data-nav-target]').forEach(a => {
-    a.addEventListener('click', e => {
-      e.preventDefault();
-      showEmpresaPage(a.dataset.navTarget);
-    });
-  });
-  document.getElementById('empresa-back-btn')?.addEventListener('click', () => hideEmpresaPage(true));
-  // Si el usuario está en una subpágina de Empresa y hace clic en una
-  // categoría del nav (#sedanes, #suvs, #pickups), volvemos al catálogo
-  // primero para que el ancla apunte a contenido visible.
-  document.querySelectorAll('a.nav-cat-link[href^="#"]').forEach(a => {
-    a.addEventListener('click', () => {
-      if (!document.getElementById('empresa-page').classList.contains('hidden')) {
-        // `skipScroll`: hideEmpresaPage() hacía window.scrollTo(0,0), que se
-        // ejecutaba DESPUÉS del handler de anclas y cancelaba el scroll suave
-        // hacia #sedanes/#suvs/#pickups. Resultado real: pulsar "Sedanes"
-        // estando en Empresa dejaba al usuario arriba del todo, no en Sedanes.
-        hideEmpresaPage(true, true);
-        scrollToSection(a.getAttribute('href').replace('#',''));
-      }
-    });
-  });
-}
 
 // ============================================================
-// SCROLL SPY — resalta en el dropdown Empresa la sección del bloque
-// institucional que el usuario está viendo en ese momento
+// ENTRADA A LA CALCULADORA DESDE FUERA DE LA SPA
+// ------------------------------------------------------------
+// Las páginas de Empresa son HTML estático y no cargan el modal, así que
+// enlazan a /#calculadora y es la home quien lo abre. Se escucha también
+// `hashchange` porque si el visitante ya está en la home, cambiar el hash
+// no recarga el documento y `DOMContentLoaded` no vuelve a dispararse.
+// El hash se retira del historial tras abrir para que recargar o
+// compartir la URL no reabra el modal sin querer.
 // ============================================================
-function initScrollSpy() {
-  const targets = ['por-que-elegirnos', 'quienes-somos', 'mision-vision', 'nuestros-valores'];
-  const sections = targets.map(id => document.getElementById(id)).filter(Boolean);
-  const navItems = Array.from(document.querySelectorAll('#nav-empresa-menu [data-nav-target]'));
-  if (!sections.length || !navItems.length || !('IntersectionObserver' in window)) return;
+function openCalcFromHash() {
+  if (window.location.hash !== '#calculadora') return;
+  if (typeof openCalcModal !== 'function') return;
+  openCalcModal();
+  try { history.replaceState(null, '', window.location.pathname + window.location.search); }
+  catch (e) { /* iframe/sandbox — el modal ya está abierto */ }
+}
+window.addEventListener('hashchange', openCalcFromHash);
 
-  function setActive(id) {
-    navItems.forEach(item => {
-      const isActive = item.dataset.navTarget === id;
-      item.classList.toggle('is-active', isActive);
-      if (isActive) item.setAttribute('aria-current', 'true');
-      else item.removeAttribute('aria-current');
-    });
-  }
-  const io = new IntersectionObserver(entries => {
-    const visible = entries.filter(en => en.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-    if (visible.length) setActive(visible[0].target.id);
-  }, { rootMargin: '-40% 0px -50% 0px', threshold: [0, 0.25, 0.5, 0.75, 1] });
-  sections.forEach(s => io.observe(s));
+// ============================================================
+// RESPALDO DE IMÁGENES
+// ============================================================
+// Cada <img> declara su respaldo en data-fallback: una URL que sustituye al
+// src, o "hide" para ocultarse. Sustituye a los onerror inline que impedían
+// retirar script-src 'unsafe-inline' del CSP.
+function applyImageFallback(img) {
+  const fallback = img.getAttribute('data-fallback');
+  if (!fallback) return;
+  if (fallback === 'hide') { img.style.display = 'none'; return; }
+  // Si el propio respaldo es lo que falló, reasignarlo entraría en bucle.
+  if (img.src === fallback) return;
+  img.src = fallback;
+}
+
+// El evento `error` no burbujea: se escucha en captura. Se registra al
+// evaluar el archivo, no en DOMContentLoaded, para estrechar la ventana en
+// la que una imagen puede fallar sin oyente.
+document.addEventListener('error', e => {
+  if (e.target instanceof HTMLImageElement) applyImageFallback(e.target);
+}, true);
+
+// A diferencia del atributo inline, que quedaba registrado durante el
+// parseo, el oyente de arriba llega después: una imagen del HTML inicial
+// puede haber fallado ya. Una que terminó sin píxeles (complete con
+// naturalWidth 0) no volverá a emitir `error`, así que se repasa a mano. Se
+// excluyen las que aún no tienen src —el <img> del lightbox nace vacío— o
+// se les aplicaría el respaldo sin haber intentado cargar nada.
+function applyPendingImageFallbacks(root = document) {
+  root.querySelectorAll('img[data-fallback]').forEach(img => {
+    if (!img.getAttribute('src')) return;
+    if (img.complete && img.naturalWidth === 0) applyImageFallback(img);
+  });
 }
 
 // ============================================================
 // INIT
 // ============================================================
 window.addEventListener('DOMContentLoaded', () => {
+  applyPendingImageFallbacks();
+  // El perfil se guarda desde sus propios botones; el <form> solo agrupa los
+  // campos. Sin esto, pulsar Enter en un input navegaría y perdería la
+  // edición en curso (antes lo evitaba un onsubmit="return false" inline).
+  document.getElementById('db-profile-form')
+    ?.addEventListener('submit', e => e.preventDefault());
   updateAdminUI();
   populateYears('pub-year');
   initBrandSearch();
@@ -2791,8 +2648,6 @@ window.addEventListener('DOMContentLoaded', () => {
   initCalcModalA11y();
   initFabCalc();
   initNavEmpresa();
-  initEmpresaRouting();
-  initScrollSpy();
   updateNavFavCount();
   if (window.lucide) lucide.createIcons();
   // Si alguien entra con un link directo tipo /vehiculos/bmw-330i-2024,
@@ -2826,13 +2681,7 @@ window.addEventListener('DOMContentLoaded', () => {
     tryOpen(0);
   }
   checkPathVehicle();
-  // Entrada directa a una subpágina de Empresa (/empresa/quienes-somos, etc.)
-  const empInit = window.location.pathname.match(/^\/empresa\/([^\/]+)\/?$/);
-  if (empInit) {
-    const section = decodeURIComponent(empInit[1]);
-    if (EMPRESA_SECTIONS.includes(section)) showEmpresaPage(section, false);
-    else showNotFound();
-  }
+  openCalcFromHash();
   // Entrada directa a /dashboard: refresh, marcador, o link compartido.
   // routeFromLocation() ya sabe manejar esta ruta, pero solo se ejecuta
   // en popstate — la carga inicial no pasa por ahí.

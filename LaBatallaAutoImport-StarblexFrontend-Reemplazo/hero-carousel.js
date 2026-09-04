@@ -33,9 +33,10 @@
 //      no buscar una flecha de 40 px. Se añade swipe horizontal.
 //
 // ACCESIBILIDAD (WCAG 2.2):
-//   - 2.2.2 Pause, Stop, Hide: botón visible de pausa/reanudar, y el
-//     carrusel se detiene con el puntero encima, con el foco dentro o
-//     mientras se desliza con el dedo.
+//   - 2.2.2 Pause, Stop, Hide: botón visible de pausa/reanudar. También
+//     se detiene con el foco de teclado dentro o mientras se desliza con
+//     el dedo, pero NO al pasar el ratón por encima: el hero ocupa casi
+//     toda la primera pantalla, así que eso lo dejaba congelado en PC.
 //   - 4.1.2 / 1.3.1: patrón tablist + tab con `aria-controls`,
 //     `aria-selected` y foco móvil (roving tabindex).
 //   - 2.1.1: flechas ← → del teclado cuando el foco está en el hero.
@@ -47,9 +48,9 @@
   'use strict';
 
   // ——— Configuración ———
-  const AUTOPLAY_MS = 5500;          // cadencia normal
-  const AUTOPLAY_MS_REDUCED = 9000;  // sin animación: más tiempo de lectura
-  const TEXT_FADE_MS = 280;          // debe coincidir con #hero-text-wrap
+  const AUTOPLAY_MS = 4000;          // cadencia normal
+  const AUTOPLAY_MS_REDUCED = 7000;  // sin animación: más tiempo de lectura
+  const TEXT_FADE_MS = 250;          // debe coincidir con #hero-text-wrap
   const SWIPE_MIN_PX = 40;           // recorrido mínimo para contar como swipe
   const SWIPE_MAX_DURATION_MS = 800; // por encima es un arrastre, no un gesto
   const RESUME_AFTER_SWIPE_MS = 200; // margen tras soltar el dedo
@@ -79,17 +80,12 @@
   // Pausa explícita del usuario (botón). Se recuerda en la sesión para
   // que no vuelva a arrancar solo al navegar por la SPA.
   let userPaused = readStoredPause();
-  // Pausas transitorias. Se modelan como tres banderas independientes y no
-  // como un contador: un contador se descuadra en cuanto falta un evento
-  // de cierre (el puntero sale de la ventana, el dedo se levanta fuera de
-  // la página) y el carrusel se queda parado sin forma de recuperarse.
-  let hoverHold = false;
+  // Pausas transitorias. Se modelan como banderas independientes y no como
+  // un contador: un contador se descuadra en cuanto falta un evento de
+  // cierre (el foco se va a otra pestaña, el dedo se levanta fuera de la
+  // página) y el carrusel se queda parado sin forma de recuperarse.
   let focusHold = false;
   let gestureHold = false;
-  // Cuando se muestra una subpágina de Empresa, el <h1> pertenece a esa
-  // sección y el carrusel no debe sobrescribirlo.
-  let titleOverride = false;
-
   // ————————————————————————————————————————————————
   // Estado persistido de la pausa
   // ————————————————————————————————————————————————
@@ -194,7 +190,7 @@
   // Texto del hero (título + subtítulo por diapositiva)
   // ————————————————————————————————————————————————
   function applySlideText(immediate) {
-    if (titleOverride || !textWrap) return;
+    if (!textWrap) return;
     const active = slideEls[index];
     const apply = () => {
       if (titleEl && active.dataset.title) titleEl.textContent = active.dataset.title;
@@ -246,7 +242,7 @@
   // visibilidad y el carrusel nunca se queda muerto.
   // ————————————————————————————————————————————————
   function isPaused() {
-    return userPaused || hoverHold || focusHold || gestureHold || usableCount() < 2;
+    return userPaused || focusHold || gestureHold || usableCount() < 2;
   }
 
   function stopTimer() {
@@ -314,21 +310,13 @@
     dotsEl?.querySelector('.hero-dot.active')?.focus();
   });
 
-  // Pausa mientras el puntero está encima o el foco de TECLADO está dentro
-  // (WCAG 2.2.2). Ambas se llevan con un booleano propio en lugar de
-  // confiar en que los eventos lleguen emparejados: un enter sin su leave
-  // (el puntero sale de la ventana, el foco se va a otra pestaña) dejaba
-  // el contador de pausas descuadrado y el carrusel muerto para siempre.
-  heroEl?.addEventListener('pointerenter', e => {
-    if (e.pointerType !== 'mouse' || hoverHold) return;
-    hoverHold = true;
-    syncHolds();
-  });
-  heroEl?.addEventListener('pointerleave', e => {
-    if (e.pointerType !== 'mouse' || !hoverHold) return;
-    hoverHold = false;
-    syncHolds();
-  });
+  // El puntero del ratón NO pausa. Pausar al pasar por encima dejaba el
+  // carrusel congelado en escritorio: el hero ocupa casi toda la primera
+  // pantalla, así que el cursor está dentro casi todo el tiempo y bastaba
+  // con mover el ratón para que no volviera a avanzar. En el teléfono no
+  // hay hover, y de ahí que allí sí rotara. WCAG 2.2.2 queda cubierto por
+  // el botón de pausa, que es explícito y no depende de dónde esté el
+  // puntero; el foco de teclado y el gesto táctil sí siguen pausando.
 
   // Solo el foco de TECLADO pausa. Es la diferencia entre un carrusel que
   // funciona en el teléfono y uno que no: al tocar una flecha, Android
@@ -414,27 +402,16 @@
   else if (typeof motionQuery.addListener === 'function') motionQuery.addListener(onMotionChange);
 
   // ————————————————————————————————————————————————
-  // API pública mínima — la usa app.js para las subpáginas de Empresa,
-  // donde el <h1> del hero pertenece a la sección y no al carrusel.
+  // API pública mínima — control del carrusel desde fuera del módulo.
+  // takeOverText()/releaseText() desaparecieron con la SPA de Empresa:
+  // el <h1>/<p> del hero ya no los reutiliza ninguna otra vista.
   // ————————————————————————————————————————————————
   window.LBHero = {
     next: () => next(true),
     prev: () => prev(true),
     goTo: i => goTo(i, { userInitiated: true }),
     pause: () => setPaused(true, false),
-    play: () => setPaused(false, false),
-    /** Congela el título/subtítulo: los gestiona otra vista. */
-    takeOverText() {
-      titleOverride = true;
-      clearTimeout(textTimerId);
-      if (textWrap) textWrap.style.opacity = '1';
-    },
-    /** Devuelve el título/subtítulo del hero al slide realmente activo. */
-    releaseText() {
-      titleOverride = false;
-      if (subtitleEl) subtitleEl.style.display = '';
-      applySlideText(true);
-    }
+    play: () => setPaused(false, false)
   };
 
   // ————————————————————————————————————————————————

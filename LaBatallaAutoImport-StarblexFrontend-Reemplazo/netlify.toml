@@ -50,14 +50,49 @@
   to = "/index.html"
   status = 200
 
-# Redirect SPA — las subpáginas de Empresa (/empresa/quienes-somos,
-# /empresa/mision-vision, etc.) viven dentro de index.html y se
-# resuelven con routing en el cliente (app.js → routeFromLocation).
-# Sin esto, entrar directo a cualquier URL /empresa/* daría 404.
+# ============================================================
+# SUBPÁGINAS DE EMPRESA — ya NO son vistas de la SPA.
+# ------------------------------------------------------------
+# Cada sección es un documento HTML propio en /empresa/*.html, con su
+# <title>, canonical, Open Graph y JSON-LD escritos en el HTML. Esto
+# elimina dos problemas reales de la versión anterior (todas las rutas
+# servían index.html): el contenido solo existía tras ejecutar JS, y
+# cualquier /empresa/loquesea devolvía 200 con la home dentro (soft 404).
+#
+# Las reescrituras 200 hacen explícito el mapeo URL limpia → archivo,
+# sin depender de la heurística de "pretty URLs" de Netlify. El comodín
+# final va después de las cuatro rutas válidas: el orden importa,
+# gana la primera regla que coincide.
+# ============================================================
+[[redirects]]
+  from = "/empresa"
+  to = "/empresa/quienes-somos"
+  status = 301
+
+[[redirects]]
+  from = "/empresa/por-que-elegirnos"
+  to = "/empresa/por-que-elegirnos.html"
+  status = 200
+
+[[redirects]]
+  from = "/empresa/quienes-somos"
+  to = "/empresa/quienes-somos.html"
+  status = 200
+
+[[redirects]]
+  from = "/empresa/mision-vision"
+  to = "/empresa/mision-vision.html"
+  status = 200
+
+[[redirects]]
+  from = "/empresa/nuestros-valores"
+  to = "/empresa/nuestros-valores.html"
+  status = 200
+
 [[redirects]]
   from = "/empresa/*"
-  to = "/index.html"
-  status = 200
+  to = "/404.html"
+  status = 404
 
 # ============================================================
 # ARCHIVOS INTERNOS QUE NO DEBEN SERVIRSE
@@ -219,7 +254,7 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "geolocation=(), microphone=(), camera=()"
     Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
-    Content-Security-Policy = "default-src 'self'; base-uri 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdn.jsdelivr.net https://www.google.com https://www.googletagmanager.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src blob: https:; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.gstatic.com https://api.cloudinary.com https://res.cloudinary.com https://labatalla-cloudinary-sign.chileacuentawarzone1516.workers.dev https://www.googletagmanager.com https://www.google-analytics.com https://region1.google-analytics.com; frame-src https://www.google.com https://la-batalla-auto-import.firebaseapp.com; frame-ancestors 'none'; object-src 'none'; form-action 'self'; manifest-src 'self'"
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net https://www.google.com https://www.googletagmanager.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src blob: https:; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.gstatic.com https://api.cloudinary.com https://res.cloudinary.com https://labatalla-cloudinary-sign.chileacuentawarzone1516.workers.dev https://www.googletagmanager.com https://www.google-analytics.com https://region1.google-analytics.com; frame-src https://www.google.com https://la-batalla-auto-import.firebaseapp.com; frame-ancestors 'none'; object-src 'none'; form-action 'self'; manifest-src 'self'"
 
 # Archivos nuevos de la Fase 1 (auth + dashboard) — mismo patrón de caché
 # que app.js: corto con revalidación, el versionado ?v= fuerza el refresh.
@@ -259,6 +294,25 @@
 
 [[headers]]
   for = "/dashboard.css"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
+# Hoja compartida por las páginas HTML estáticas (Empresa + legales).
+[[headers]]
+  for = "/pagina-estatica.css"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
+# Scripts extraídos del HTML al retirar script-src 'unsafe-inline' del CSP:
+# iconos.js (init de Lucide, compartido por las 7 páginas estáticas) y
+# analytics.js (GA4 en index.html). Mismo patrón que el resto de JS propio.
+[[headers]]
+  for = "/iconos.js"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
+[[headers]]
+  for = "/analytics.js"
   [headers.values]
     Cache-Control = "public, max-age=3600, must-revalidate"
 

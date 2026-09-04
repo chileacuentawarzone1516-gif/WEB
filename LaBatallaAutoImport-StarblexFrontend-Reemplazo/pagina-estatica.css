@@ -1,0 +1,448 @@
+/* ============================================================
+   pagina-estatica.css
+   ------------------------------------------------------------
+   Hoja de estilos común de TODAS las páginas HTML estáticas del
+   sitio: las 4 subpáginas de Empresa (/empresa/*) y las 2 legales
+   (política de privacidad y términos y condiciones).
+
+   Estas páginas no cargan Tailwind ni app.js: son documentos de
+   contenido, sin catálogo ni lógica de negocio. Antes cada página
+   legal repetía ~130 líneas de CSS idénticas en un <style> inline;
+   ahora comparten este archivo, que además queda cacheado entre
+   navegaciones (ver netlify.toml).
+
+   Paleta y tipografía idénticas a index.html/styles.css para que
+   la transición entre la SPA y estas páginas sea invisible.
+   ============================================================ */
+
+:root {
+  --lb-bg: rgb(15, 23, 42);
+  --lb-surface: rgb(30, 41, 59);
+  --lb-surface-alt: rgba(56, 189, 248, 0.06);
+  --lb-accent: #38bdf8;
+  --lb-success: #22c55e;
+  --lb-heading: #f8fafc;
+  --lb-text: rgb(203, 213, 225);
+  --lb-muted: #94a3b8;
+  --lb-dim: #8b99ad;
+  --lb-border: rgba(255, 255, 255, 0.08);
+  --lb-border-accent: rgba(56, 189, 248, 0.2);
+  --lb-radius: 16px;
+  --lb-radius-sm: 12px;
+  --lb-content: 780px;
+  --lb-content-wide: 1040px;
+  --lb-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: var(--lb-bg);
+  color: rgb(226, 232, 240);
+  margin: 0;
+  line-height: 1.7;
+  -webkit-text-size-adjust: 100%;
+}
+
+img { max-width: 100%; height: auto; }
+
+/* Contenido solo para lectores de pantalla (títulos que la maqueta
+   no muestra pero la jerarquía semántica necesita). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Foco visible y consistente en toda la página (WCAG 2.4.7). */
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--lb-accent);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* Salto directo al contenido para usuarios de teclado/lector. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 8px;
+  background: var(--lb-accent);
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  z-index: 50;
+}
+.skip-link:focus { left: 12px; }
+
+/* ============================================================
+   BARRA SUPERIOR + SUBNAVEGACIÓN DE EMPRESA
+   ============================================================ */
+.top-bar {
+  background: var(--lb-surface);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.15);
+  padding: 14px 20px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.top-bar-inner {
+  max-width: var(--lb-content);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.top-bar-inner--wide { max-width: var(--lb-content-wide); }
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--lb-heading);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 14px;
+  transition: color 0.15s;
+}
+.back-link:hover { color: var(--lb-accent); }
+
+.subnav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.subnav::-webkit-scrollbar { display: none; }
+.subnav a {
+  white-space: nowrap;
+  color: var(--lb-muted);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 999px;
+  transition: background 0.15s, color 0.15s;
+}
+.subnav a:hover { color: var(--lb-accent); background: rgba(56, 189, 248, 0.08); }
+.subnav a[aria-current="page"] {
+  color: var(--lb-accent);
+  background: rgba(56, 189, 248, 0.12);
+}
+
+@media (max-width: 720px) {
+  .subnav { margin-left: 0; width: 100%; padding-bottom: 2px; }
+}
+
+/* ============================================================
+   ESTRUCTURA Y TIPOGRAFÍA
+   ============================================================ */
+main {
+  max-width: var(--lb-content);
+  margin: 0 auto;
+  padding: 48px 20px 80px;
+}
+main.main--wide { max-width: var(--lb-content-wide); }
+
+h1 {
+  color: var(--lb-heading);
+  font-size: clamp(26px, 5vw, 34px);
+  font-weight: 800;
+  margin: 0 0 6px;
+  line-height: 1.2;
+  letter-spacing: -0.4px;
+}
+
+.eyebrow {
+  color: var(--lb-accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin: 0 0 6px;
+}
+
+.updated {
+  color: var(--lb-dim);
+  font-size: 13px;
+  margin-bottom: 40px;
+}
+
+.lead {
+  color: var(--lb-text);
+  font-size: clamp(15px, 2.2vw, 16.5px);
+  margin: 0 0 32px;
+  max-width: 68ch;
+}
+
+h2 {
+  color: var(--lb-accent);
+  font-size: 18px;
+  font-weight: 800;
+  margin: 40px 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Encabezado de sección centrado (páginas de Empresa). */
+.section-head { text-align: center; margin: 56px 0 24px; }
+.section-head h2 {
+  color: var(--lb-heading);
+  font-size: clamp(20px, 3.4vw, 24px);
+  justify-content: center;
+  margin: 0;
+}
+.section-head p {
+  color: var(--lb-muted);
+  font-size: 13.5px;
+  margin: 8px auto 0;
+  max-width: 34rem;
+}
+
+h3 { color: var(--lb-heading); font-size: 15px; font-weight: 700; margin: 0 0 6px; }
+
+p { color: var(--lb-text); font-size: 15px; margin-bottom: 14px; }
+ul { margin: 0 0 14px; padding-left: 20px; }
+li { color: var(--lb-text); font-size: 15px; margin-bottom: 8px; }
+strong { color: #f1f5f9; }
+
+a.inline-link { color: var(--lb-accent); text-decoration: underline; }
+a.inline-link:hover { color: #7dd3fc; }
+
+.note {
+  color: var(--lb-dim);
+  font-size: 11.5px;
+  text-align: center;
+  margin-top: 20px;
+}
+
+.box {
+  background: var(--lb-surface-alt);
+  border: 1px solid var(--lb-border-accent);
+  border-radius: 14px;
+  padding: 20px;
+  margin: 20px 0;
+}
+.box p:last-child { margin-bottom: 0; }
+
+/* ============================================================
+   REJILLAS Y TARJETAS
+   ============================================================ */
+/* `min(Xpx, 100%)` en cada `minmax()`: sin él, una pista de ancho fijo
+   mayor que su contenedor (p. ej. los pasos de 340 px dentro de un panel
+   en pantalla de 390 px) desborda horizontalmente la página en móvil.
+   Los mínimos están calculados sobre el ancho real del
+   contenedor (--lb-content-wide) para que cada rejilla se detenga en el
+   número de columnas previsto (2, 3 o 4) y no reparta las tarjetas en
+   filas desiguales: con un mínimo demasiado pequeño, seis tarjetas de
+   tres columnas se colocaban 4 + 2. */
+.grid { display: grid; gap: 16px; }
+.grid--2 { grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); }
+.grid--3 { grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr)); }
+.grid--4 { grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); }
+
+.card {
+  background: var(--lb-surface);
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  border-radius: var(--lb-radius-sm);
+  padding: 20px;
+}
+.card--center { text-align: center; }
+.card--panel { border-color: var(--lb-border-accent); border-radius: var(--lb-radius); padding: 28px; }
+.card--ok { border-color: rgba(34, 197, 94, 0.2); }
+.card p { color: var(--lb-muted); font-size: 12.5px; line-height: 1.55; margin: 0; }
+/* Un panel ancho contiene prosa, no la microcopia de una tarjeta: los
+   párrafos recuperan tamaño, interlineado y separación entre sí. */
+.card--panel > p:not(.note) { color: var(--lb-text); font-size: 15px; line-height: 1.75; margin: 0 0 14px; }
+.card--panel > p:not(.note):last-child { margin-bottom: 0; }
+.card h3 { font-size: 14px; }
+.card .icon { color: var(--lb-accent); width: 24px; height: 24px; margin-bottom: 10px; }
+.card--center .icon { margin-inline: auto; }
+.card--ok .icon { color: var(--lb-success); }
+.card .step-num {
+  display: block;
+  color: var(--lb-accent);
+  font-size: 20px;
+  font-weight: 900;
+  margin-bottom: 8px;
+  line-height: 1;
+}
+
+/* Franja de datos de confianza. */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
+  gap: 16px;
+  margin-top: 28px;
+  padding-top: 28px;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+}
+.stat { text-align: center; }
+.stat .icon { color: var(--lb-accent); width: 20px; height: 20px; margin: 0 auto 8px; }
+.stat strong { display: block; color: var(--lb-heading); font-size: 13px; }
+.stat span { color: var(--lb-muted); font-size: 11.5px; }
+
+/* Pasos numerados en línea (financiamiento). */
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 20px; }
+.step { display: flex; align-items: flex-start; gap: 14px; }
+.step__num {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--lb-accent);
+  font-weight: 800;
+  font-size: 14px;
+}
+.step p { color: var(--lb-muted); font-size: 12.5px; margin: 0; }
+
+/* Testimonios. */
+.quote { background: var(--lb-surface); border: 1px solid rgba(56, 189, 248, 0.1); border-radius: var(--lb-radius-sm); padding: 20px; }
+.quote .icon { color: var(--lb-accent); width: 20px; height: 20px; margin-bottom: 8px; }
+.quote p { color: var(--lb-text); font-size: 13px; line-height: 1.6; margin: 0; }
+.quote footer { color: var(--lb-muted); font-size: 11.5px; font-weight: 700; margin-top: 12px; padding: 0; text-align: left; }
+
+/* ============================================================
+   PREGUNTAS FRECUENTES
+   ============================================================ */
+.faq-item { border-bottom: 1px solid rgba(148, 163, 184, 0.15); padding: 14px 0; }
+.faq-item:last-child { border-bottom: 0; }
+.faq-item summary {
+  cursor: pointer;
+  color: var(--lb-heading);
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  list-style: none;
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary::marker { content: ""; }
+.faq-item summary .icon { flex-shrink: 0; width: 16px; height: 16px; color: var(--lb-accent); transition: transform 0.2s ease; }
+.faq-item[open] summary .icon { transform: rotate(180deg); }
+.faq-item p { color: var(--lb-muted); font-size: 13px; margin: 10px 0 0; }
+
+/* ============================================================
+   BOTONES Y LLAMADA A LA ACCIÓN
+   ============================================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  text-decoration: none;
+  border-radius: var(--lb-radius-sm);
+  padding: 11px 20px;
+  border: 1px solid transparent;
+  transition: transform 0.15s, filter 0.15s, background 0.15s, color 0.15s;
+}
+.btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.btn--primary { background: var(--lb-accent); color: #0f172a; }
+.btn--whatsapp { background: #25d366; color: #0f172a; }
+.btn--ghost { background: var(--lb-bg); color: var(--lb-accent); border-color: rgba(56, 189, 248, 0.3); }
+.btn .icon { width: 16px; height: 16px; }
+
+.cta {
+  text-align: center;
+  border-radius: var(--lb-radius);
+  padding: 36px 24px;
+  margin-top: 56px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(30, 41, 59, 0.6));
+  border: 1px solid var(--lb-border-accent);
+}
+.cta h2 { color: var(--lb-heading); font-size: 22px; justify-content: center; margin: 0 0 8px; }
+.cta p { color: var(--lb-muted); font-size: 13.5px; max-width: 30rem; margin: 0 auto 22px; }
+.cta-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; }
+
+/* Enlaces "siguiente sección" entre subpáginas de Empresa. */
+.page-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 12px;
+  margin-top: 24px;
+}
+.page-links a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--lb-surface);
+  border: 1px solid var(--lb-border);
+  border-radius: var(--lb-radius-sm);
+  padding: 14px 18px;
+  color: var(--lb-heading);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 13.5px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.page-links a:hover { border-color: var(--lb-border-accent); color: var(--lb-accent); }
+.page-links .icon { width: 16px; height: 16px; color: var(--lb-accent); }
+
+/* ============================================================
+   TARJETA DE CONTACTO (páginas legales)
+   ============================================================ */
+.contact-card {
+  background: var(--lb-surface);
+  border: 1px solid var(--lb-border);
+  border-radius: var(--lb-radius);
+  padding: 24px;
+  margin-top: 40px;
+}
+.contact-card h2 { margin-top: 0; }
+.contact-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 14px; }
+
+/* ============================================================
+   PIE DE PÁGINA
+   ============================================================ */
+.site-footer {
+  text-align: center;
+  padding: 28px 20px 36px;
+  color: rgb(139, 153, 173);
+  font-size: 13px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  column-gap: 14px;
+  row-gap: 6px;
+  margin-bottom: 8px;
+}
+.footer-nav a { color: rgb(148, 163, 184); font-size: 12.5px; text-decoration: none; padding: 4px 2px; transition: color 0.15s; }
+.footer-nav a:hover { color: var(--lb-accent); }
+.footer-sep { color: rgba(148, 163, 184, 0.5); font-size: 11px; user-select: none; }
+
+@media (max-width: 560px) {
+  .footer-nav { flex-direction: column; row-gap: 4px; }
+  .footer-sep { display: none; }
+}
+
+/* Respeta la preferencia del sistema de reducir animaciones. */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  .btn:hover { transform: none; }
+}
