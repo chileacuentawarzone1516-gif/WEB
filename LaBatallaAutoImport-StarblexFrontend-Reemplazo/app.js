@@ -621,7 +621,7 @@ function renderCard(v) {
   const vehiclePath = getVehiclePath(v);
   div.innerHTML = `
     <div class="relative card-image-link">
-      <img src="${escapeAttr(cldOptimize(imgSrc, 500))}" class="w-full h-44 object-cover card-image-link" loading="lazy" alt="${escapeAttr(v.name)}">
+      <img src="${escapeAttr(cldOptimize(imgSrc, 500))}" class="w-full h-44 object-cover" loading="lazy" alt="${escapeAttr(v.name)}" data-fallback="https://placehold.co/300x176/1e293b/38bdf8?text=Auto">
       <a href="${escapeAttr(vehiclePath)}" class="card-image-overlay" data-id="${escapeAttr(v.id)}" aria-label="Ver ${escapeAttr(v.name)}"></a>
       ${isNew ? `<span class="absolute top-2 left-2 text-xs font-bold px-2 py-1 rounded-full" style="background:#38bdf8;color:#0f172a;">✨ NUEVO</span>` : ''}
       <button type="button" class="fav-btn absolute top-2 right-2 w-9 h-9 rounded-full flex items-center justify-center transition" data-id="${escapeAttr(v.id)}" aria-label="Agregar a favoritos" style="background:rgba(15,23,42,0.65);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.1);z-index:2;">
@@ -860,7 +860,7 @@ function renderAccountFavorites() {
     card.style.cssText = 'background:rgb(30,41,59);border:1px solid rgba(255,255,255,0.07);';
     card.innerHTML = `
       <div style="height:90px;overflow:hidden;position:relative;">
-        <img src="${escapeAttr(cldOptimize(imgSrc, 300))}" alt="${escapeAttr(v.name)}" class="vehicle-thumb" style="width:100%;height:100%;object-fit:cover;">
+        <img src="${escapeAttr(cldOptimize(imgSrc, 300))}" alt="${escapeAttr(v.name)}" style="width:100%;height:100%;object-fit:cover;" data-fallback="https://placehold.co/300x120/1e293b/38bdf8?text=Auto">
         <button type="button" class="account-fav-remove-btn absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center" data-id="${escapeAttr(v.id)}" style="background:rgba(15,23,42,0.75);">
           <i data-lucide="x" class="w-3 h-3 text-white pointer-events-none"></i>
         </button>
@@ -1355,8 +1355,9 @@ function renderSimilarPage(page) {
     card.style.cssText = 'background:rgb(30,41,59);border:1px solid rgba(255,255,255,0.07);transition:transform 0.18s,box-shadow 0.18s;';
     card.innerHTML = `
       <div style="height:120px;overflow:hidden;position:relative;">
-        <img src="${escapeAttr(cldOptimize(imgSrc, 400))}" alt="${escapeAttr(sv.name)}" class="vehicle-thumb"
-          style="width:100%;height:100%;object-fit:cover;transition:transform 0.3s;">
+        <img src="${escapeAttr(cldOptimize(imgSrc, 400))}" alt="${escapeAttr(sv.name)}"
+          style="width:100%;height:100%;object-fit:cover;transition:transform 0.3s;"
+          data-fallback="https://placehold.co/300x120/1e293b/38bdf8?text=Auto">
         <button type="button" class="fav-btn absolute top-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center transition" data-id="${escapeAttr(sv.id)}" aria-label="Agregar a favoritos" style="background:rgba(15,23,42,0.65);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.1);">
           <i data-lucide="heart" class="fav-icon w-3.5 h-3.5 pointer-events-none" style="color:${svIsFav ? '#f87171' : '#fff'};fill:${svIsFav ? '#f87171' : 'none'};"></i>
         </button>
@@ -2584,54 +2585,50 @@ function openCalcFromHash() {
 window.addEventListener('hashchange', openCalcFromHash);
 
 // ============================================================
-// EVENT LISTENERS — Migración desde inline handlers a addEventListener
+// RESPALDO DE IMÁGENES
 // ============================================================
-function initImageErrorHandlers() {
-  const heroBrandLogo = document.getElementById('hero-brand-logo');
-  const lightboxImg = document.getElementById('lightbox-img');
-  const authLogo = document.getElementById('auth-logo');
+// Cada <img> declara su respaldo en data-fallback: una URL que sustituye al
+// src, o "hide" para ocultarse. Sustituye a los onerror inline que impedían
+// retirar script-src 'unsafe-inline' del CSP.
+function applyImageFallback(img) {
+  const fallback = img.getAttribute('data-fallback');
+  if (!fallback) return;
+  if (fallback === 'hide') { img.style.display = 'none'; return; }
+  // Si el propio respaldo es lo que falló, reasignarlo entraría en bucle.
+  if (img.src === fallback) return;
+  img.src = fallback;
+}
 
-  if (heroBrandLogo) {
-    heroBrandLogo.addEventListener('error', function() {
-      this.style.display = 'none';
-    });
-  }
+// El evento `error` no burbujea: se escucha en captura. Se registra al
+// evaluar el archivo, no en DOMContentLoaded, para estrechar la ventana en
+// la que una imagen puede fallar sin oyente.
+document.addEventListener('error', e => {
+  if (e.target instanceof HTMLImageElement) applyImageFallback(e.target);
+}, true);
 
-  if (lightboxImg) {
-    lightboxImg.addEventListener('error', function() {
-      this.src = 'https://placehold.co/800x600/1e293b/38bdf8?text=Sin+imagen';
-    });
-  }
-
-  if (authLogo) {
-    authLogo.addEventListener('error', function() {
-      this.style.display = 'none';
-    });
-  }
-
-  document.querySelectorAll('.slide').forEach(slide => {
-    slide.addEventListener('error', function() {
-      this.style.display = 'none';
-    });
+// A diferencia del atributo inline, que quedaba registrado durante el
+// parseo, el oyente de arriba llega después: una imagen del HTML inicial
+// puede haber fallado ya. Una que terminó sin píxeles (complete con
+// naturalWidth 0) no volverá a emitir `error`, así que se repasa a mano. Se
+// excluyen las que aún no tienen src —el <img> del lightbox nace vacío— o
+// se les aplicaría el respaldo sin haber intentado cargar nada.
+function applyPendingImageFallbacks(root = document) {
+  root.querySelectorAll('img[data-fallback]').forEach(img => {
+    if (!img.getAttribute('src')) return;
+    if (img.complete && img.naturalWidth === 0) applyImageFallback(img);
   });
-
-  // Event delegation para imágenes dinámicas (tarjetas, favoritos, etc.)
-  document.addEventListener('error', function(e) {
-    if (e.target.tagName === 'IMG') {
-      if (e.target.classList.contains('card-image-link')) {
-        e.target.src = 'https://placehold.co/300x176/1e293b/38bdf8?text=Auto';
-      } else if (e.target.classList.contains('vehicle-thumb')) {
-        e.target.src = 'https://placehold.co/300x120/1e293b/38bdf8?text=Auto';
-      }
-    }
-  }, true);
 }
 
 // ============================================================
 // INIT
 // ============================================================
 window.addEventListener('DOMContentLoaded', () => {
-  initImageErrorHandlers();
+  applyPendingImageFallbacks();
+  // El perfil se guarda desde sus propios botones; el <form> solo agrupa los
+  // campos. Sin esto, pulsar Enter en un input navegaría y perdería la
+  // edición en curso (antes lo evitaba un onsubmit="return false" inline).
+  document.getElementById('db-profile-form')
+    ?.addEventListener('submit', e => e.preventDefault());
   updateAdminUI();
   populateYears('pub-year');
   initBrandSearch();

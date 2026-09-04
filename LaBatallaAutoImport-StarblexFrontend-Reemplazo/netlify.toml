@@ -303,6 +303,19 @@
   [headers.values]
     Cache-Control = "public, max-age=3600, must-revalidate"
 
+# Scripts extraídos del HTML al retirar script-src 'unsafe-inline' del CSP:
+# iconos.js (init de Lucide, compartido por las 7 páginas estáticas) y
+# analytics.js (GA4 en index.html). Mismo patrón que el resto de JS propio.
+[[headers]]
+  for = "/iconos.js"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
+[[headers]]
+  for = "/analytics.js"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
 # ============================================================
 # CACHÉ — recursos que faltaban (auditoría final)
 # ------------------------------------------------------------

@@ -48,12 +48,7 @@
     (Google Analytics → Administrador → Flujos de datos → Web).
   ============================================================ -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-8Q0K0K1MBP"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-    gtag('config', 'G-8Q0K0K1MBP');
-  </script>
+  <script defer src="/analytics.js"></script>
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
@@ -170,12 +165,12 @@
            (marcado con el mismo aviso) con la URL de la PRIMERA imagen.
         Mientras tanto se usan fotos de stock de Pexels (temporal).
       ════════════════════════════════════════════════════════ -->
-      <img class="slide active w-full h-full object-cover" fetchpriority="high" src="https://images.pexels.com/photos/16176576/pexels-photo-16176576.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Vehículos en exhibición en La Batalla Auto Import" data-title="Tu Próximo Vehículo Te Espera" data-subtitle="Sedanes, SUVs y Camionetas al mejor precio">
-      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/11205815/pexels-photo-11205815.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Sedán deportivo disponible en el inventario" data-title="Sedanes Elegantes Para Cada Trayecto" data-subtitle="Diseño, tecnología y eficiencia en un solo vehículo">
-      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/19908577/pexels-photo-19908577.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="SUV familiar en venta" data-title="SUVs Espaciosas Para Toda la Familia" data-subtitle="Comodidad y seguridad en cada kilómetro">
-      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/16419610/pexels-photo-16419610.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Camioneta pickup de trabajo y aventura" data-title="Camionetas Listas Para el Trabajo y la Aventura" data-subtitle="Potencia y versatilidad cuando más las necesitas">
-      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/395537/pexels-photo-395537.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Patio de vehículos del dealer" data-title="Amplio Inventario, Siempre Actualizado" data-subtitle="Nuevos vehículos cada semana en Santo Domingo">
-      <img class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/29566862/pexels-photo-29566862.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Sedán de lujo exhibido en showroom elegante" data-title="Compra con Confianza y Financiamiento a tu Medida" data-subtitle="Te acompañamos en cada paso de tu compra">
+      <img data-fallback="hide" class="slide active w-full h-full object-cover" fetchpriority="high" src="https://images.pexels.com/photos/16176576/pexels-photo-16176576.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Vehículos en exhibición en La Batalla Auto Import" data-title="Tu Próximo Vehículo Te Espera" data-subtitle="Sedanes, SUVs y Camionetas al mejor precio">
+      <img data-fallback="hide" class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/11205815/pexels-photo-11205815.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Sedán deportivo disponible en el inventario" data-title="Sedanes Elegantes Para Cada Trayecto" data-subtitle="Diseño, tecnología y eficiencia en un solo vehículo">
+      <img data-fallback="hide" class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/19908577/pexels-photo-19908577.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="SUV familiar en venta" data-title="SUVs Espaciosas Para Toda la Familia" data-subtitle="Comodidad y seguridad en cada kilómetro">
+      <img data-fallback="hide" class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/16419610/pexels-photo-16419610.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Camioneta pickup de trabajo y aventura" data-title="Camionetas Listas Para el Trabajo y la Aventura" data-subtitle="Potencia y versatilidad cuando más las necesitas">
+      <img data-fallback="hide" class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/395537/pexels-photo-395537.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Patio de vehículos del dealer" data-title="Amplio Inventario, Siempre Actualizado" data-subtitle="Nuevos vehículos cada semana en Santo Domingo">
+      <img data-fallback="hide" class="slide w-full h-full object-cover" loading="lazy" src="https://images.pexels.com/photos/29566862/pexels-photo-29566862.jpeg?auto=compress&cs=tinysrgb&w=1280" alt="Sedán de lujo exhibido en showroom elegante" data-title="Compra con Confianza y Financiamiento a tu Medida" data-subtitle="Te acompañamos en cada paso de tu compra">
     </div>
     <div class="absolute inset-0 bg-black/50"></div>
     <!-- Logo de marca — esquina superior izquierda del hero. Imagen
@@ -185,7 +180,7 @@
          reales para evitar CLS; carga eager (no lazy) por estar
          siempre visible en la carga inicial. -->
     <img id="hero-brand-logo" src="/logo-hero.png" width="360" height="360"
-      alt="La Batalla Auto Import" fetchpriority="low">
+      alt="La Batalla Auto Import" fetchpriority="low" data-fallback="hide">
     <div class="relative z-10 text-center px-4 flex flex-col items-center gap-6" id="hero-text-wrap" style="transition:opacity 0.5s ease;">
       <h1 id="hero-title" class="font-black mb-4" style="color:#fff; font-size:44px; line-height:1.1; text-shadow:0 2px 20px rgba(0,0,0,0.4); letter-spacing:-0.5px;">Tu Próximo Vehículo Te Espera</h1>
       <p id="hero-subtitle" style="color:rgb(226,232,240); font-size:20px; font-weight:500;">Sedanes, SUVs y Camionetas al mejor precio</p>
@@ -307,7 +302,7 @@
 <div id="lightbox" role="dialog" aria-modal="true">
   <button id="lightbox-close" aria-label="Cerrar">✕</button>
   <button id="lightbox-prev" aria-label="Anterior">‹</button>
-  <img id="lightbox-img" src="" alt="Foto ampliada" class="hidden">
+  <img id="lightbox-img" src="" alt="Foto ampliada" class="hidden" data-fallback="https://placehold.co/800x600/1e293b/38bdf8?text=Sin+imagen">
   <video id="lightbox-video" controls class="hidden"></video>
   <button id="lightbox-next" aria-label="Siguiente">›</button>
 </div>
@@ -320,7 +315,7 @@
     </button>
     <img class="h-10 w-10 object-contain ml-auto rounded-full" loading="lazy"
       src="https://res.cloudinary.com/dqayvw3zt/image/upload/f_auto,q_auto,w_80/labatalla/logo.png"
-      alt="La Batalla Auto Import logo">
+      alt="La Batalla Auto Import logo" data-fallback="https://placehold.co/40x40/1e293b/38bdf8?text=LB">
   </div>
   <div class="max-w-3xl mx-auto px-6 py-8">
     <!-- Gallery -->
@@ -575,7 +570,7 @@
         <div class="text-center mb-4">
           <img src="https://res.cloudinary.com/dqayvw3zt/image/upload/f_auto,q_auto,w_120/labatalla/logo.png"
                alt="La Batalla Auto Import" class="h-12 w-12 object-contain rounded-full mx-auto mb-2"
-               id="auth-logo">
+               data-fallback="hide">
           <h3 id="auth-title" class="text-white font-black text-lg">Bienvenido nuevamente</h3>
           <p class="text-slate-400 text-xs leading-relaxed mt-1">Accede a tu cuenta para guardar favoritos, gestionar tu perfil y disfrutar de una mejor experiencia.</p>
         </div>
@@ -781,7 +776,7 @@
         <div class="db-profile-field"><span>Último acceso</span><strong id="db-profile-lastlogin">—</strong></div>
       </div>
 
-      <form id="db-profile-form" class="db-profile-form" onsubmit="return false;">
+      <form id="db-profile-form" class="db-profile-form">
         <div>
           <label for="db-profile-name">Nombre</label>
           <input id="db-profile-name" type="text" maxlength="100" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
