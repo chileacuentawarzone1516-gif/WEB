@@ -80,7 +80,7 @@
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
-<link rel="stylesheet" href="/styles.css?v=20260902">
+<link rel="stylesheet" href="/styles.css?v=20260904">
 <link rel="stylesheet" href="/dashboard.css?v=20260902">
 </head>
 <body style="background: rgb(15, 23, 42);" class="w-full min-h-screen">
@@ -132,10 +132,10 @@
             Empresa <i data-lucide="chevron-down" class="w-3.5 h-3.5" aria-hidden="true"></i>
           </button>
           <div id="nav-empresa-menu" class="nav-empresa-menu hidden" role="menu">
-            <a href="/empresa/por-que-elegirnos" class="nav-empresa-item" data-nav-target="por-que-elegirnos" role="menuitem"><i data-lucide="award" class="w-4 h-4" aria-hidden="true"></i>¿Por qué elegirnos?</a>
-            <a href="/empresa/quienes-somos" class="nav-empresa-item" data-nav-target="quienes-somos" role="menuitem"><i data-lucide="building-2" class="w-4 h-4" aria-hidden="true"></i>Quiénes somos</a>
-            <a href="/empresa/mision-vision" class="nav-empresa-item" data-nav-target="mision-vision" role="menuitem"><i data-lucide="target" class="w-4 h-4" aria-hidden="true"></i>Misión y Visión</a>
-            <a href="/empresa/nuestros-valores" class="nav-empresa-item" data-nav-target="nuestros-valores" role="menuitem"><i data-lucide="heart-handshake" class="w-4 h-4" aria-hidden="true"></i>Nuestros valores</a>
+            <a href="/empresa/por-que-elegirnos" class="nav-empresa-item" role="menuitem"><i data-lucide="award" class="w-4 h-4" aria-hidden="true"></i>¿Por qué elegirnos?</a>
+            <a href="/empresa/quienes-somos" class="nav-empresa-item" role="menuitem"><i data-lucide="building-2" class="w-4 h-4" aria-hidden="true"></i>Quiénes somos</a>
+            <a href="/empresa/mision-vision" class="nav-empresa-item" role="menuitem"><i data-lucide="target" class="w-4 h-4" aria-hidden="true"></i>Misión y Visión</a>
+            <a href="/empresa/nuestros-valores" class="nav-empresa-item" role="menuitem"><i data-lucide="heart-handshake" class="w-4 h-4" aria-hidden="true"></i>Nuestros valores</a>
             <div class="nav-empresa-sep"></div>
             <a href="/politica-privacidad.html" class="nav-empresa-item nav-empresa-item--secondary" role="menuitem"><i data-lucide="shield-check" class="w-4 h-4" aria-hidden="true"></i>Política de Privacidad</a>
             <a href="/terminos-y-condiciones.html" class="nav-empresa-item nav-empresa-item--secondary" role="menuitem"><i data-lucide="file-text" class="w-4 h-4" aria-hidden="true"></i>Términos y Condiciones</a>
@@ -283,354 +283,17 @@
         </div>
       </section>
     </div>
-
-    <!-- ============== VISTA: EMPRESA (sub-página, oculta por defecto) ============== -->
-    <div id="empresa-page" class="hidden space-y-16">
-      <button type="button" id="empresa-back-btn" class="inline-flex items-center gap-2 font-bold text-sm rounded-xl px-4 py-2 transition" style="background:rgb(30,41,59);color:#38bdf8;border:1px solid rgba(56,189,248,0.25);">
-        <i data-lucide="arrow-left" class="w-4 h-4"></i> Volver al catálogo
-      </button>
-
-      <!-- Quiénes somos -->
-      <section id="quienes-somos" aria-labelledby="quienes-somos-h2" class="rounded-2xl p-8 md:p-10" style="background:rgb(30,41,59);">
-        <div class="grid md:grid-cols-[auto,1fr] gap-8 items-center">
-          <div class="mx-auto md:mx-0 rounded-xl flex items-center justify-center shrink-0" style="width:96px;height:96px;background:rgb(15,23,42);">
-            <i data-lucide="car" class="w-10 h-10 text-sky-400"></i>
-          </div>
-          <div>
-            <p class="font-bold" style="color:#38bdf8;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">Sobre nosotros</p>
-            <h2 id="quienes-somos-h2" class="font-bold mt-2 mb-4" style="color:rgb(241,245,249);font-size:24px;">Quiénes somos</h2>
-            <p style="color:#cbd5e1;font-size:14px;line-height:1.7;">
-              La Batalla Auto Import nació de una idea sencilla: comprar un vehículo en República Dominicana no debería sentirse como una apuesta. Muchas personas llegan con dudas razonables —¿el precio es justo?, ¿el vehículo es lo que dice ser?, ¿habrá alguien disponible si algo sale mal después?— y esas preguntas merecen respuestas claras, no evasivas.
-            </p>
-            <p class="mt-3" style="color:#cbd5e1;font-size:14px;line-height:1.7;">
-              Por eso construimos un proceso donde cada sedán, SUV y camioneta pasa por una verificación antes de publicarse, cada precio se explica sin letras pequeñas, y cada cliente tiene un asesor real disponible por WhatsApp, no un formulario que nadie responde. Trabajamos con presencia en Santo Domingo, San Francisco de Macorís y Nagua, pero el criterio es el mismo en cualquier ubicación: transparencia primero, venta después.
-            </p>
-            <p class="mt-3" style="color:#cbd5e1;font-size:14px;line-height:1.7;">
-              No medimos el éxito solo en unidades vendidas, sino en cuántos clientes nos recomiendan a un familiar o vuelven cuando necesitan su próximo vehículo.
-            </p>
-            <a href="#sedanes" class="inline-flex items-center gap-2 font-bold text-sm rounded-xl px-5 py-2.5 transition" style="background:#38bdf8;color:#0f172a;margin-top:20px;">
-              Explorar el inventario <i data-lucide="arrow-right" class="w-4 h-4"></i>
-            </a>
-            <a href="/empresa/por-que-elegirnos" data-nav-target="por-que-elegirnos" class="inline-flex items-center gap-1.5 font-bold text-sm transition" style="color:#38bdf8;margin-top:20px;margin-left:14px;">
-              ¿Por qué elegirnos? <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
-            </a>
-          </div>
-        </div>
-
-        <!-- Franja de confianza — reemplaza los textos entre [] con cifras reales cuando las tengas -->
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-8 pt-8" style="border-top:1px solid rgba(148,163,184,0.15);">
-          <div class="text-center">
-            <i data-lucide="map-pin" class="w-5 h-5 text-sky-400 mx-auto mb-2"></i>
-            <p class="font-bold" style="color:#f8fafc;font-size:13px;">3 ubicaciones</p>
-            <p style="color:#94a3b8;font-size:11.5px;">Santo Domingo, SFM y Nagua</p>
-          </div>
-          <div class="text-center">
-            <i data-lucide="shield-check" class="w-5 h-5 text-sky-400 mx-auto mb-2"></i>
-            <p class="font-bold" style="color:#f8fafc;font-size:13px;">Vehículos verificados</p>
-            <p style="color:#94a3b8;font-size:11.5px;">Historial revisado antes de publicar</p>
-          </div>
-          <div class="text-center">
-            <i data-lucide="message-circle" class="w-5 h-5 text-sky-400 mx-auto mb-2"></i>
-            <p class="font-bold" style="color:#f8fafc;font-size:13px;">Respuesta directa</p>
-            <p style="color:#94a3b8;font-size:11.5px;">Asesor real por WhatsApp</p>
-          </div>
-          <div class="text-center">
-            <i data-lucide="banknote" class="w-5 h-5 text-sky-400 mx-auto mb-2"></i>
-            <p class="font-bold" style="color:#f8fafc;font-size:13px;">Financiamiento flexible</p>
-            <p style="color:#94a3b8;font-size:11.5px;">Aliados con bancos y financieras</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- Cómo trabajamos -->
-      <section id="como-trabajamos" aria-labelledby="como-trabajamos-h2">
-        <div class="text-center mb-8">
-          <p class="font-bold" style="color:#38bdf8;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">Nuestro proceso</p>
-          <h2 id="como-trabajamos-h2" class="font-bold mt-2" style="color:rgb(241,245,249);font-size:24px;">Cómo trabajamos</h2>
-          <p class="mt-2 mx-auto" style="color:#94a3b8;font-size:13.5px;line-height:1.6;max-width:32rem;">Cuatro pasos simples, sin presión y con un asesor acompañándote en cada uno.</p>
-        </div>
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
-            <p class="font-black mb-2" style="color:#38bdf8;font-size:20px;">01</p>
-            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Cuéntanos qué buscas</h3>
-            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Por WhatsApp o navegando el catálogo: marca, presupuesto y uso que le darás al vehículo.</p>
-          </div>
-          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
-            <p class="font-black mb-2" style="color:#38bdf8;font-size:20px;">02</p>
-            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Te mostramos opciones reales</h3>
-            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Fotos, especificaciones y estado verificado de cada unidad disponible que encaje contigo.</p>
-          </div>
-          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
-            <p class="font-black mb-2" style="color:#38bdf8;font-size:20px;">03</p>
-            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Simulas tu financiamiento</h3>
-            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Calculas tu cuota estimada al instante, sin comprometerte a nada todavía.</p>
-          </div>
-          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
-            <p class="font-black mb-2" style="color:#38bdf8;font-size:20px;">04</p>
-            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Firmamos y entregamos</h3>
-            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Confirmamos condiciones, resolvemos papeles y coordinamos la entrega de las llaves.</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- Misión y Visión -->
-      <section id="mision-vision" aria-labelledby="mision-vision-h2">
-        <h2 id="mision-vision-h2" class="sr-only">Misión y visión</h2>
-        <div class="grid md:grid-cols-2 gap-6">
-          <div class="rounded-2xl p-8" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.15);">
-            <i data-lucide="target" class="w-7 h-7 text-sky-400 mb-3"></i>
-            <h3 class="font-bold mb-2" style="color:#f8fafc;font-size:16px;">Nuestra misión</h3>
-            <p style="color:#94a3b8;font-size:13.5px;line-height:1.65;">Facilitar el acceso a vehículos de calidad en República Dominicana, ofreciendo opciones de financiamiento reales y un servicio honesto que le ahorre tiempo y dudas a cada cliente.</p>
-          </div>
-          <div class="rounded-2xl p-8" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.15);">
-            <i data-lucide="compass" class="w-7 h-7 text-sky-400 mb-3"></i>
-            <h3 class="font-bold mb-2" style="color:#f8fafc;font-size:16px;">Nuestra visión</h3>
-            <p style="color:#94a3b8;font-size:13.5px;line-height:1.65;">Ser el concesionario de referencia en el país, reconocido por la calidad de su inventario y por construir relaciones de largo plazo basadas en la confianza, no solo en la venta.</p>
-          </div>
-        </div>
-        <a href="/empresa/quienes-somos" data-nav-target="quienes-somos" class="inline-flex items-center gap-1.5 font-bold text-sm transition" style="color:#38bdf8;margin-top:20px;">
-          Conoce quiénes somos <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
-        </a>
-      </section>
-
-
-      <!-- Nuestros valores -->
-      <section id="nuestros-valores" aria-labelledby="nuestros-valores-h2">
-        <h2 id="nuestros-valores-h2" class="font-bold mb-6 text-center" style="color:rgb(241,245,249);font-size:24px;">Nuestros valores</h2>
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
-            <i data-lucide="shield-check" class="w-6 h-6 text-sky-400 mx-auto mb-2"></i>
-            <h3 class="font-bold" style="color:#e2e8f0;font-size:13px;">Honestidad</h3>
-            <p class="mt-1" style="color:#94a3b8;font-size:11.5px;line-height:1.4;">Decimos lo que hay, incluso cuando no es la respuesta más cómoda.</p>
-          </div>
-          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
-            <i data-lucide="eye" class="w-6 h-6 text-sky-400 mx-auto mb-2"></i>
-            <h3 class="font-bold" style="color:#e2e8f0;font-size:13px;">Transparencia</h3>
-            <p class="mt-1" style="color:#94a3b8;font-size:11.5px;line-height:1.4;">Precio, condiciones y estado del vehículo, sin costos ocultos.</p>
-          </div>
-          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
-            <i data-lucide="star" class="w-6 h-6 text-sky-400 mx-auto mb-2"></i>
-            <h3 class="font-bold" style="color:#e2e8f0;font-size:13px;">Calidad</h3>
-            <p class="mt-1" style="color:#94a3b8;font-size:11.5px;line-height:1.4;">Cada unidad se revisa antes de publicarse en el catálogo.</p>
-          </div>
-          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
-            <i data-lucide="flag" class="w-6 h-6 text-sky-400 mx-auto mb-2"></i>
-            <h3 class="font-bold" style="color:#e2e8f0;font-size:13px;">Compromiso</h3>
-            <p class="mt-1" style="color:#94a3b8;font-size:11.5px;line-height:1.4;">Te acompañamos antes, durante y después de la compra.</p>
-          </div>
-          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
-            <i data-lucide="heart-handshake" class="w-6 h-6 text-sky-400 mx-auto mb-2"></i>
-            <h3 class="font-bold" style="color:#e2e8f0;font-size:13px;">Confianza</h3>
-            <p class="mt-1" style="color:#94a3b8;font-size:11.5px;line-height:1.4;">Construimos relaciones que duran más que una sola venta.</p>
-          </div>
-          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
-            <i data-lucide="check-circle-2" class="w-6 h-6 text-sky-400 mx-auto mb-2"></i>
-            <h3 class="font-bold" style="color:#e2e8f0;font-size:13px;">Responsabilidad</h3>
-            <p class="mt-1" style="color:#94a3b8;font-size:11.5px;line-height:1.4;">Cumplimos lo que prometemos, desde el primer mensaje.</p>
-          </div>
-        </div>
-        <a href="/empresa/por-que-elegirnos" data-nav-target="por-que-elegirnos" class="inline-flex items-center gap-1.5 font-bold text-sm transition" style="color:#38bdf8;margin-top:20px;">
-          Ver por qué elegirnos <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
-        </a>
-      </section>
-
-      <!-- ¿Por qué elegirnos? -->
-      <section id="por-que-elegirnos" aria-labelledby="por-que-elegirnos-h2">
-        <div class="text-center mb-8">
-          <p class="font-bold" style="color:#38bdf8;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">Ventajas competitivas</p>
-          <h2 id="por-que-elegirnos-h2" class="font-bold mt-2" style="color:rgb(241,245,249);font-size:24px;">¿Por qué elegirnos?</h2>
-        </div>
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
-            <i data-lucide="globe" class="w-6 h-6 text-sky-400 mb-3"></i>
-            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Vehículos importados de calidad</h3>
-            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Seleccionamos cada unidad verificando su procedencia y estado real antes de ponerla a la venta.</p>
-          </div>
-          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
-            <i data-lucide="calculator" class="w-6 h-6 text-sky-400 mb-3"></i>
-            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Financiamiento a tu medida</h3>
-            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Trabajamos con bancos y financieras del país para encontrar la cuota que se ajuste a tu presupuesto.</p>
-          </div>
-          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
-            <i data-lucide="headphones" class="w-6 h-6 text-sky-400 mb-3"></i>
-            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Atención personalizada</h3>
-            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Un asesor te acompaña desde la primera pregunta hasta la entrega de las llaves.</p>
-          </div>
-          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
-            <i data-lucide="file-check-2" class="w-6 h-6 text-sky-400 mb-3"></i>
-            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Proceso transparente</h3>
-            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Precios claros, condiciones explicadas y ningún costo oculto en el camino.</p>
-          </div>
-          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
-            <i data-lucide="thumbs-up" class="w-6 h-6 text-sky-400 mb-3"></i>
-            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Excelente servicio al cliente</h3>
-            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Respondemos rápido por WhatsApp y damos seguimiento después de la compra.</p>
-          </div>
-          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.12);">
-            <i data-lucide="refresh-cw" class="w-6 h-6 text-sky-400 mb-3"></i>
-            <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Inventario actualizado</h3>
-            <p style="color:#94a3b8;font-size:12.5px;line-height:1.5;">Sumamos vehículos nuevos cada semana, así que siempre hay opciones frescas para ver.</p>
-          </div>
-        </div>
-        <div class="text-center mt-8">
-          <button type="button" onclick="openCalcModal()" class="inline-flex items-center gap-2 font-bold text-sm rounded-xl px-5 py-2.5 transition" style="background:#38bdf8;color:#0f172a;">
-            <i data-lucide="calculator" class="w-4 h-4"></i> Simular mi financiamiento
-          </button>
-        </div>
-        <div class="text-center mt-4">
-          <a href="/empresa/nuestros-valores" data-nav-target="nuestros-valores" class="inline-flex items-center gap-1.5 font-bold text-sm transition" style="color:#38bdf8;">
-            Conoce nuestros valores <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
-          </a>
-        </div>
-      </section>
-
-      <!-- Financiamiento paso a paso -->
-      <section id="financiamiento-paso-a-paso" aria-labelledby="financiamiento-h2" class="rounded-2xl p-8 md:p-10" style="background:rgb(30,41,59);">
-        <div class="text-center mb-8">
-          <p class="font-bold" style="color:#38bdf8;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">Financiamiento</p>
-          <h2 id="financiamiento-h2" class="font-bold mt-2" style="color:rgb(241,245,249);font-size:24px;">Financiamiento paso a paso</h2>
-          <p class="mt-2 mx-auto" style="color:#94a3b8;font-size:13.5px;line-height:1.6;max-width:32rem;">Sin letras pequeñas: así se calcula y aprueba tu cuota.</p>
-        </div>
-        <div class="grid md:grid-cols-2 gap-6">
-          <div class="flex items-start gap-4">
-            <div class="rounded-full flex items-center justify-center shrink-0" style="width:36px;height:36px;background:rgba(56,189,248,0.12);color:#38bdf8;font-weight:800;font-size:14px;">1</div>
-            <div>
-              <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Elige tu vehículo</h3>
-              <p style="color:#94a3b8;font-size:12.5px;line-height:1.55;">Selecciona la unidad que te interesa desde el catálogo.</p>
-            </div>
-          </div>
-          <div class="flex items-start gap-4">
-            <div class="rounded-full flex items-center justify-center shrink-0" style="width:36px;height:36px;background:rgba(56,189,248,0.12);color:#38bdf8;font-weight:800;font-size:14px;">2</div>
-            <div>
-              <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Simula tu cuota</h3>
-              <p style="color:#94a3b8;font-size:12.5px;line-height:1.55;">Ajusta inicial y plazo en nuestra calculadora y ve el estimado al instante.</p>
-            </div>
-          </div>
-          <div class="flex items-start gap-4">
-            <div class="rounded-full flex items-center justify-center shrink-0" style="width:36px;height:36px;background:rgba(56,189,248,0.12);color:#38bdf8;font-weight:800;font-size:14px;">3</div>
-            <div>
-              <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Envía tu solicitud</h3>
-              <p style="color:#94a3b8;font-size:12.5px;line-height:1.55;">Con un clic, tu cotización llega directo a un asesor por WhatsApp.</p>
-            </div>
-          </div>
-          <div class="flex items-start gap-4">
-            <div class="rounded-full flex items-center justify-center shrink-0" style="width:36px;height:36px;background:rgba(56,189,248,0.12);color:#38bdf8;font-weight:800;font-size:14px;">4</div>
-            <div>
-              <h3 class="font-bold mb-1" style="color:#f8fafc;font-size:14px;">Confirmamos la aprobación</h3>
-              <p style="color:#94a3b8;font-size:12.5px;line-height:1.55;">Coordinamos con la institución financiera y te confirmamos condiciones finales.</p>
-            </div>
-          </div>
-        </div>
-        <p class="text-center" style="color:#8b99ad;font-size:11.5px;margin-top:24px;">* Cálculo referencial sujeto a aprobación y tasa final de la institución financiera.</p>
-      </section>
-
-      <!-- Garantías y transparencia -->
-      <section id="garantias-transparencia" aria-labelledby="garantias-h2">
-        <div class="text-center mb-8">
-          <p class="font-bold" style="color:#38bdf8;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">Compromiso</p>
-          <h2 id="garantias-h2" class="font-bold mt-2" style="color:rgb(241,245,249);font-size:24px;">Garantías y transparencia</h2>
-        </div>
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(34,197,94,0.15);">
-            <i data-lucide="file-search" class="w-6 h-6 mx-auto mb-2" style="color:#22c55e;"></i>
-            <h3 class="font-bold" style="color:#e2e8f0;font-size:12.5px;">Historial verificado</h3>
-          </div>
-          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(34,197,94,0.15);">
-            <i data-lucide="tag" class="w-6 h-6 mx-auto mb-2" style="color:#22c55e;"></i>
-            <h3 class="font-bold" style="color:#e2e8f0;font-size:12.5px;">Precio sin sorpresas</h3>
-          </div>
-          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(34,197,94,0.15);">
-            <i data-lucide="file-text" class="w-6 h-6 mx-auto mb-2" style="color:#22c55e;"></i>
-            <h3 class="font-bold" style="color:#e2e8f0;font-size:12.5px;">Papeles en regla</h3>
-          </div>
-          <div class="rounded-xl p-5 text-center" style="background:rgb(30,41,59);border:1px solid rgba(34,197,94,0.15);">
-            <i data-lucide="phone-call" class="w-6 h-6 mx-auto mb-2" style="color:#22c55e;"></i>
-            <h3 class="font-bold" style="color:#e2e8f0;font-size:12.5px;">Soporte post-venta</h3>
-          </div>
-        </div>
-      </section>
-
-      <!-- Preguntas frecuentes -->
-      <section id="preguntas-frecuentes" aria-labelledby="faq-h2" class="rounded-2xl p-8 md:p-10" style="background:rgb(30,41,59);max-width:760px;margin-inline:auto;">
-        <div class="text-center mb-6">
-          <p class="font-bold" style="color:#38bdf8;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">Dudas frecuentes</p>
-          <h2 id="faq-h2" class="font-bold mt-2" style="color:rgb(241,245,249);font-size:24px;">Preguntas frecuentes</h2>
-        </div>
-        <div>
-          <details class="lb-faq-item" style="border-bottom:1px solid rgba(148,163,184,0.15);padding:14px 0;">
-            <summary style="cursor:pointer;color:#f8fafc;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:space-between;gap:12px;">¿Los vehículos son nuevos, usados o importados? <i data-lucide="chevron-down" class="lb-faq-chevron w-4 h-4 text-sky-400" style="flex-shrink:0;"></i></summary>
-            <p class="mt-2" style="color:#94a3b8;font-size:12.5px;line-height:1.6;">Manejamos las tres opciones. Cada ficha indica claramente la condición del vehículo para que decidas con información completa.</p>
-          </details>
-          <details class="lb-faq-item" style="border-bottom:1px solid rgba(148,163,184,0.15);padding:14px 0;">
-            <summary style="cursor:pointer;color:#f8fafc;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:space-between;gap:12px;">¿Puedo financiar aunque no tenga historial crediticio extenso? <i data-lucide="chevron-down" class="lb-faq-chevron w-4 h-4 text-sky-400" style="flex-shrink:0;"></i></summary>
-            <p class="mt-2" style="color:#94a3b8;font-size:12.5px;line-height:1.6;">Trabajamos con varias instituciones financieras, cada una con criterios distintos. Un asesor revisa tu caso y te dice qué opciones aplican, sin compromiso.</p>
-          </details>
-          <details class="lb-faq-item" style="border-bottom:1px solid rgba(148,163,184,0.15);padding:14px 0;">
-            <summary style="cursor:pointer;color:#f8fafc;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:space-between;gap:12px;">¿Qué pasa si tengo un problema después de comprar? <i data-lucide="chevron-down" class="lb-faq-chevron w-4 h-4 text-sky-400" style="flex-shrink:0;"></i></summary>
-            <p class="mt-2" style="color:#94a3b8;font-size:12.5px;line-height:1.6;">Nuestro acompañamiento no termina con la entrega. Contáctanos por WhatsApp y te orientamos sobre los siguientes pasos.</p>
-          </details>
-          <details class="lb-faq-item" style="border-bottom:1px solid rgba(148,163,184,0.15);padding:14px 0;">
-            <summary style="cursor:pointer;color:#f8fafc;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:space-between;gap:12px;">¿Atienden fuera de Santo Domingo? <i data-lucide="chevron-down" class="lb-faq-chevron w-4 h-4 text-sky-400" style="flex-shrink:0;"></i></summary>
-            <p class="mt-2" style="color:#94a3b8;font-size:12.5px;line-height:1.6;">Sí, tenemos presencia en Santo Domingo, San Francisco de Macorís y Nagua. Escríbenos y coordinamos según tu ubicación.</p>
-          </details>
-          <details class="lb-faq-item" style="padding:14px 0;">
-            <summary style="cursor:pointer;color:#f8fafc;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:space-between;gap:12px;">¿Cuánto tiempo toma todo el proceso? <i data-lucide="chevron-down" class="lb-faq-chevron w-4 h-4 text-sky-400" style="flex-shrink:0;"></i></summary>
-            <p class="mt-2" style="color:#94a3b8;font-size:12.5px;line-height:1.6;">Depende de la aprobación de la institución financiera, pero la simulación y la solicitud inicial toman solo minutos.</p>
-          </details>
-        </div>
-      </section>
-
-      <!-- Testimonios -->
-      <section id="testimonios" aria-labelledby="testimonios-h2">
-        <div class="text-center mb-3">
-          <p class="font-bold" style="color:#38bdf8;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">Lo que dicen nuestros clientes</p>
-          <h2 id="testimonios-h2" class="font-bold mt-2" style="color:rgb(241,245,249);font-size:24px;">Testimonios</h2>
-          <p class="mt-1" style="color:#8b99ad;font-size:11px;">* Testimonios de ejemplo, pendientes de reemplazar por reseñas reales de clientes.</p>
-        </div>
-        <div class="grid md:grid-cols-3 gap-4" style="margin-top:24px;">
-          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
-            <i data-lucide="quote" class="w-5 h-5 text-sky-400 mb-2"></i>
-            <p style="color:#cbd5e1;font-size:13px;line-height:1.6;">"Me explicaron cada paso del financiamiento antes de decidir. Sentí que sí les importaba que yo entendiera todo."</p>
-            <p class="mt-3 font-bold" style="color:#94a3b8;font-size:11.5px;">— Cliente, Santo Domingo</p>
-          </div>
-          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
-            <i data-lucide="quote" class="w-5 h-5 text-sky-400 mb-2"></i>
-            <p style="color:#cbd5e1;font-size:13px;line-height:1.6;">"Respondieron rápido por WhatsApp y no sentí presión en ningún momento del proceso."</p>
-            <p class="mt-3 font-bold" style="color:#94a3b8;font-size:11.5px;">— Cliente, San Francisco de Macorís</p>
-          </div>
-          <div class="rounded-xl p-5" style="background:rgb(30,41,59);border:1px solid rgba(56,189,248,0.1);">
-            <i data-lucide="quote" class="w-5 h-5 text-sky-400 mb-2"></i>
-            <p style="color:#cbd5e1;font-size:13px;line-height:1.6;">"El precio que me dieron al inicio fue el mismo hasta la entrega. Sin sorpresas."</p>
-            <p class="mt-3 font-bold" style="color:#94a3b8;font-size:11.5px;">— Cliente, Nagua</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- CTA final -->
-      <section aria-label="Contacto" class="rounded-2xl p-8 md:p-10 text-center" style="background:linear-gradient(135deg, rgba(56,189,248,0.12), rgba(30,41,59,0.6));border:1px solid rgba(56,189,248,0.2);">
-        <h2 class="font-bold mb-2" style="color:rgb(241,245,249);font-size:22px;">¿Listo para encontrar tu próximo vehículo?</h2>
-        <p class="mb-6 max-w-md mx-auto" style="color:#94a3b8;font-size:13.5px;line-height:1.6;">Habla con un asesor real o simula tu financiamiento en menos de un minuto.</p>
-        <div class="flex flex-wrap items-center justify-center gap-3">
-          <a href="https://wa.me/18097759771?text=Hola%2C%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20veh%C3%ADculos%20disponibles." target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 font-bold text-sm rounded-xl px-5 py-2.5 transition" style="background:#25D366;color:#0f172a;">
-            <svg class="w-4 h-4 fill-current shrink-0"><use href="#icon-whatsapp"/></svg> Hablar con un asesor
-          </a>
-          <button type="button" onclick="openCalcModal()" class="inline-flex items-center gap-2 font-bold text-sm rounded-xl px-5 py-2.5 transition" style="background:rgb(15,23,42);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);">
-            <i data-lucide="calculator" class="w-4 h-4"></i> Simular financiamiento
-          </button>
-        </div>
-      </section>
-    </div>
   </main>
 
   <footer class="py-6 text-center" style="background:rgb(15,23,42);border-top:1px solid rgba(255,255,255,0.06);">
     <nav aria-label="Enlaces de Empresa" class="footer-legal-nav" style="margin-bottom:6px;">
-      <a href="/empresa/por-que-elegirnos" class="footer-legal-link" data-nav-target="por-que-elegirnos">¿Por qué elegirnos?</a>
+      <a href="/empresa/por-que-elegirnos" class="footer-legal-link">¿Por qué elegirnos?</a>
       <span class="footer-legal-sep" aria-hidden="true">•</span>
-      <a href="/empresa/quienes-somos" class="footer-legal-link" data-nav-target="quienes-somos">Quiénes somos</a>
+      <a href="/empresa/quienes-somos" class="footer-legal-link">Quiénes somos</a>
       <span class="footer-legal-sep" aria-hidden="true">•</span>
-      <a href="/empresa/mision-vision" class="footer-legal-link" data-nav-target="mision-vision">Misión y Visión</a>
+      <a href="/empresa/mision-vision" class="footer-legal-link">Misión y Visión</a>
       <span class="footer-legal-sep" aria-hidden="true">•</span>
-      <a href="/empresa/nuestros-valores" class="footer-legal-link" data-nav-target="nuestros-valores">Nuestros valores</a>
+      <a href="/empresa/nuestros-valores" class="footer-legal-link">Nuestros valores</a>
     </nav>
     <nav aria-label="Enlaces legales" class="footer-legal-nav">
       <a href="/politica-privacidad.html" class="footer-legal-link">Política de Privacidad</a>
@@ -1402,10 +1065,10 @@
 <!-- Versionado de caché: al modificar app.js, calculadora.js o los CSS,
      incrementa ?v= en las 4 referencias para invalidar la caché del
      navegador de inmediato (evita ejecutar JS viejo con HTML nuevo). -->
-<script defer src="/hero-carousel.js?v=20260903"></script>
+<script defer src="/hero-carousel.js?v=20260904"></script>
 <script defer src="/media-upload.js?v=20260903"></script>
 <script defer src="/roles.js?v=20260728"></script>
-<script defer src="/app.js?v=20260903"></script>
+<script defer src="/app.js?v=20260904"></script>
 <script defer src="/auth.js?v=20260728"></script>
 <script defer src="/auth-ui.js?v=20260728"></script>
 <script defer src="/invite-modal.js?v=20260811"></script>

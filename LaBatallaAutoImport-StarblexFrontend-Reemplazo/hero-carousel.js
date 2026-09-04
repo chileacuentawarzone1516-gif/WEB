@@ -86,10 +86,6 @@
   let hoverHold = false;
   let focusHold = false;
   let gestureHold = false;
-  // Cuando se muestra una subpágina de Empresa, el <h1> pertenece a esa
-  // sección y el carrusel no debe sobrescribirlo.
-  let titleOverride = false;
-
   // ————————————————————————————————————————————————
   // Estado persistido de la pausa
   // ————————————————————————————————————————————————
@@ -194,7 +190,7 @@
   // Texto del hero (título + subtítulo por diapositiva)
   // ————————————————————————————————————————————————
   function applySlideText(immediate) {
-    if (titleOverride || !textWrap) return;
+    if (!textWrap) return;
     const active = slideEls[index];
     const apply = () => {
       if (titleEl && active.dataset.title) titleEl.textContent = active.dataset.title;
@@ -414,27 +410,16 @@
   else if (typeof motionQuery.addListener === 'function') motionQuery.addListener(onMotionChange);
 
   // ————————————————————————————————————————————————
-  // API pública mínima — la usa app.js para las subpáginas de Empresa,
-  // donde el <h1> del hero pertenece a la sección y no al carrusel.
+  // API pública mínima — control del carrusel desde fuera del módulo.
+  // takeOverText()/releaseText() desaparecieron con la SPA de Empresa:
+  // el <h1>/<p> del hero ya no los reutiliza ninguna otra vista.
   // ————————————————————————————————————————————————
   window.LBHero = {
     next: () => next(true),
     prev: () => prev(true),
     goTo: i => goTo(i, { userInitiated: true }),
     pause: () => setPaused(true, false),
-    play: () => setPaused(false, false),
-    /** Congela el título/subtítulo: los gestiona otra vista. */
-    takeOverText() {
-      titleOverride = true;
-      clearTimeout(textTimerId);
-      if (textWrap) textWrap.style.opacity = '1';
-    },
-    /** Devuelve el título/subtítulo del hero al slide realmente activo. */
-    releaseText() {
-      titleOverride = false;
-      if (subtitleEl) subtitleEl.style.display = '';
-      applySlideText(true);
-    }
+    play: () => setPaused(false, false)
   };
 
   // ————————————————————————————————————————————————

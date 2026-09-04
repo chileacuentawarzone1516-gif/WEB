@@ -1114,14 +1114,11 @@ function updateAdminUI() {
 // ------------------------------------------------------------
 // El carrusel dejó de vivir aquí: mezclaba responsabilidades con el
 // catálogo y necesitaba lógica propia (swipe, control de pausa,
-// diapositivas rotas, re-armado del temporizador en móvil). app.js solo
-// conserva las referencias al <h1>/<p> del hero porque las subpáginas de
-// Empresa los reutilizan como cabecera de sección; el carrusel expone
-// window.LBHero.takeOverText() / releaseText() para cederlos y
-// recuperarlos sin pisarse con el autoplay.
+// diapositivas rotas, re-armado del temporizador en móvil). El <h1>/<p>
+// del hero son suyos en exclusiva desde que las subpáginas de Empresa
+// pasaron a ser documentos HTML independientes.
 // ============================================================
-const heroTitleEl = document.getElementById('hero-title');
-const heroSubtitleEl = document.getElementById('hero-subtitle');
+
 // ============================================================
 // YEAR OPTIONS (filter + publish form)
 // ============================================================
@@ -1271,24 +1268,16 @@ function routeFromLocation() {
     // checkPathVehicle() lo reintente en su propio ciclo al inicio.
     if (vehicles.length > 0) { showNotFound(); return; }
   }
-  // Rutas de Empresa — /empresa/quienes-somos, /empresa/mision-vision, etc.
-  const empMatch = path.match(/^\/empresa\/([^\/]+)\/?$/);
-  if (empMatch) {
-    const section = decodeURIComponent(empMatch[1]);
-    if (EMPRESA_SECTIONS.includes(section)) { showEmpresaPage(section, false); return; }
-    showNotFound(); return;
-  }
+  // Las subpáginas de Empresa (/empresa/*) ya no son vistas de la SPA:
+  // son documentos HTML propios servidos por el hosting, así que aquí
+  // no hay nada que enrutar para ellas.
   if (!document.getElementById('detail-page').classList.contains('page-hidden')) {
     goBackToMain();
   }
-  // Volver a "/" con el botón atrás desde una subpágina de Empresa
-  if (path === '/' && !document.getElementById('empresa-page').classList.contains('hidden')) {
-    hideEmpresaPage(false);
-  }
   // Volver a "/" con el botón atrás desde el Dashboard — faltaba este
-  // caso (bug real encontrado en auditoría): a diferencia de detail-page
-  // y empresa-page, nada comprobaba si dashboard-page seguía visible al
-  // navegar con "atrás", dejándolo abierto con la URL ya en "/".
+  // caso (bug real encontrado en auditoría): a diferencia de detail-page,
+  // nada comprobaba si dashboard-page seguía visible al navegar con
+  // "atrás", dejándolo abierto con la URL ya en "/".
   if (path === '/' && !document.getElementById('dashboard-page').classList.contains('page-hidden')) {
     closeDashboardPage(false);
   }
@@ -2564,221 +2553,36 @@ function initNavEmpresa() {
 }
 
 // ============================================================
-// SUBPÁGINAS DE EMPRESA — SPA routing con URLs reales (/empresa/slug).
-// Cada opción del menú Empresa abre la vista institucional dentro de
-// index.html y hace scroll a su sección, con historial navegable.
+// SUBPÁGINAS DE EMPRESA — ahora son páginas HTML reales
+// ------------------------------------------------------------
+// /empresa/por-que-elegirnos, /empresa/quienes-somos,
+// /empresa/mision-vision y /empresa/nuestros-valores dejaron de ser
+// vistas ocultas dentro de index.html: cada una es su propio documento
+// en /empresa/*.html, igual que las páginas legales. Por eso aquí ya no
+// hay routing, ni meta tags dinámicas, ni FAQ inyectada por JS — cada
+// página lleva su <title>, su canonical, su Open Graph y su JSON-LD
+// escritos en el HTML, que es lo que los rastreadores leen sin ejecutar
+// JavaScript. Los enlaces del menú Empresa son enlaces normales.
 // ============================================================
-const EMPRESA_SECTIONS = ['por-que-elegirnos', 'quienes-somos', 'mision-vision', 'nuestros-valores'];
-
-// Metadatos SEO propios por sub-página de Empresa — sin esto, las 4 rutas
-// /empresa/* comparten el <title>/description/canonical genéricos de la
-// home, lo que Google puede interpretar como contenido duplicado.
-const EMPRESA_META = {
-  'por-que-elegirnos': {
-    title: '¿Por qué elegirnos? | La Batalla Auto Import',
-    description: 'Vehículos verificados, financiamiento a tu medida y atención personalizada. Descubre por qué comprar en La Batalla Auto Import.'
-  },
-  'quienes-somos': {
-    title: 'Quiénes somos | La Batalla Auto Import',
-    description: 'Conoce a La Batalla Auto Import: concesionario dominicano de sedanes, SUVs y camionetas en Santo Domingo, San Francisco de Macorís y Nagua.'
-  },
-  'mision-vision': {
-    title: 'Misión y Visión | La Batalla Auto Import',
-    description: 'La misión y visión de La Batalla Auto Import como concesionario de vehículos nuevos, usados e importados en República Dominicana.'
-  },
-  'nuestros-valores': {
-    title: 'Nuestros Valores | La Batalla Auto Import',
-    description: 'Honestidad, transparencia, calidad y compromiso: los valores que guían cada venta en La Batalla Auto Import.'
-  }
-};
-
-// Metadatos por defecto de la home — se restauran al salir de /empresa/*.
-const DEFAULT_META = {
-  title: 'La Batalla Auto Import | Sedanes, SUVs y Camionetas en República Dominicana',
-  description: 'Compra tu próximo vehículo en La Batalla Auto Import. Sedanes, SUVs y camionetas nuevas, usadas e importadas en Santo Domingo, San Francisco de Macorís y Nagua. Financiamiento disponible.',
-  canonical: 'https://labatallaautoimport.netlify.app/'
-};
-
-function setPageMeta({ title, description, canonical }) {
-  if (title) document.title = title;
-  const descTag = document.querySelector('meta[name="description"]');
-  if (descTag && description) descTag.setAttribute('content', description);
-  const canonicalTag = document.querySelector('link[rel="canonical"]');
-  if (canonicalTag && canonical) canonicalTag.setAttribute('href', canonical);
-  // FASE Empresa (SEO, gap real encontrado en auditoría): antes solo se
-  // actualizaban title/description/canonical -- compartir /empresa/* en
-  // WhatsApp, Facebook o Twitter mostraba la tarjeta genérica de la home
-  // ("La Batalla Auto Import" para las 4 páginas por igual). og:image y
-  // twitter:image NO se tocan a propósito: no existe un asset dedicado
-  // por sección, y reutilizar la imagen de marca general es correcto.
-  const ogTitle = document.querySelector('meta[property="og:title"]');
-  if (ogTitle && title) ogTitle.setAttribute('content', title);
-  const ogDesc = document.querySelector('meta[property="og:description"]');
-  if (ogDesc && description) ogDesc.setAttribute('content', description);
-  const ogUrl = document.querySelector('meta[property="og:url"]');
-  if (ogUrl && canonical) ogUrl.setAttribute('content', canonical);
-  const twTitle = document.querySelector('meta[name="twitter:title"]');
-  if (twTitle && title) twTitle.setAttribute('content', title);
-  const twDesc = document.querySelector('meta[name="twitter:description"]');
-  if (twDesc && description) twDesc.setAttribute('content', description);
-}
-
-// FAQPage structured data — se inyecta SOLO mientras el usuario está en
-// /empresa/*, porque el bloque de preguntas frecuentes vive únicamente en
-// esa vista. Insertarlo de forma estática en el <head> lo expondría también
-// en la home y en cada ficha de vehículo, sin relación con ese contenido.
-const FAQ_JSONLD_ID = 'faq-jsonld';
-const FAQ_ENTRIES = [
-  ['¿Los vehículos son nuevos, usados o importados?', 'Manejamos las tres opciones. Cada ficha indica claramente la condición del vehículo para que decidas con información completa.'],
-  ['¿Puedo financiar aunque no tenga historial crediticio extenso?', 'Trabajamos con varias instituciones financieras, cada una con criterios distintos. Un asesor revisa tu caso y te dice qué opciones aplican, sin compromiso.'],
-  ['¿Qué pasa si tengo un problema después de comprar?', 'Nuestro acompañamiento no termina con la entrega. Contáctanos por WhatsApp y te orientamos sobre los siguientes pasos.'],
-  ['¿Atienden fuera de Santo Domingo?', 'Sí, tenemos presencia en Santo Domingo, San Francisco de Macorís y Nagua. Escríbenos y coordinamos según tu ubicación.'],
-  ['¿Cuánto tiempo toma todo el proceso?', 'Depende de la aprobación de la institución financiera, pero la simulación y la solicitud inicial toman solo minutos.']
-];
-
-// H1 contextual por sección — el <h1> real de la página (compartido con
-// el hero de la Home) decía siempre "Tu Próximo Vehículo Te Espera"
-// incluso mientras se mostraba contenido de Empresa: un H1 que no
-// correspondía al contenido real (hallazgo de la auditoría SEO). Se
-// reutiliza el mismo texto ya usado en EMPRESA_META.title, sin el sufijo
-// de marca, para no inventar redacción nueva.
-const EMPRESA_HERO_H1 = {
-  'por-que-elegirnos': '¿Por qué elegirnos?',
-  'quienes-somos': 'Quiénes somos',
-  'mision-vision': 'Misión y Visión',
-  'nuestros-valores': 'Nuestros Valores',
-};
-
-function injectFaqSchema() {
-  if (document.getElementById(FAQ_JSONLD_ID)) return;
-  const script = document.createElement('script');
-  script.type = 'application/ld+json';
-  script.id = FAQ_JSONLD_ID;
-  script.textContent = JSON.stringify({
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: FAQ_ENTRIES.map(([q, a]) => ({
-      '@type': 'Question',
-      name: q,
-      acceptedAnswer: { '@type': 'Answer', text: a }
-    }))
-  });
-  document.head.appendChild(script);
-}
-
-function removeFaqSchema() {
-  document.getElementById(FAQ_JSONLD_ID)?.remove();
-}
-
-function showEmpresaPage(sectionId, push = true) {
-  const empresa = document.getElementById('empresa-page');
-  const catalog = document.getElementById('catalog-view');
-  if (!empresa || !catalog) return;
-  // Asegurar que estamos en la vista principal (no ficha ni 404)
-  document.getElementById('detail-page')?.classList.add('page-hidden');
-  document.getElementById('not-found-page')?.classList.add('page-hidden');
-  document.getElementById('main-page')?.classList.remove('page-hidden');
-  catalog.classList.add('hidden');
-  empresa.classList.remove('hidden');
-  // H1 contextual — ver EMPRESA_HERO_H1. El <h1>/<p> del hero se comparten
-  // con el carrusel, así que primero se le pide que deje de escribirlos:
-  // sin eso el autoplay sobrescribía el título de la sección a los 5,5 s
-  // y quedaba un H1 que no correspondía al contenido mostrado.
-  window.LBHero?.takeOverText();
-  if (heroTitleEl) heroTitleEl.textContent = EMPRESA_HERO_H1[sectionId] || heroTitleEl.textContent;
-  if (heroSubtitleEl) heroSubtitleEl.style.display = 'none';
-  try {
-    if (push && window.self === window.top && window.location.pathname !== `/empresa/${sectionId}`) {
-      history.pushState({ empresa: sectionId }, '', `/empresa/${sectionId}`);
-    }
-  } catch (e) { /* iframe/sandbox — ignorar */ }
-  const meta = EMPRESA_META[sectionId];
-  setPageMeta({
-    title: meta ? meta.title : 'Empresa | La Batalla Auto Import',
-    description: meta ? meta.description : DEFAULT_META.description,
-    canonical: `https://labatallaautoimport.netlify.app/empresa/${sectionId}`
-  });
-  injectFaqSchema();
-  if (window.lucide) lucide.createIcons();
-  // Scroll a la sección una vez visible
-  requestAnimationFrame(() => {
-    const target = document.getElementById(sectionId);
-    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    else window.scrollTo(0, 0);
-  });
-}
-
-function hideEmpresaPage(push = true, skipScroll = false) {
-  const empresa = document.getElementById('empresa-page');
-  const catalog = document.getElementById('catalog-view');
-  if (!empresa || !catalog) return;
-  empresa.classList.add('hidden');
-  catalog.classList.remove('hidden');
-  // Devolver el H1/subtítulo al carrusel, que los repinta con la
-  // diapositiva REALMENTE activa (no con un texto fijo): si el usuario
-  // pasó tiempo en Empresa, la diapositiva pudo cambiar mientras tanto.
-  window.LBHero?.releaseText();
-  try {
-    if (push && window.self === window.top && /^\/empresa\//.test(window.location.pathname)) {
-      history.pushState(null, '', '/');
-    }
-  } catch (e) {}
-  setPageMeta(DEFAULT_META);
-  removeFaqSchema();
-  if (!skipScroll) window.scrollTo(0, 0);
-  if (window.lucide) lucide.createIcons();
-}
-
-function initEmpresaRouting() {
-  // Interceptar los enlaces del dropdown que apuntan a /empresa/*
-  document.querySelectorAll('[data-nav-target]').forEach(a => {
-    a.addEventListener('click', e => {
-      e.preventDefault();
-      showEmpresaPage(a.dataset.navTarget);
-    });
-  });
-  document.getElementById('empresa-back-btn')?.addEventListener('click', () => hideEmpresaPage(true));
-  // Si el usuario está en una subpágina de Empresa y hace clic en una
-  // categoría del nav (#sedanes, #suvs, #pickups), volvemos al catálogo
-  // primero para que el ancla apunte a contenido visible.
-  document.querySelectorAll('a.nav-cat-link[href^="#"]').forEach(a => {
-    a.addEventListener('click', () => {
-      if (!document.getElementById('empresa-page').classList.contains('hidden')) {
-        // `skipScroll`: hideEmpresaPage() hacía window.scrollTo(0,0), que se
-        // ejecutaba DESPUÉS del handler de anclas y cancelaba el scroll suave
-        // hacia #sedanes/#suvs/#pickups. Resultado real: pulsar "Sedanes"
-        // estando en Empresa dejaba al usuario arriba del todo, no en Sedanes.
-        hideEmpresaPage(true, true);
-        scrollToSection(a.getAttribute('href').replace('#',''));
-      }
-    });
-  });
-}
 
 // ============================================================
-// SCROLL SPY — resalta en el dropdown Empresa la sección del bloque
-// institucional que el usuario está viendo en ese momento
+// ENTRADA A LA CALCULADORA DESDE FUERA DE LA SPA
+// ------------------------------------------------------------
+// Las páginas de Empresa son HTML estático y no cargan el modal, así que
+// enlazan a /#calculadora y es la home quien lo abre. Se escucha también
+// `hashchange` porque si el visitante ya está en la home, cambiar el hash
+// no recarga el documento y `DOMContentLoaded` no vuelve a dispararse.
+// El hash se retira del historial tras abrir para que recargar o
+// compartir la URL no reabra el modal sin querer.
 // ============================================================
-function initScrollSpy() {
-  const targets = ['por-que-elegirnos', 'quienes-somos', 'mision-vision', 'nuestros-valores'];
-  const sections = targets.map(id => document.getElementById(id)).filter(Boolean);
-  const navItems = Array.from(document.querySelectorAll('#nav-empresa-menu [data-nav-target]'));
-  if (!sections.length || !navItems.length || !('IntersectionObserver' in window)) return;
-
-  function setActive(id) {
-    navItems.forEach(item => {
-      const isActive = item.dataset.navTarget === id;
-      item.classList.toggle('is-active', isActive);
-      if (isActive) item.setAttribute('aria-current', 'true');
-      else item.removeAttribute('aria-current');
-    });
-  }
-  const io = new IntersectionObserver(entries => {
-    const visible = entries.filter(en => en.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-    if (visible.length) setActive(visible[0].target.id);
-  }, { rootMargin: '-40% 0px -50% 0px', threshold: [0, 0.25, 0.5, 0.75, 1] });
-  sections.forEach(s => io.observe(s));
+function openCalcFromHash() {
+  if (window.location.hash !== '#calculadora') return;
+  if (typeof openCalcModal !== 'function') return;
+  openCalcModal();
+  try { history.replaceState(null, '', window.location.pathname + window.location.search); }
+  catch (e) { /* iframe/sandbox — el modal ya está abierto */ }
 }
+window.addEventListener('hashchange', openCalcFromHash);
 
 // ============================================================
 // INIT
@@ -2791,8 +2595,6 @@ window.addEventListener('DOMContentLoaded', () => {
   initCalcModalA11y();
   initFabCalc();
   initNavEmpresa();
-  initEmpresaRouting();
-  initScrollSpy();
   updateNavFavCount();
   if (window.lucide) lucide.createIcons();
   // Si alguien entra con un link directo tipo /vehiculos/bmw-330i-2024,
@@ -2826,13 +2628,7 @@ window.addEventListener('DOMContentLoaded', () => {
     tryOpen(0);
   }
   checkPathVehicle();
-  // Entrada directa a una subpágina de Empresa (/empresa/quienes-somos, etc.)
-  const empInit = window.location.pathname.match(/^\/empresa\/([^\/]+)\/?$/);
-  if (empInit) {
-    const section = decodeURIComponent(empInit[1]);
-    if (EMPRESA_SECTIONS.includes(section)) showEmpresaPage(section, false);
-    else showNotFound();
-  }
+  openCalcFromHash();
   // Entrada directa a /dashboard: refresh, marcador, o link compartido.
   // routeFromLocation() ya sabe manejar esta ruta, pero solo se ejecuta
   // en popstate — la carga inicial no pasa por ahí.
