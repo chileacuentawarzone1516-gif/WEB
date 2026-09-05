@@ -209,6 +209,20 @@
 .db-remove-btn:hover { background: rgba(239,68,68,0.18); border-color: rgba(239,68,68,0.4); }
 .db-remove-btn i, .db-remove-btn svg { width: 15px; height: 15px; }
 
+/* Descargar en PDF una cotización guardada. Misma caja que
+   .db-remove-btn para que la fila mantenga su ritmo, pero en el acento
+   sky del sitio: es una acción constructiva, no destructiva. */
+.db-pdf-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; flex-shrink: 0; border-radius: 10px;
+  background: rgba(56,189,248,0.10); border: 1px solid rgba(56,189,248,0.24);
+  color: #38bdf8; cursor: pointer; transition: background-color .15s ease, border-color .15s ease;
+}
+.db-pdf-btn:hover { background: rgba(56,189,248,0.20); border-color: rgba(56,189,248,0.45); }
+.db-pdf-btn:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.db-pdf-btn[disabled] { opacity: .55; cursor: progress; }
+.db-pdf-btn i, .db-pdf-btn svg { width: 15px; height: 15px; }
+
 /* Botón "Editar" de "Mis Publicaciones" — mismo tamaño/forma que
    .db-remove-btn, en el acento sky del sitio en vez de rojo. */
 .db-edit-btn {
@@ -259,6 +273,7 @@
   .db-profile-form input, .db-profile-form select { padding-top: 11px; padding-bottom: 11px; }
   #db-profile-save-btn, #db-change-password-btn, #db-pref-save-btn { width: 100%; padding-top: 13px; padding-bottom: 13px; justify-self: stretch; }
   .db-remove-btn { width: 40px; height: 40px; }
+  .db-pdf-btn { width: 40px; height: 40px; }
   .db-edit-btn { width: 40px; height: 40px; }
   #db-pub-content .db-edit-btn,
   #db-pub-content .db-remove-btn {

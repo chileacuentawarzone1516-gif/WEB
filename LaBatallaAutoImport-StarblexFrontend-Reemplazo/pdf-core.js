@@ -204,6 +204,11 @@ export class PDFDocument {
     };
     this.pages = [];      // [{ ops: string[] }]
     this.images = [];     // [{ bytes, width, height }]
+    // Opacidades usadas en el documento. En PDF la transparencia no es un
+    // atributo del operador de dibujo: se declara en un ExtGState con /ca
+    // (relleno) y /CA (trazo) y se activa con `gs`. Se registran aquí para
+    // emitir un solo recurso por nivel de opacidad, no uno por llamada.
+    this.alphas = new Map(); // valor (0-1) → nombre de recurso
     this.addPage();
   }
 
@@ -217,6 +222,16 @@ export class PDFDocument {
 
   // Convierte una Y "desde arriba" a la Y nativa del PDF.
   _y(y) { return this.height - y; }
+
+  // Devuelve el operador que activa una opacidad, registrándola si es
+  // nueva. `null` cuando es opaca: así el caso normal no emite nada.
+  _alphaOp(opacity) {
+    if (opacity === undefined || opacity === null || opacity >= 1) return null;
+    const value = Math.max(0, Math.min(1, opacity));
+    const key = value.toFixed(3);
+    if (!this.alphas.has(key)) this.alphas.set(key, `GS${this.alphas.size + 1}`);
+    return `/${this.alphas.get(key)} gs`;
+  }
 
   // ---------------- Medición ----------------
   /** Ancho en puntos que ocupará `text` con la fuente/tamaño dados. */
@@ -299,6 +314,8 @@ export class PDFDocument {
    * @param {'left'|'center'|'right'} [o.align='left']
    * @param {number} [o.maxWidth]  Recorta con elipsis si se excede.
    * @param {number} [o.charSpacing] Tracking en puntos (para versalitas).
+   * @param {number} [o.rotate] Giro en grados, antihorario, sobre (x, y).
+   * @param {number} [o.opacity] 0-1. Por debajo de 1 emite un ExtGState.
    */
   text(str, x, y, o = {}) {
     const size = o.size || 10;
@@ -312,16 +329,26 @@ export class PDFDocument {
     let width = (codes.reduce((a, c) => a + glyphWidth(c, bold), 0) / 1000) * size;
     if (spacing) width += spacing * (codes.length - 1);
 
-    let tx = x;
-    if (o.align === 'right') tx = x - width;
-    else if (o.align === 'center') tx = x - width / 2;
+    // Desplazamiento de alineación medido en el eje del propio texto, para
+    // que siga siendo correcto cuando el texto va girado.
+    let dx = 0;
+    if (o.align === 'right') dx = -width;
+    else if (o.align === 'center') dx = -width / 2;
 
-    const ops = ['BT', `${colorOps(o.color || '#000000')} rg`,
-      `/${bold ? 'F2' : 'F1'} ${size} Tf`];
+    const rad = ((o.rotate || 0) * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const tx = x + cos * dx;
+    const ty = this._y(y) + sin * dx;
+
+    const ops = ['q'];
+    const alpha = this._alphaOp(o.opacity);
+    if (alpha) ops.push(alpha);
+    ops.push('BT', `${colorOps(o.color || '#000000')} rg`, `/${bold ? 'F2' : 'F1'} ${size} Tf`);
     if (spacing) ops.push(`${spacing} Tc`);
-    ops.push(`1 0 0 1 ${tx.toFixed(2)} ${this._y(y).toFixed(2)} Tm`, `${pdfString(codes)} Tj`);
+    ops.push(`${cos.toFixed(5)} ${sin.toFixed(5)} ${(-sin).toFixed(5)} ${cos.toFixed(5)} ` +
+             `${tx.toFixed(2)} ${ty.toFixed(2)} Tm`, `${pdfString(codes)} Tj`);
     if (spacing) ops.push('0 Tc');
-    ops.push('ET');
+    ops.push('ET', 'Q');
     this._push(ops.join('\n'));
   }
 
@@ -383,7 +410,12 @@ export class PDFDocument {
     const xobjects = imageIds.length
       ? `/XObject << ${imageIds.map((id, i) => `/Im${i + 1} ${id} 0 R`).join(' ')} >>`
       : '';
-    const resources = `<< /Font << /F1 ${fontRegular} 0 R /F2 ${fontBold} 0 R >> ${xobjects} /ProcSet [/PDF /Text /ImageC] >>`;
+    const extGState = this.alphas.size
+      ? `/ExtGState << ${[...this.alphas].map(([value, name]) =>
+          `/${name} << /Type /ExtGState /ca ${value} /CA ${value} >>`).join(' ')} >>`
+      : '';
+    const resources = `<< /Font << /F1 ${fontRegular} 0 R /F2 ${fontBold} 0 R >> ` +
+      `${xobjects} ${extGState} /ProcSet [/PDF /Text /ImageC] >>`;
 
     const pageIds = [];
     for (const page of this.pages) {

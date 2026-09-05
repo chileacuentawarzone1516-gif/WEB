@@ -1,5 +1,5 @@
 // ============================================================
-// Batería de pruebas de firestore.rules — 92 casos.
+// Batería de pruebas de firestore.rules — 102 casos.
 // Requiere: npm install -D @firebase/rules-unit-testing firebase
 // Ejecutar:  firebase emulators:exec --only firestore "node firestore_rules_test.js"
 // ============================================================
@@ -425,6 +425,63 @@ async function main() {
 
   await run('Anónimo intenta crear una cotización → denegado', async () => {
     await assertFails(setDoc(doc(anon(), 'users', 'favA', 'quotes', 'q3'), cotiz()));
+  });
+
+  // ----------------------------------------------------------
+  // Campos financieros opcionales (necesarios para regenerar el PDF
+  // de la cotización desde el dashboard). Son opcionales a propósito:
+  // las cotizaciones anteriores a su incorporación no los tienen.
+  // ----------------------------------------------------------
+  const cotizCompleta = (extra = {}) => ({ ...cotiz(),
+    vehiclePrice: 3200000, downPaymentPct: 20, institution: 'Banreservas',
+    annualRate: 11.5, vehicleType: 'nuevo', ...extra });
+
+  await run('Cotización con los campos financieros completos → permitido', async () => {
+    await assertSucceeds(setDoc(doc(como('favA', 'fava@test.com'), 'users', 'favA', 'quotes', 'qf1'), cotizCompleta()));
+  });
+
+  await run('Cotización SIN los campos financieros (formato antiguo) → permitido', async () => {
+    await assertSucceeds(setDoc(doc(como('favA', 'fava@test.com'), 'users', 'favA', 'quotes', 'qf2'), cotiz()));
+  });
+
+  await run('Cotización con un campo desconocido → denegado', async () => {
+    await assertFails(setDoc(doc(como('favA', 'fava@test.com'), 'users', 'favA', 'quotes', 'qf3'),
+      cotizCompleta({ notasInternas: 'x' })));
+  });
+
+  await run('Cotización con institución larguísima (>60) → denegado', async () => {
+    await assertFails(setDoc(doc(como('favA', 'fava@test.com'), 'users', 'favA', 'quotes', 'qf4'),
+      cotizCompleta({ institution: 'B'.repeat(61) })));
+  });
+
+  await run('Cotización con institución no textual → denegado', async () => {
+    await assertFails(setDoc(doc(como('favA', 'fava@test.com'), 'users', 'favA', 'quotes', 'qf5'),
+      cotizCompleta({ institution: 12 })));
+  });
+
+  await run('Cotización con inicial del 120% → denegado', async () => {
+    await assertFails(setDoc(doc(como('favA', 'fava@test.com'), 'users', 'favA', 'quotes', 'qf6'),
+      cotizCompleta({ downPaymentPct: 120 })));
+  });
+
+  await run('Cotización con tasa anual negativa → denegado', async () => {
+    await assertFails(setDoc(doc(como('favA', 'fava@test.com'), 'users', 'favA', 'quotes', 'qf7'),
+      cotizCompleta({ annualRate: -1 })));
+  });
+
+  await run('Cotización con precio fuera de rango → denegado', async () => {
+    await assertFails(setDoc(doc(como('favA', 'fava@test.com'), 'users', 'favA', 'quotes', 'qf8'),
+      cotizCompleta({ vehiclePrice: 1000000001 })));
+  });
+
+  await run('Cotización con precio en el límite (1.000.000.000) → permitido', async () => {
+    await assertSucceeds(setDoc(doc(como('favA', 'fava@test.com'), 'users', 'favA', 'quotes', 'qf9'),
+      cotizCompleta({ vehiclePrice: 1000000000 })));
+  });
+
+  await run('Cotización con tipo de vehículo larguísimo (>20) → denegado', async () => {
+    await assertFails(setDoc(doc(como('favA', 'fava@test.com'), 'users', 'favA', 'quotes', 'qf10'),
+      cotizCompleta({ vehicleType: 'n'.repeat(21) })));
   });
 
   // ==========================================================

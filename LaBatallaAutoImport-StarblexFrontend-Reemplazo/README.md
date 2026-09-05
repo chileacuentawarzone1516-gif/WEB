@@ -23,6 +23,8 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 ├── vehicles-demo.js           Datos de ejemplo — solo se descarga si Firebase falla
 ├── styles.css                 Estilos propios (complementa Tailwind)
 ├── ficha-vehiculo.css         Especificaciones y características de la ficha de vehículo
+├── netlify/functions/         Funciones de servidor (Netlify)
+│   └── enviar-cotizacion.js   Envía por correo al asesor el PDF de cada solicitud
 ├── tailwind.css                Tailwind compilado (no editar a mano)
 ├── 404.html                   Página de error de Netlify
 ├── empresa/                   Páginas institucionales (HTML estático, una por sección)
@@ -233,3 +235,33 @@ entorno de desarrollo, que no alcanza gstatic/jsDelivr/Cloudinary):
 - Comportamiento real en iOS Safari (teclado virtual, safe-area)
 - Vista previa social real (WhatsApp/Facebook) de `/` y `/empresa/*`
 - Indexación real por buscadores
+
+## Variables de entorno (Netlify)
+
+Se configuran en **Site configuration → Environment variables**. El sitio
+funciona sin ellas; lo único que no ocurre es el envío del correo.
+
+| Variable | Para qué sirve |
+|---|---|
+| `RESEND_API_KEY` | Clave de [Resend](https://resend.com) — plan gratuito: 3.000 correos/mes. |
+| `COTIZACION_EMAIL_TO` | Correo del asesor que recibe las solicitudes de financiamiento. |
+| `COTIZACION_EMAIL_FROM` | Remitente verificado en Resend. Sin dominio propio verificado, sirve `onboarding@resend.dev`. |
+| `FIREBASE_PROJECT_ID` / `FIREBASE_WEB_API_KEY` | Los usa la Edge Function `vehicle-og` para el Open Graph por vehículo. |
+
+Si falta cualquiera de las tres primeras, `enviar-cotizacion` responde 503,
+lo registra en los logs de Netlify y no envía nada. El cliente no ve ningún
+error: su solicitud ya salió por WhatsApp, que es el canal principal.
+
+**Puesta en marcha del correo, paso a paso:**
+
+1. Crea una cuenta gratuita en resend.com y genera una API key.
+2. Verifica un remitente. Para empezar vale `onboarding@resend.dev`; cuando
+   tengas dominio propio, verifícalo en Resend y usa algo como
+   `cotizaciones@labatallaautoimport.com` (mejor entregabilidad).
+3. Pega las tres variables en Netlify y vuelve a desplegar.
+4. Prueba: abre la calculadora, completa nombre y teléfono y pulsa
+   "Solicitar este Financiamiento". Debe llegar el correo con el PDF adjunto.
+
+La función **no** acepta el destinatario por petición: se lee siempre de
+`COTIZACION_EMAIL_TO`. Es lo que impide que alguien la use como relay de
+spam firmado con el dominio del negocio.

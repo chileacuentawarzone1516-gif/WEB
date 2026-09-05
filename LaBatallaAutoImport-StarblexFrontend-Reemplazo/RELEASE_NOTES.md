@@ -1,5 +1,107 @@
 # RELEASE NOTES — La Batalla Auto Import
 
+## MARCA DE AGUA, PDF DESDE EL DASHBOARD Y COPIA POR CORREO
+
+Cierre de los tres pendientes que quedaron abiertos con la cotización en
+PDF, más el riesgo de Safari que estaba documentado pero sin resolver.
+
+### 1. Compartir en iPhone ya no puede fallar (`calculadora.js`)
+
+Safari exige que `navigator.share()` se invoque **dentro** del gesto del
+usuario. Construir el PDF antes consumía esa activación y el compartir
+podía terminar en `NotAllowedError`; había un plan B (descargar), pero el
+camino bueno fallaba justo en el sistema donde más se usa.
+
+Ahora el documento se **prepara por adelantado**: cada vez que cambia la
+cotización se regenera en segundo plano, con un rebote de 600 ms para no
+recalcular mientras se arrastra el deslizador de la inicial. Al pulsar
+"Compartir", si el documento ya está listo, `share()` se llama sin un solo
+`await` por delante. Verificado en navegador leyendo
+`navigator.userActivation.isActive` en el momento de la llamada: **true**.
+
+La clave de caché incluye todo lo que aparece impreso (vehículo, precio,
+institución, tipo, inicial, plazo, nombre y teléfono); si algo cambia, el
+documento se descarta. Al cerrar el modal se libera.
+
+De paso, el logo del membrete pasa a cargarse **una vez por sesión** en vez
+de en cada regeneración.
+
+### 2. Marca de agua "COTIZACIÓN REFERENCIAL" (`pdf-core.js`, `cotizacion-pdf.js`)
+
+Diagonal, al 6 % de opacidad, por encima del contenido. Deja claro que el
+documento es una simulación y no una aprobación de crédito, por si alguien
+lo presentara en una institución financiera.
+
+Requirió añadir al motor de PDF dos capacidades que no tenía: **giro** de
+texto (matriz de transformación) y **transparencia** (recursos `ExtGState`
+con `/ca`, uno por nivel de opacidad usado, no uno por llamada).
+
+### 3. Regenerar el PDF desde "Cotizaciones guardadas"
+
+Cada cotización del dashboard tiene ahora su botón de descarga en PDF.
+
+Para que fuera posible, la cotización guarda cinco datos más —
+`vehiclePrice`, `downPaymentPct`, `institution`, `annualRate` y
+`vehicleType` — porque institución, tasa y monto financiado **no se pueden
+deducir** de lo que ya se almacenaba. Las reglas de Firestore los validan
+con el mismo rigor que los originales (tipo y rango acotado) y los tratan
+como **opcionales**: las cotizaciones creadas antes de este cambio siguen
+siendo legibles y descargables.
+
+El generador tolera los huecos: si el vehículo ya no está publicado, el
+documento se arma con lo guardado, omitiendo las filas sin dato en vez de
+inventarlas. La tarjeta del vehículo ajusta su altura para no dejar hueco.
+
+La batería de `firestore_rules_test.js` pasa de 92 a **102 casos**, con 10
+nuevos sobre estos campos (formato antiguo, campo desconocido, institución
+larga o no textual, inicial del 120 %, tasa negativa, precio fuera de rango
+y en el límite). Los 102 verificados contra el emulador de Firestore.
+
+### 4. Copia por correo al asesor (`netlify/functions/enviar-cotizacion.js`, nuevo)
+
+Al pulsar "Solicitar este Financiamiento", además de abrir WhatsApp, la
+solicitud se envía al correo del asesor con el PDF adjunto. Si el cliente
+cierra WhatsApp sin llegar a enviarlo, o el mensaje se pierde entre
+conversaciones, la solicitud sigue estando en la bandeja de entrada.
+
+Se resolvió con una **Netlify Function** (el plan gratuito ya las incluye,
+sin coste ni infraestructura nueva) que llama a **Resend** — 3.000 correos
+al mes gratis. Se eligió frente a una Cloud Function de Firebase porque
+esta última obliga a pasar el proyecto al plan Blaze, de pago.
+
+La función es un endpoint público, así que se trató como tal:
+
+- El **destinatario nunca viene del cliente**: sale de una variable de
+  entorno. Aceptarlo por petición la convertiría en un relay de spam
+  firmado con el dominio del negocio.
+- Solo acepta el **mismo origen**, comparando el `Origin` con el `host` de
+  la propia petición (así las previsualizaciones funcionan sin listas).
+- **Límite de frecuencia** por IP y tope de tamaño.
+- El adjunto se valida como PDF real por su firma `%PDF-`; el nombre de
+  archivo se sanea y todo texto del cliente se escapa antes de entrar en el
+  HTML del correo.
+- Sin las variables configuradas responde 503, lo registra y **no rompe
+  nada**: el cliente no ve ningún error porque su solicitud ya salió por
+  WhatsApp.
+
+El envío es silencioso y no bloquea: va después de abrir WhatsApp para no
+gastar la activación del gesto que `window.open` necesita, y usa
+`keepalive` mientras el cuerpo cabe en el límite de 64 KB de la
+especificación (hoy ronda los 39 KB).
+
+Probado con 11 casos, incluidos los de abuso: intento de fijar
+destinatario, XSS en el nombre, ruta en el nombre de archivo, adjunto que
+no es PDF, origen ajeno y ráfaga de peticiones.
+
+Las variables (`RESEND_API_KEY`, `COTIZACION_EMAIL_TO`,
+`COTIZACION_EMAIL_FROM`) están documentadas en el README con su puesta en
+marcha paso a paso. **Hasta que se configuren, el correo no se envía**;
+todo lo demás funciona igual.
+
+Se añadió Resend a la lista de proveedores de la política de privacidad, y
+el árbol `/netlify/` deja de servirse como archivos estáticos (404), en
+línea con lo que ya se hacía con `firestore.rules` y compañía.
+
 ## COTIZACIÓN EN PDF Y REDISEÑO DE LA FICHA DE VEHÍCULO
 
 Tres peticiones sobre el modal de financiamiento y la página de detalle.

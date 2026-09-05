@@ -59,7 +59,22 @@ const RIGHT_EDGE = PAGE.w - M.right;
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
   'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
+// El logo es el mismo en todos los documentos: se carga una vez por
+// sesión. Sin esto, cada regeneración (y la calculadora regenera en
+// segundo plano al cambiar cualquier parámetro) repetía descarga,
+// decodificación y recodificación a JPEG.
+let _logoPromise = null;
+function cargarLogo() {
+  if (!_logoPromise) {
+    _logoPromise = loadImageAsJpeg(EMPRESA.logo, { maxSize: 320, quality: 0.94, crop: LOGO_CROP })
+      .catch(() => null);
+  }
+  return _logoPromise;
+}
+
 const fmtRD = n => 'RD$ ' + Math.round(Number(n) || 0).toLocaleString('es-DO');
+// ¿Hay un número utilizable? Distingue "0" (válido) de ausente.
+const hayNumero = n => typeof n === 'number' && isFinite(n) && n >= 0;
 const fmtFechaLarga = d => `${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`;
 const pad2 = n => String(n).padStart(2, '0');
 
@@ -111,21 +126,29 @@ function dibujarCabecera(doc, { logo, folio, fecha }) {
 
 // Tarjeta del vehículo: nombre, condición y precio de lista.
 function dibujarVehiculo(doc, y, v) {
-  const alto = v.url ? 94 : 80;
+  const meta = [v.condicionTexto, v.marca, v.anio].filter(Boolean).join('  ·  ');
+  // Altura según lo que realmente haya: una cotización guardada de un
+  // vehículo ya despublicado solo conserva el nombre, y una tarjeta con
+  // el alto completo dejaría un hueco visible.
+  const alto = v.url ? 94 : (meta ? 80 : 62);
   doc.roundedRect(M.left, y, CONTENT_W, alto, 12, { fill: BRAND.panel, stroke: BRAND.hair, lineWidth: 0.8 });
 
   const px = M.left + 20;
   doc.text('VEHÍCULO SELECCIONADO', px, y + 24, { size: 7.5, bold: true, color: BRAND.muted, charSpacing: 0.8 });
 
-  // El precio se maqueta primero para reservarle ancho al nombre.
-  const precioTexto = v.precioTexto || fmtRD(v.precio);
-  const precioW = Math.max(doc.measure(precioTexto, 15, true), doc.measure('PRECIO', 7.5, true)) + 24;
-  doc.text('PRECIO', RIGHT_EDGE - 20, y + 24, { size: 7.5, bold: true, color: BRAND.muted, align: 'right', charSpacing: 0.8 });
-  doc.text(precioTexto, RIGHT_EDGE - 20, y + 48, { size: 15, bold: true, color: BRAND.skyInk, align: 'right' });
+  // El precio se maqueta primero para reservarle ancho al nombre. Puede
+  // faltar al regenerar una cotización guardada de un vehículo que ya
+  // no está publicado: en ese caso el bloque simplemente no se dibuja.
+  const precioTexto = v.precioTexto || (hayNumero(v.precio) ? fmtRD(v.precio) : '');
+  let precioW = 0;
+  if (precioTexto) {
+    precioW = Math.max(doc.measure(precioTexto, 15, true), doc.measure('PRECIO', 7.5, true)) + 24;
+    doc.text('PRECIO', RIGHT_EDGE - 20, y + 24, { size: 7.5, bold: true, color: BRAND.muted, align: 'right', charSpacing: 0.8 });
+    doc.text(precioTexto, RIGHT_EDGE - 20, y + 48, { size: 15, bold: true, color: BRAND.skyInk, align: 'right' });
+  }
 
   doc.text(v.nombre, px, y + 48, { size: 15.5, bold: true, color: BRAND.ink, maxWidth: CONTENT_W - 40 - precioW });
 
-  const meta = [v.condicionTexto, v.marca, v.anio].filter(Boolean).join('  ·  ');
   if (meta) doc.text(meta, px, y + 66, { size: 9, color: BRAND.muted, maxWidth: CONTENT_W - 40 - precioW });
   if (v.url) doc.text(v.url, px, y + 82, { size: 8, color: BRAND.skyInk, maxWidth: CONTENT_W - 40 });
 
@@ -143,13 +166,16 @@ function dibujarCuota(doc, y, f) {
   doc.text('CUOTA MENSUAL ESTIMADA', px, y + 24, { size: 8, bold: true, color: '#7DD3FC', charSpacing: 0.8 });
   doc.text(fmtRD(f.cuota), px, y + 56, { size: 26, bold: true, color: BRAND.white });
   doc.text('/ mes', px + doc.measure(fmtRD(f.cuota), 26, true) + 8, y + 56, { size: 11, color: '#9FB4CC' });
-  doc.text(`Institución: ${f.institucion}`, px, y + 72, { size: 8.5, color: '#9FB4CC' });
+  doc.text(`Institución: ${f.institucion || 'Por confirmar con el asesor'}`, px, y + 72,
+    { size: 8.5, color: '#9FB4CC', maxWidth: CONTENT_W * 0.55 });
 
   const rx = RIGHT_EDGE - 22;
   doc.text('PLAZO', rx, y + 24, { size: 7, bold: true, color: '#7E94AE', align: 'right', charSpacing: 0.7 });
   doc.text(`${f.plazo} meses`, rx, y + 39, { size: 12, bold: true, color: BRAND.white, align: 'right' });
-  doc.text('TASA ANUAL ESTIMADA', rx, y + 58, { size: 7, bold: true, color: '#7E94AE', align: 'right', charSpacing: 0.7 });
-  doc.text(`${f.tasaAnual.toFixed(2)} %`, rx, y + 73, { size: 12, bold: true, color: BRAND.white, align: 'right' });
+  if (hayNumero(f.tasaAnual)) {
+    doc.text('TASA ANUAL ESTIMADA', rx, y + 58, { size: 7, bold: true, color: '#7E94AE', align: 'right', charSpacing: 0.7 });
+    doc.text(`${f.tasaAnual.toFixed(2)} %`, rx, y + 73, { size: 12, bold: true, color: BRAND.white, align: 'right' });
+  }
 
   return alto;
 }
@@ -216,6 +242,17 @@ function dibujarNota(doc, y) {
   return alto;
 }
 
+// Marca de agua diagonal. Va DESPUÉS del resto para quedar por encima de
+// las tarjetas opacas (si se dibujara primero, la taparían). El 6 % de
+// opacidad la hace legible en papel sin estorbar la lectura: deja claro
+// que el documento es una simulación y no una aprobación de crédito, por
+// si alguien lo presentara en una institución financiera.
+function dibujarMarcaDeAgua(doc) {
+  doc.text('COTIZACIÓN REFERENCIAL', PAGE.w / 2, PAGE.h / 2 + 100, {
+    size: 40, bold: true, color: BRAND.navy, align: 'center', rotate: 30, opacity: 0.06,
+  });
+}
+
 // Pie institucional con los canales de contacto reales.
 function dibujarPie(doc, fecha) {
   const y = PAGE.h - 46;
@@ -241,16 +278,19 @@ function dibujarPie(doc, fecha) {
  */
 export async function generarCotizacionPDF(datos) {
   const fecha = new Date();
-  const folio = generarFolio(fecha);
+  const folio = datos.folio || generarFolio(fecha);
   const v = datos.vehiculo || {};
   const f = datos.financiamiento || {};
   const s = datos.solicitante;
 
   // Totales derivados: aportan el valor real de una cotización formal
-  // (cuánto se paga de más y cuánto cuesta el vehículo al final).
+  // (cuánto se paga de más y cuánto cuesta el vehículo al final). Solo
+  // se calculan si hay monto financiado — al regenerar una cotización
+  // guardada de un vehículo ya despublicado puede no conocerse.
+  const hayFinanciado = hayNumero(f.montoFinanciado);
   const totalCuotas = f.cuota * f.plazo;
-  const totalIntereses = Math.max(0, totalCuotas - f.montoFinanciado);
-  const totalPagar = totalCuotas + f.montoInicial;
+  const totalIntereses = hayFinanciado ? Math.max(0, totalCuotas - f.montoFinanciado) : null;
+  const totalPagar = hayNumero(f.montoInicial) ? totalCuotas + f.montoInicial : null;
 
   const doc = new PDFDocument({
     title: `Cotización de financiamiento — ${v.nombre || 'Vehículo'}`,
@@ -260,7 +300,7 @@ export async function generarCotizacionPDF(datos) {
   });
 
   // El logo es opcional: si falla su carga, el documento se genera igual.
-  const logo = await loadImageAsJpeg(EMPRESA.logo, { maxSize: 320, quality: 0.94, crop: LOGO_CROP });
+  const logo = await cargarLogo();
 
   dibujarCabecera(doc, { logo, folio, fecha });
 
@@ -268,24 +308,30 @@ export async function generarCotizacionPDF(datos) {
   y += dibujarVehiculo(doc, y, v) + 14;
   y += dibujarCuota(doc, y, f) + 22;
   y += dibujarTituloSeccion(doc, y, 'Detalle del financiamiento') + 6;
-  y += dibujarTabla(doc, y, [
-    { label: 'Institución financiera', valor: f.institucion },
-    { label: 'Tipo de vehículo', valor: f.tipo === 'usado' ? 'Usado / Seminuevo' : 'Nuevo / 0 km' },
-    { label: 'Precio del vehículo', valor: v.precioTexto || fmtRD(v.precio) },
-    { label: `Inicial (${f.inicialPct}%)`, valor: fmtRD(f.montoInicial) },
-    { label: 'Monto a financiar', valor: fmtRD(f.montoFinanciado) },
-    { label: 'Plazo del financiamiento', valor: `${f.plazo} meses` },
-    { label: 'Tasa anual estimada', valor: `${f.tasaAnual.toFixed(2)} %` },
-    { label: 'Cuota mensual estimada', valor: `${fmtRD(f.cuota)} / mes`, destacada: true },
-    { label: 'Total de intereses estimados', valor: fmtRD(totalIntereses) },
-    { label: 'Total a pagar (inicial + cuotas)', valor: fmtRD(totalPagar), destacada: true },
-  ]) + 16;
+
+  // Una fila por dato disponible: las que no se conocen no se inventan
+  // ni se pintan vacías, simplemente no aparecen.
+  const filas = [];
+  const fila = (label, valor, destacada) => { if (valor !== null && valor !== undefined && valor !== '') filas.push({ label, valor, destacada }); };
+  fila('Institución financiera', f.institucion);
+  fila('Tipo de vehículo', f.tipo ? (f.tipo === 'usado' ? 'Usado / Seminuevo' : 'Nuevo / 0 km') : '');
+  fila('Precio del vehículo', v.precioTexto || (hayNumero(v.precio) ? fmtRD(v.precio) : ''));
+  fila(hayNumero(f.inicialPct) ? `Inicial (${f.inicialPct}%)` : 'Inicial',
+       hayNumero(f.montoInicial) ? fmtRD(f.montoInicial) : '');
+  fila('Monto a financiar', hayFinanciado ? fmtRD(f.montoFinanciado) : '');
+  fila('Plazo del financiamiento', `${f.plazo} meses`);
+  fila('Tasa anual estimada', hayNumero(f.tasaAnual) ? `${f.tasaAnual.toFixed(2)} %` : '');
+  fila('Cuota mensual estimada', `${fmtRD(f.cuota)} / mes`, true);
+  fila('Total de intereses estimados', totalIntereses === null ? '' : fmtRD(totalIntereses));
+  fila('Total a pagar (inicial + cuotas)', totalPagar === null ? '' : fmtRD(totalPagar), true);
+  y += dibujarTabla(doc, y, filas) + 16;
 
   if (s && (s.nombre || s.telefono)) {
     y += dibujarSolicitante(doc, y, { nombre: s.nombre || '—', telefono: s.telefono || '—' }) + 14;
   }
   dibujarNota(doc, y);
   dibujarPie(doc, fecha);
+  dibujarMarcaDeAgua(doc);
 
   return { blob: doc.toBlob(), filename: nombreArchivo(v.nombre, folio), folio };
 }
