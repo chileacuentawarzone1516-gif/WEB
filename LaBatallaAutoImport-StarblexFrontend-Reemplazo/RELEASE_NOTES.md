@@ -1,5 +1,77 @@
 # RELEASE NOTES — La Batalla Auto Import
 
+## COTIZACIÓN EN PDF Y REDISEÑO DE LA FICHA DE VEHÍCULO
+
+Tres peticiones sobre el modal de financiamiento y la página de detalle.
+
+### 1. Fuera el botón "Contactar por WhatsApp" duplicado (`index.html`, `calculadora.js`)
+
+El CTA principal del modal, "Solicitar este Financiamiento", ya abre el chat
+del asesor con la cotización redactada. El botón de abajo apuntaba al **mismo
+número y al mismo mensaje**: dos caminos idénticos compitiendo, y el verde de
+WhatsApp repetido restaba jerarquía al CTA real. Se elimina.
+
+En su lugar la fila de acciones queda con las dos cosas que el CTA no hace:
+descargar el documento y compartirlo.
+
+### 2. Cotización en PDF (`pdf-core.js` y `cotizacion-pdf.js`, nuevos)
+
+"Compartir cotización" ya no comparte un texto suelto: genera un documento
+con la marca, el vehículo, la institución y el desglose completo.
+
+**Sin librerías externas.** Se escribió un generador de PDF propio (~9 KB) en
+vez de cargar jsPDF (~350 KB desde un CDN). Motivos: no añade orígenes a la
+Content-Security-Policy ni dependencias de terceros que auditar, y el peso es
+40 veces menor. Usa las fuentes base del estándar PDF (Helvetica, 0 bytes
+incrustados) con `WinAnsiEncoding`, que cubre el español completo, y los
+metadatos van en UTF-16BE para que acentos y rayas se lean bien en el visor.
+
+**Carga bajo demanda.** Los dos módulos entran con `import()` dinámico al
+pulsar el botón, y se precargan en segundo plano (`requestIdleCallback`) al
+abrir el modal: quien solo mira el catálogo no descarga ni un byte, y quien
+pide su cotización la recibe al instante.
+
+**El documento** lleva membrete con el emblema del logo real —recortado por
+`canvas` para descartar el texto incrustado, ilegible a ese tamaño, y con el
+color de fondo tomado del propio logo para que encaje sin recuadro—, folio,
+fecha, tarjeta del vehículo con enlace a su publicación, banda destacada con
+la cuota, tabla de diez filas con el desglose, datos del solicitante, aviso
+legal de que el cálculo es referencial y pie con los canales de contacto.
+
+Añade dos cifras que la calculadora no mostraba y toda cotización formal
+lleva: **total de intereses** y **total a pagar**.
+
+**Compartir** entrega el PDF como archivo (en Android e iOS va directo a
+WhatsApp). Donde el navegador no acepta archivos, descarga el documento y
+comparte o copia el resumen: la acción nunca termina sin resultado.
+
+### 3. Especificaciones y características rediseñadas (`ficha-vehiculo.css`, nuevo)
+
+Eran dos listas de texto plano en una rejilla de dos columnas. Ahora:
+
+- **Especificaciones**: mosaico de fichas con icono, etiqueta en versalitas y
+  valor destacado. Se suma **Categoría** (Sedán / SUV / Camioneta), que estaba
+  en los datos y no se mostraba. Los campos sin dato ya no dicen "N/D": dicen
+  "No especificado" atenuado.
+- **Características**: píldoras con **icono contextual** deducido del texto
+  (cámara, techo, cuero, sensores, rines, motor, luces…), sobre una retícula
+  `auto-fill` que pasa de 2 a 4 columnas sin una sola media query. Ampliar la
+  tabla `FEATURE_ICON_RULES` de `app.js` es lo único que hay que tocar para
+  cubrir equipamiento nuevo.
+- **Estado vacío** con icono y salida ("escríbenos y te contamos"), en vez del
+  escueto "No especificadas".
+
+Todo es data-driven: los vehículos que se publiquen a futuro heredan el diseño
+sin tocar HTML ni CSS.
+
+**De paso, un defecto real:** la insignia de historial decía siempre "CLEAN
+CARFAX" sobre un recuadro **verde**, incluso cuando el valor era "Sin Carfax"
+— el color y el rótulo contradecían al dato. Ahora la etiqueta es neutra
+("Historial") y el estado lo comunican el texto, el icono y el color juntos.
+
+Los estilos van en un archivo propio porque `styles.css` ya pasaba de 1.500
+líneas mezclando home, modales y ficha.
+
 ## PUBLICACIÓN DE VEHÍCULOS EN MÓVIL Y CARRUSEL DEL HERO
 
 Dos defectos reportados desde un teléfono Android: "❌ Error subiendo fotos"

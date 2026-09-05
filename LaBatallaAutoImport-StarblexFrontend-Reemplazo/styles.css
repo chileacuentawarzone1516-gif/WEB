@@ -137,9 +137,24 @@ html { scroll-behavior: smooth; }
 .calc-modal-actions.hidden { display: none; }
 .calc-modal-action-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 700; border: 1px solid rgba(255,255,255,0.12); color: #e2e8f0; background: rgba(255,255,255,0.03); cursor: pointer; transition: all 0.15s; }
 .calc-modal-action-btn:hover { border-color: rgba(56,189,248,0.4); color: #38bdf8; }
-.calc-modal-action-btn--primary { background: rgb(37,211,102); color: #052e16; border: none; box-shadow: 0 4px 16px rgba(37,211,102,0.3); font-weight: 800; }
-.calc-modal-action-btn--primary:hover { background: rgb(34,197,94); color: #052e16; box-shadow: 0 6px 20px rgba(37,211,102,0.4); transform: translateY(-1px); }
+/* El primario de esta fila ya no es WhatsApp (ese destino lo cubre el CTA
+   "Solicitar este Financiamiento"), sino la descarga del documento: se
+   viste con el azul de marca para no competir con el verde del CTA. */
+.calc-modal-action-btn--primary { background: rgb(14,165,233); color: #042c53; border: none; box-shadow: 0 4px 16px rgba(14,165,233,0.28); font-weight: 800; }
+.calc-modal-action-btn--primary:hover { background: rgb(56,189,248); color: #042c53; box-shadow: 0 6px 20px rgba(56,189,248,0.38); transform: translateY(-1px); }
 .calc-modal-action-btn--primary:active { transform: translateY(0); }
+.calc-modal-action-btn:focus-visible { outline: 2px solid rgb(56,189,248); outline-offset: 2px; }
+/* Estado ocupado mientras se construye el PDF: sin interacción y sin
+   perder el ancho del botón (evita el salto de layout al cambiar el texto). */
+.calc-modal-action-btn[disabled] { opacity: 0.6; cursor: progress; transform: none; }
+.calc-modal-action-btn[disabled]:hover { transform: none; }
+.lb-calc-actions-hint { margin-top: 10px; text-align: center; font-size: 11.5px; line-height: 1.5; color: rgb(148,163,184); }
+.lb-calc-actions-hint.hidden { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .calc-modal-action-btn, .calc-modal-action-btn--primary { transition: none; }
+  .calc-modal-action-btn--primary:hover { transform: none; }
+}
 
 /* Sobrescribe la utilidad de Tailwind text-slate-500 para cumplir
    contraste AA (4.5:1) en texto pequeño sobre fondo oscuro.

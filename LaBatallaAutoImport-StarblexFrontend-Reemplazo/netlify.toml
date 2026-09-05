@@ -181,6 +181,25 @@
   [headers.values]
     Cache-Control = "public, max-age=3600, must-revalidate"
 
+# Generador de la cotización en PDF. Son módulos ES cargados con import()
+# dinámico desde calculadora.js (no van en el <head>), así que su caché
+# se invalida por el ?v= del propio import.
+[[headers]]
+  for = "/cotizacion-pdf.js"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
+[[headers]]
+  for = "/pdf-core.js"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
+# Estilos de la ficha de vehículo (especificaciones y características).
+[[headers]]
+  for = "/ficha-vehiculo.css"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
 [[headers]]
   for = "/vehicles-demo.js"
   [headers.values]

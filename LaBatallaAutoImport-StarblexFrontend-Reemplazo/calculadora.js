@@ -92,13 +92,37 @@ function calcModalHasVehicle() {
   return !!(calcModalState.vehicle && calcModalState.vehicle.price > 0);
 }
 
-// Construye el resumen textual de la cotización actual (WhatsApp / compartir)
-function calcModalBuildResumen() {
+// Fuente ÚNICA de los números de la cotización. Antes cada consumidor
+// (render, resumen de WhatsApp, guardado en Firestore) repetía las
+// mismas cuatro operaciones; ahora todos leen de aquí, así que no
+// pueden divergir.
+function calcModalGetCotizacion() {
   const precio = calcModalGetPrecio();
-  const montoInicial = Math.round(precio * (calcModalState.inicialPct / 100));
+  const inicialPct = calcModalState.inicialPct;
+  const montoInicial = Math.round(precio * (inicialPct / 100));
   const montoFinanciado = precio - montoInicial;
   const tasaAnual = LB_CALC.getTasaAnual(calcModalState.institucion, calcModalState.tipo);
   const cuota = LB_CALC.calcularCuota(montoFinanciado, tasaAnual, calcModalState.plazo);
+  return {
+    vehicle: calcModalState.vehicle,
+    institucion: calcModalState.institucion,
+    tipo: calcModalState.tipo,
+    precio, inicialPct, montoInicial, montoFinanciado, tasaAnual,
+    plazo: calcModalState.plazo, cuota,
+  };
+}
+
+// Datos de contacto escritos en el formulario (pueden estar vacíos).
+function calcModalGetSolicitante() {
+  return {
+    nombre: document.getElementById('calc-modal-nombre')?.value.trim() || '',
+    telefono: document.getElementById('calc-modal-telefono')?.value.trim() || '',
+  };
+}
+
+// Construye el resumen textual de la cotización actual (WhatsApp / compartir)
+function calcModalBuildResumen() {
+  const { montoInicial, montoFinanciado, cuota } = calcModalGetCotizacion();
   const v = calcModalState.vehicle;
   let msg = `*Cotización de Financiamiento — La Batalla Auto Import*\n\n`;
   msg += `🚗 *Vehículo:* ${v.name} — ${fmtPrice(v.price, v)}\n`;
@@ -113,11 +137,7 @@ function calcModalBuildResumen() {
 
 function calcModalRender() {
   const hasVehicle = calcModalHasVehicle();
-  const precio = calcModalGetPrecio();
-  const montoInicial = Math.round(precio * (calcModalState.inicialPct / 100));
-  const montoFinanciado = precio - montoInicial;
-  const tasaAnual = LB_CALC.getTasaAnual(calcModalState.institucion, calcModalState.tipo);
-  const cuota = LB_CALC.calcularCuota(montoFinanciado, tasaAnual, calcModalState.plazo);
+  const { montoInicial, montoFinanciado, tasaAnual, cuota } = calcModalGetCotizacion();
 
   // Gate visual: sin vehículo no hay resultados ni CTA habilitado
   const results = document.querySelector('#calc-modal .lb-calc-results');
@@ -147,14 +167,8 @@ function calcModalRender() {
   }
 
   // Acciones posteriores al cálculo — solo con vehículo seleccionado
-  const actions = document.getElementById('calc-modal-actions');
-  const waBtn = document.getElementById('calc-modal-action-whatsapp');
-  if (hasVehicle) {
-    actions.classList.remove('hidden');
-    waBtn.href = `https://wa.me/18097759771?text=${encodeURIComponent(calcModalBuildResumen())}`;
-  } else {
-    actions.classList.add('hidden');
-  }
+  document.getElementById('calc-modal-actions')?.classList.toggle('hidden', !hasVehicle);
+  document.getElementById('calc-modal-actions-hint')?.classList.toggle('hidden', !hasVehicle);
 }
 
 function initCalcModalVehicleSearch() {
@@ -261,8 +275,7 @@ function calcModalBindOnce() {
       document.getElementById('calc-modal-vehicle-search')?.focus();
       return;
     }
-    const nombre = document.getElementById('calc-modal-nombre')?.value.trim();
-    const telefono = document.getElementById('calc-modal-telefono')?.value.trim();
+    const { nombre, telefono } = calcModalGetSolicitante();
     if (!nombre || !telefono) { showToast('⚠️ Completa tu nombre y teléfono'); return; }
 
     // Fase 1.4: guardar automáticamente la cotización si hay sesión.
@@ -271,17 +284,13 @@ function calcModalBindOnce() {
     try {
       const { user } = typeof getCurrentUser === 'function' ? getCurrentUser() : {};
       if (user && typeof saveQuote === 'function' && calcModalHasVehicle()) {
-        const precio = calcModalGetPrecio();
-        const montoInicial = Math.round(precio * (calcModalState.inicialPct / 100));
-        const montoFinanciado = precio - montoInicial;
-        const tasaAnual = LB_CALC.getTasaAnual(calcModalState.institucion, calcModalState.tipo);
-        const cuota = LB_CALC.calcularCuota(montoFinanciado, tasaAnual, calcModalState.plazo);
+        const q = calcModalGetCotizacion();
         saveQuote({
-          vehicleId: calcModalState.vehicle?.id || '',
-          vehicleName: calcModalState.vehicle?.name || 'Vehículo',
-          downPayment: montoInicial,
-          termMonths: calcModalState.plazo,
-          monthlyPayment: cuota,
+          vehicleId: q.vehicle?.id || '',
+          vehicleName: q.vehicle?.name || 'Vehículo',
+          downPayment: q.montoInicial,
+          termMonths: q.plazo,
+          monthlyPayment: q.cuota,
         }).catch(() => {});
       }
     } catch (e) { /* auth.js aún no listo — no crítico */ }
@@ -300,23 +309,145 @@ function calcModalBindOnce() {
     }
   });
 
-  // "Compartir cotización" — Web Share API con fallback a portapapeles.
-  // Permite al usuario enviarse la cuota o consultarla con su familia:
-  // valor real, a diferencia del antiguo "Solicitar más información".
-  document.getElementById('calc-modal-action-share')?.addEventListener('click', async () => {
-    if (!calcModalHasVehicle()) { showToast('⚠️ Selecciona un vehículo primero'); return; }
+  document.getElementById('calc-modal-action-pdf')?.addEventListener('click', () => calcModalDescargarPDF());
+  document.getElementById('calc-modal-action-share')?.addEventListener('click', () => calcModalCompartir());
+}
+
+// ============================================================
+// COTIZACIÓN EN PDF — generación y entrega
+// ============================================================
+// El generador (pdf-core.js + cotizacion-pdf.js) se carga BAJO DEMANDA
+// con import() dinámico: son ~13 KB que solo pagan quienes piden su
+// cotización, no las visitas normales del catálogo. La promesa se
+// cachea para que la segunda descarga sea instantánea.
+let _pdfModulePromise = null;
+function calcModalLoadPdfModule() {
+  if (!_pdfModulePromise) {
+    _pdfModulePromise = import('/cotizacion-pdf.js?v=20260905').catch(err => {
+      _pdfModulePromise = null; // permite reintentar tras un fallo de red
+      throw err;
+    });
+  }
+  return _pdfModulePromise;
+}
+
+// Precarga silenciosa al abrir el modal: cuando el usuario termina de
+// ajustar su cuota el módulo ya está en caché y el PDF sale al instante.
+function calcModalPrefetchPdfModule() {
+  const precargar = () => calcModalLoadPdfModule().catch(() => {});
+  if ('requestIdleCallback' in window) requestIdleCallback(precargar, { timeout: 3000 });
+  else setTimeout(precargar, 1200);
+}
+
+// Traduce el estado de la calculadora al contrato del generador.
+function calcModalBuildPdfData() {
+  const q = calcModalGetCotizacion();
+  const v = q.vehicle;
+  const condiciones = { nuevo: 'Nuevo / 0 km', importado: 'Recién importado', usado: 'Usado / Seminuevo' };
+  const solicitante = calcModalGetSolicitante();
+  return {
+    vehiculo: {
+      nombre: v.name,
+      precio: q.precio,
+      precioTexto: fmtPrice(v.price, v),
+      condicionTexto: condiciones[v.condition] || condiciones.usado,
+      marca: v.brand || '',
+      anio: v.year || '',
+      url: typeof getVehicleUrl === 'function' ? getVehicleUrl(v) : '',
+    },
+    financiamiento: {
+      institucion: q.institucion, tipo: q.tipo, tasaAnual: q.tasaAnual,
+      inicialPct: q.inicialPct, montoInicial: q.montoInicial,
+      montoFinanciado: q.montoFinanciado, plazo: q.plazo, cuota: q.cuota,
+    },
+    solicitante: (solicitante.nombre || solicitante.telefono) ? solicitante : null,
+  };
+}
+
+// Envoltura común de los dos botones: valida, muestra estado de carga y
+// centraliza el manejo de errores para no repetirlo en cada acción.
+async function calcModalConPDF(btn, etiquetaCargando, accion) {
+  if (!calcModalHasVehicle()) { showToast('⚠️ Selecciona un vehículo primero'); return; }
+  if (btn?.dataset.busy === '1') return; // evita dobles pulsaciones
+  const label = btn?.querySelector('.calc-modal-action-label');
+  const textoOriginal = label?.textContent;
+  if (btn) {
+    btn.dataset.busy = '1';
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    if (label) label.textContent = etiquetaCargando;
+  }
+  try {
+    const { generarCotizacionPDF } = await calcModalLoadPdfModule();
+    const documento = await generarCotizacionPDF(calcModalBuildPdfData());
+    await accion(documento);
+  } catch (err) {
+    console.error('No se pudo generar la cotización en PDF:', err);
+    showToast('❌ No se pudo generar el PDF. Revisa tu conexión e inténtalo de nuevo.');
+  } finally {
+    if (btn) {
+      delete btn.dataset.busy;
+      btn.disabled = false;
+      btn.removeAttribute('aria-busy');
+      if (label && textoOriginal) label.textContent = textoOriginal;
+    }
+  }
+}
+
+// Fuerza la descarga del Blob con un enlace temporal. El objectURL se
+// libera en el siguiente tick: revocarlo de inmediato cancela la
+// descarga en Firefox y Safari.
+function calcModalDescargarBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+function calcModalDescargarPDF() {
+  const btn = document.getElementById('calc-modal-action-pdf');
+  return calcModalConPDF(btn, 'Generando PDF…', ({ blob, filename }) => {
+    calcModalDescargarBlob(blob, filename);
+    showToast('📄 Cotización descargada en PDF');
+  });
+}
+
+// Compartir: se envía el PDF como archivo (Android/iOS lo entregan
+// directo a WhatsApp). Donde la API no acepta archivos se descarga el
+// documento y se comparte/copia el resumen en texto, para que la acción
+// nunca termine sin resultado.
+function calcModalCompartir() {
+  const btn = document.getElementById('calc-modal-action-share');
+  return calcModalConPDF(btn, 'Preparando…', async ({ blob, filename }) => {
     const texto = calcModalBuildResumen().replace(/\*/g, ''); // sin markdown de WhatsApp
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: 'Cotización — La Batalla Auto Import', text: texto });
-      } else {
-        await navigator.clipboard.writeText(texto);
-        showToast('📋 Cotización copiada al portapapeles');
+    const titulo = 'Cotización — La Batalla Auto Import';
+
+    if (navigator.canShare && typeof File === 'function') {
+      const file = new File([blob], filename, { type: 'application/pdf' });
+      if (navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: titulo, text: texto });
+          return;
+        } catch (err) {
+          if (err && err.name === 'AbortError') return; // el usuario canceló
+          // NotAllowedError: el navegador exigió el gesto original y la
+          // generación del PDF lo consumió. Se resuelve descargando.
+        }
       }
+    }
+
+    calcModalDescargarBlob(blob, filename);
+    try {
+      if (navigator.share) await navigator.share({ title: titulo, text: texto });
+      else { await navigator.clipboard.writeText(texto); showToast('📄 PDF descargado y resumen copiado'); return; }
+      showToast('📄 Cotización descargada en PDF');
     } catch (err) {
-      if (err && err.name === 'AbortError') return; // usuario canceló el share
-      try { await navigator.clipboard.writeText(texto); showToast('📋 Cotización copiada al portapapeles'); }
-      catch (e2) { showToast('No se pudo compartir la cotización'); }
+      if (!err || err.name !== 'AbortError') showToast('📄 Cotización descargada en PDF');
     }
   });
 }
@@ -324,6 +455,7 @@ function calcModalBindOnce() {
 // Abre el modal. Sin argumento = modo libre (home). Con vehículo = precargado.
 function openCalcModal(vehicle) {
   calcModalBindOnce();
+  calcModalPrefetchPdfModule();
   const searchField = document.getElementById('calc-modal-search-field');
   const vehicleBox = document.getElementById('calc-modal-vehicle-box');
   const subtitle = document.getElementById('calc-modal-subtitle');

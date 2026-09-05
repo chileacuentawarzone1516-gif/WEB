@@ -1146,6 +1146,134 @@ function populateYears(selId, from=1970, to=2027) {
 // ============================================================
 let currentVehicleId = null;
 let galleryMedia = [], galleryIdx = 0;
+
+// ============================================================
+// FICHA — Especificaciones y características (ver ficha-vehiculo.css)
+// ------------------------------------------------------------
+// Antes ambas listas eran texto plano en una rejilla de Tailwind. Se
+// reescribieron como componentes con icono para que la ficha se lea de
+// un vistazo. Todo es data-driven: los vehículos que se publiquen a
+// futuro heredan el diseño sin tocar HTML ni CSS.
+// ============================================================
+
+// Icono de cada especificación. Se usan nombres presentes en la versión
+// de Lucide que carga el sitio (0.263.0) y, aun así, todo pasa por
+// lucideIconName() para no dejar huecos si un día cambia la librería.
+const SPEC_ICONS = {
+  'Marca': 'car', 'Año': 'calendar', 'Estado': 'sparkles', 'Categoría': 'layers',
+  'Millaje': 'gauge', 'Color': 'palette', 'Transmisión': 'cog',
+};
+
+// Reglas texto → icono para las características. Se evalúan en orden, así
+// que las más específicas van primero. Ampliar esta tabla es la única
+// edición necesaria para cubrir equipamiento nuevo.
+const FEATURE_ICON_RULES = [
+  [/c[áa]mara|retrovisor|360|reversa/i, 'camera'],
+  [/carplay|android auto/i, 'smartphone'],
+  [/pantalla|t[áa]ctil|touch|display|infotainment|multimedia/i, 'monitor'],
+  [/bluetooth/i, 'bluetooth'],
+  [/gps|navegaci[óo]n|waze/i, 'map-pin'],
+  [/bocina|sonido|audio|bose|harman|jbl|parlante|sub/i, 'volume-2'],
+  [/techo|sunroof|panor[áa]mic|quemacoco|corredizo/i, 'sun'],
+  [/cuero|piel|asiento|tapicer[íi]a/i, 'armchair'],
+  [/clima|aire|a\/c|calefacci[óo]n|calefactad|ventilad/i, 'wind'],
+  [/sensor|parqueo|park|punto ciego|colisi[óo]n|frenado|asistencia/i, 'radar'],
+  [/crucero|cruise|control de velocidad/i, 'gauge'],
+  [/llave|keyless|arranque|push start|bot[óo]n/i, 'key-round'],
+  [/rin|aro|llanta|neum[áa]tic/i, 'circle-dot'],
+  [/4x4|awd|4wd|tracci[óo]n|off.?road/i, 'mountain'],
+  [/turbo|caballo|\bhp\b|motor|cilindr|v6|v8/i, 'zap'],
+  [/led|luz|luces|faro|x[ée]non|halogen/i, 'lightbulb'],
+  [/airbag|abs|seguridad|alarma|blindaj|isofix/i, 'shield'],
+  [/usb|carga|inal[áa]mbric|cargador|bater[íi]a/i, 'battery-charging'],
+  [/autom[áa]tic|transmisi[óo]n|caja|manual|paddle/i, 'cog'],
+  [/el[ée]ctric|h[íi]brid|gasolina|di[ée]sel|combustible|gas/i, 'fuel'],
+  [/vidrio|ventana|cristal|polariza/i, 'square'],
+  [/garant[íi]a|servicio|mantenimiento/i, 'badge-check'],
+];
+const FEATURE_ICON_FALLBACK = 'check-circle';
+
+// kebab-case → PascalCase, que es como Lucide indexa sus iconos.
+function toPascalIcon(name) {
+  return name.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('');
+}
+// Devuelve `name` si Lucide lo conoce; si no, el icono de reserva. Evita
+// el hueco silencioso que deja un data-lucide inexistente. Mientras la
+// librería no haya cargado se confía en el nombre pedido (se resuelve al
+// llamar a lucide.createIcons() al final del render).
+function lucideIconName(name, fallback = FEATURE_ICON_FALLBACK) {
+  const icons = window.lucide?.icons;
+  if (!icons) return name;
+  if (icons[toPascalIcon(name)] || icons[name]) return name;
+  return fallback;
+}
+
+function featureIconFor(text) {
+  const rule = FEATURE_ICON_RULES.find(([re]) => re.test(text));
+  return lucideIconName(rule ? rule[1] : FEATURE_ICON_FALLBACK);
+}
+
+// Etiquetas legibles del campo `condition` — un único punto de verdad.
+const CONDITION_LABELS = { nuevo: 'Nuevo', importado: 'Recién Importado', usado: 'Usado' };
+// Claves reales del selector de publicación (#pub-category).
+const CATEGORY_LABELS = { sedanes: 'Sedán', suvs: 'SUV', pickups: 'Camioneta' };
+
+// Insignia de historial. El estado se comunica con una clase (no con
+// estilos en línea), para que color, borde e icono cambien juntos y
+// nunca queden en contradicción con el texto.
+function renderVehicleCarfax(v) {
+  const box = document.getElementById('detail-carfax-box');
+  const value = document.getElementById('detail-carfax');
+  if (!box || !value) return;
+  const limpio = v.carfax === 'si';
+  box.classList.toggle('vd-badge--ok', limpio);
+  box.classList.toggle('vd-badge--none', !limpio);
+  const icono = lucideIconName(limpio ? 'shield-check' : 'shield-alert', 'shield');
+  value.innerHTML = `<i data-lucide="${escapeAttr(icono)}" aria-hidden="true"></i>` +
+    (limpio ? 'Clean Carfax' : 'Sin reporte');
+}
+
+function renderVehicleSpecs(v) {
+  const specs = document.getElementById('detail-specs');
+  if (!specs) return;
+  const categoria = v.category ? (CATEGORY_LABELS[String(v.category).toLowerCase()] || v.category) : '';
+  const filas = [
+    ['Marca', v.brand],
+    ['Año', v.year],
+    ['Estado', CONDITION_LABELS[v.condition] || CONDITION_LABELS.usado],
+    ['Categoría', categoria],
+    ['Millaje', v.mileage ? `${v.mileage} km` : ''],
+    ['Color', v.color],
+    ['Transmisión', v.transmission],
+  ];
+  specs.innerHTML = filas.map(([label, value]) => {
+    const vacio = value === undefined || value === null || String(value).trim() === '';
+    const icono = lucideIconName(SPEC_ICONS[label] || 'info', 'info');
+    return `<div class="vd-spec">
+      <dt><span class="vd-spec-icon"><i data-lucide="${escapeAttr(icono)}" aria-hidden="true"></i></span>${escapeHtml(label)}</dt>
+      <dd class="vd-spec-value${vacio ? ' vd-spec-empty' : ''}">${vacio ? 'No especificado' : escapeHtml(String(value))}</dd>
+    </div>`;
+  }).join('');
+}
+
+function renderVehicleFeatures(v) {
+  const list = document.getElementById('detail-features');
+  if (!list) return;
+  const feats = (Array.isArray(v.features) ? v.features : [])
+    .map(f => String(f).trim()).filter(Boolean);
+  if (feats.length === 0) {
+    list.innerHTML = `<li class="vd-empty">
+      <i data-lucide="info" aria-hidden="true"></i>
+      Este vehículo aún no tiene características detalladas. Escríbenos y te contamos todo su equipamiento.
+    </li>`;
+    return;
+  }
+  list.innerHTML = feats.map(f => `<li class="vd-feature">
+      <span class="vd-feature-icon"><i data-lucide="${escapeAttr(featureIconFor(f))}" aria-hidden="true"></i></span>
+      <span class="vd-feature-text">${escapeHtml(f)}</span>
+    </li>`).join('');
+}
+
 function openDetail(id) {
   const v = vehicles.find(x => x.id === id);
   if (!v) return;
@@ -1194,39 +1322,13 @@ function openDetail(id) {
   // Info
   document.getElementById('detail-name').textContent = v.name;
   document.getElementById('detail-price').textContent = fmtPrice(v.price, v);
-  document.getElementById('detail-carfax').textContent = v.carfax === 'si' ? '✅ Clean Carfax' : '❌ Sin Carfax';
-  document.getElementById('detail-carfax').style.color = v.carfax === 'si' ? '#4ade80' : '#f87171';
+  renderVehicleCarfax(v);
   // WhatsApp link con URL real específica de esta publicación
   const vehicleUrl = getVehicleUrl(v);
   const waMsg = `Hola, estoy interesado en el *${v.name}* — ${fmtPrice(v.price, v)}\n\n🔗 Ver publicación: ${vehicleUrl}\n\n¿Está disponible?`;
   document.getElementById('detail-whatsapp-btn').href = `https://wa.me/18097759771?text=${encodeURIComponent(waMsg)}`;
-  // Specs
-  const specs = document.getElementById('detail-specs');
-  specs.innerHTML = '';
-  const specData = [
-    ['Marca', v.brand], ['Año', v.year],
-    ['Estado', v.condition === 'nuevo' ? 'Nuevo' : v.condition === 'importado' ? 'Recién Importado' : 'Usado'],
-    ['Millaje', v.mileage ? v.mileage + ' km' : 'N/D'],
-    ['Color', v.color || 'N/D'],
-    ['Transmisión', v.transmission || 'N/D']
-  ];
-  specData.forEach(([label, value]) => {
-    specs.innerHTML += `<div><p class="text-slate-400 mb-1">${escapeHtml(label)}</p><p class="text-white font-medium">${escapeHtml(value)}</p></div>`;
-  });
-  // Features
-  const featList = document.getElementById('detail-features');
-  featList.innerHTML = '';
-  const feats = Array.isArray(v.features) ? v.features : [];
-  if (feats.length === 0) {
-    featList.innerHTML = '<li class="text-slate-400">No especificadas</li>';
-  } else {
-    feats.forEach(f => {
-      const li = document.createElement('li');
-      li.className = 'flex items-center gap-2 text-slate-200';
-      li.innerHTML = `<i data-lucide="check-circle" class="w-4 h-4 text-sky-400 shrink-0"></i> ${escapeHtml(f)}`;
-      featList.appendChild(li);
-    });
-  }
+  renderVehicleSpecs(v);
+  renderVehicleFeatures(v);
   // Calculadora de financiamiento — el botón "Simular financiamiento"
   // abre el modal global precargado con este vehículo
   const openCalcBtn = document.getElementById('detail-open-calc-btn');

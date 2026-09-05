@@ -16,10 +16,13 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 ├── index.html                 SPA principal (catálogo, fichas, modales)
 ├── app.js                     Lógica: Firestore, CRUD admin, SEO dinámico, favoritos, galería
 ├── calculadora.js             Calculadora de financiamiento (modal + FAB)
+├── cotizacion-pdf.js          Maquetación de la cotización en PDF — módulo ES, carga bajo demanda
+├── pdf-core.js                Motor de PDF propio, sin dependencias — lo usa cotizacion-pdf.js
 ├── invite-modal.js            Invitación opcional de registro al contactar por WhatsApp
-├── logo-labatalla.png         Logo oficial, usado en el modal de invitación
+├── logo-labatalla.png         Logo oficial — modal de invitación y membrete del PDF
 ├── vehicles-demo.js           Datos de ejemplo — solo se descarga si Firebase falla
 ├── styles.css                 Estilos propios (complementa Tailwind)
+├── ficha-vehiculo.css         Especificaciones y características de la ficha de vehículo
 ├── tailwind.css                Tailwind compilado (no editar a mano)
 ├── 404.html                   Página de error de Netlify
 ├── empresa/                   Páginas institucionales (HTML estático, una por sección)
@@ -84,7 +87,7 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
   juntos en `empresa/por-que-elegirnos.html`; si editas una pregunta, edita
   también su entrada en el JSON-LD de esa misma página (y en ninguna otra:
   el schema solo debe existir donde el contenido existe).
-- Cada vez que edites `app.js`, `calculadora.js`, `dashboard.js`, `styles.css` o `invite-modal.js`, incrementa el `?v=` de ese archivo en `index.html` (evita servir JS/CSS cacheado desacoplado del HTML nuevo). No hace falta subir el número de los archivos que no tocaste.
+- Cada vez que edites `app.js`, `calculadora.js`, `dashboard.js`, `styles.css`, `ficha-vehiculo.css` o `invite-modal.js`, incrementa el `?v=` de ese archivo en `index.html` (evita servir JS/CSS cacheado desacoplado del HTML nuevo). No hace falta subir el número de los archivos que no tocaste.
 
 ## Tareas pendientes del propietario (una sola vez)
 
@@ -128,7 +131,9 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 
 `index.html` referencia `roles.js`, `app.js`, `auth.js`, `auth-ui.js`,
 `calculadora.js`, `dashboard.js`, `invite-modal.js`,
-`styles.css`, `dashboard.css` y `tailwind.css` con `?v=AAAAMMDD`. Cada vez que
+`styles.css`, `ficha-vehiculo.css`, `dashboard.css` y `tailwind.css` con
+`?v=AAAAMMDD`. `cotizacion-pdf.js` y `pdf-core.js` no van en el `<head>`: su
+`?v=` está en el `import()` dinámico de `calculadora.js`. Cada vez que
 modifiques alguno de esos archivos, incrementa el valor de **ese archivo
 específico** en `index.html` — no hace falta subir los de archivos que no
 tocaste, pero tampoco olvides el que sí cambió: un `?v=` desactualizado deja
