@@ -396,6 +396,89 @@ function fmtPrice(p, v) {
   if (v && v.priceDisplay) return v.priceDisplay;
   return 'RD$ ' + Number(p).toLocaleString('es-DO');
 }
+
+// ============================================================
+// IMPORTES — valor interno (número) separado del valor mostrado
+// ------------------------------------------------------------
+// El campo de precio era <input type="number">. Ese tipo NO admite
+// separadores de miles: en cuanto el navegador encuentra la segunda coma
+// el valor deja de ser un "floating-point number" válido y `.value`
+// devuelve "" — `parseFloat("")` es NaN y la publicación se rechazaba
+// con "el precio debe ser mayor que cero", sin decir nunca que el
+// problema era la coma. En el teclado numérico de Android la coma está
+// junto al 0, así que escribir "1,550,000" era el camino natural... y el
+// único que no funcionaba.
+//
+// El patrón es el que ya usaba la calculadora para el monto inicial:
+// input de TEXTO, se conserva el NÚMERO para calcular y persistir, y se
+// muestra el texto formateado. Convención dominicana (es-DO): coma para
+// los miles, punto para los decimales.
+// ============================================================
+
+// Tope máximo de precio en RD$. Debe coincidir con firestore.rules
+// (`d.price < 2000000000`): validarlo también aquí convierte un rechazo
+// silencioso del servidor en un mensaje que explica qué corregir.
+const MAX_PRICE_RD = 2000000000;
+// Tope de firestore.rules para `priceUSD` (`< 20000000`).
+const MAX_PRICE_USD = 20000000;
+
+// "1,550,000.50" -> 1550000.5 · "" o texto sin cifras -> NaN
+function parseAmount(value) {
+  // La coma es SIEMPRE separador de miles (es-DO, y es lo que emite
+  // formatAmount). El punto solo es decimal cuando hay uno único y le
+  // siguen una o dos cifras — los céntimos; en cualquier otro caso
+  // ("1.550.000", formato europeo que algunos teclados producen) también
+  // separa miles. Así ninguna forma razonable de teclear el importe
+  // acaba interpretada como un número mil veces menor.
+  let raw = String(value == null ? '' : value).replace(/[^\d.,]/g, '').replace(/,/g, '');
+  const dots = raw.split('.');
+  raw = (dots.length === 2 && /^\d{1,2}$/.test(dots[1])) ? dots[0] + '.' + dots[1] : dots.join('');
+  if (!/^\d+(\.\d+)?$/.test(raw)) return NaN;
+  return Number(raw);
+}
+
+// 1550000 -> "1,550,000" · 1550000.5 -> "1,550,000.5"
+function formatAmount(n) {
+  if (!Number.isFinite(n)) return '';
+  const [entera, decimal] = String(n).split('.');
+  const agrupada = Number(entera).toLocaleString('es-DO');
+  return decimal ? `${agrupada}.${decimal}` : agrupada;
+}
+
+// Formatea mientras se escribe y recoloca el cursor contando CIFRAS a su
+// izquierda: los separadores aparecen y desaparecen con cada pulsación,
+// así que la posición absoluta no sirve como referencia.
+function attachAmountFormatter(input) {
+  if (!input || input.dataset.amountFormatter) return;
+  input.dataset.amountFormatter = '1';
+  input.addEventListener('input', () => {
+    const antes = input.value;
+    const caret = input.selectionStart == null ? antes.length : input.selectionStart;
+    const cifrasIzquierda = antes.slice(0, caret).replace(/\D/g, '').length;
+    const n = parseAmount(antes);
+    if (!Number.isFinite(n)) return; // campo vacío o a medio escribir: no estorbar
+    // Un punto recién tecleado ("1500." o "1500.5") desaparecería al
+    // formatear e impediría escribir decimales, así que se respeta tal
+    // cual mientras el importe se está escribiendo.
+    const cola = /\.\d{0,2}$/.test(antes) ? antes.slice(antes.indexOf('.')) : '';
+    const formateado = cola ? formatAmount(Math.trunc(n)) + cola : formatAmount(n);
+    if (formateado === antes) return;
+    input.value = formateado;
+    let pos = 0;
+    let vistas = 0;
+    while (pos < formateado.length && vistas < cifrasIzquierda) {
+      if (/\d/.test(formateado[pos])) vistas++;
+      pos++;
+    }
+    try { input.setSelectionRange(pos, pos); } catch (e) { /* input sin selección */ }
+  });
+  // Al salir del campo se normaliza: "1.550.000" o "1550000" quedan
+  // igual de legibles que si se hubieran escrito con separadores.
+  input.addEventListener('blur', () => {
+    const n = parseAmount(input.value);
+    input.value = Number.isFinite(n) ? formatAmount(n) : '';
+  });
+}
 // ============================================================
 // ROUTING REAL — Slugs y URLs por vehículo (reemplaza #auto-id)
 // ============================================================
@@ -1575,7 +1658,11 @@ function closeLightbox() {
   const lb = document.getElementById('lightbox');
   const lbVid = document.getElementById('lightbox-video');
   if (lb) lb.classList.remove('open');
-  if (lbVid) { try { lbVid.pause(); lbVid.src = ''; } catch(e){} }
+  // `src = ''` NO libera el vídeo: la cadena vacía se resuelve contra la
+  // URL del documento, así que el navegador se descarga el HTML entero
+  // como si fuera el medio. removeAttribute + load() es lo que corta de
+  // verdad la descarga en curso.
+  if (lbVid) { try { lbVid.pause(); lbVid.removeAttribute('src'); lbVid.load(); } catch(e){} }
   unlockBodyScroll();
 }
 document.getElementById('lightbox-close')?.addEventListener('click', closeLightbox);
@@ -1755,6 +1842,8 @@ document.getElementById('publish-cancel-btn').addEventListener('click', closePub
 function openPublishModal(vehicle) {
   const modal = document.getElementById('publish-modal');
   const title = document.getElementById('modal-title');
+  // Idempotente: se ignora si ya está enganchado en este input.
+  attachAmountFormatter(document.getElementById('pub-price'));
   // Libera los object URLs del formulario anterior. Sin esto, abrir el modal,
   // elegir fotos y volver a abrirlo (sin pasar por closePublishModal) dejaba
   // los blobs retenidos en memoria durante toda la sesión.
@@ -1766,9 +1855,9 @@ function openPublishModal(vehicle) {
     title.textContent = 'Editar Vehículo';
     document.getElementById('pub-edit-id').value = vehicle.id;
     document.getElementById('pub-name').value = vehicle.name || '';
-    document.getElementById('pub-price').value = (vehicle.currency === 'USD' && vehicle.priceUSD)
-      ? vehicle.priceUSD
-      : (vehicle.price || '');
+    document.getElementById('pub-price').value = formatAmount(
+      (vehicle.currency === 'USD' && vehicle.priceUSD) ? vehicle.priceUSD : vehicle.price
+    );
     document.getElementById('pub-category').value = vehicle.category || '';
     document.getElementById('pub-condition').value = vehicle.condition || '';
     document.getElementById('pub-brand').value = vehicle.brand || '';
@@ -1901,11 +1990,18 @@ function updateImgLabel() {
   if (!labelText) return;
   const remaining = MAX_IMAGES - pendingFiles.length;
   if (remaining <= 0) {
-    labelText.textContent = '✅ Máximo de 10 fotos/videos alcanzado';
+    labelText.textContent = `✅ Has alcanzado el máximo de ${MAX_IMAGES} fotos/videos`;
     if (input) input.disabled = true;
     if (labelEl) { labelEl.style.opacity = '0.5'; labelEl.style.pointerEvents = 'none'; }
   } else {
-    labelText.textContent = `Seleccionar fotos o videos (${pendingFiles.length}/10 — quedan ${remaining})`;
+    // El texto anterior era "(3/10 — quedan 7)". Esa fracción se lee como
+    // un objetivo que hay que completar, y más de una vez se entendió que
+    // hacían falta 10 fotos para poder publicar. Las fotos son OPCIONALES
+    // y 10 es solo el techo (el mismo que impone firestore.rules), así
+    // que el texto lo dice con esas palabras.
+    labelText.textContent = pendingFiles.length === 0
+      ? `Seleccionar fotos o videos (opcional — hasta ${MAX_IMAGES})`
+      : `Seleccionar fotos o videos (${pendingFiles.length} de ${MAX_IMAGES} — puedes añadir ${remaining} más)`;
     if (input) input.disabled = false;
     if (labelEl) { labelEl.style.opacity = '1'; labelEl.style.pointerEvents = 'auto'; }
   }
@@ -2050,7 +2146,7 @@ function renderImgPreview() {
 // FORMULARIO — lectura y validación, sin efectos secundarios
 // ============================================================
 function readPublishForm() {
-  const priceRaw = parseFloat(document.getElementById('pub-price').value);
+  const priceRaw = parseAmount(document.getElementById('pub-price').value);
   const currency = document.getElementById('pub-currency').value; // 'RD' o 'USD'
   const price = currency === 'USD' ? Math.round(priceRaw * USD_TO_RD_RATE) : Math.round(priceRaw);
   const priceUSD = currency === 'USD' ? priceRaw : null;
@@ -2089,6 +2185,15 @@ function validatePublishForm(form) {
   if (!d.name || !(form.priceRaw > 0) || !d.category || !d.condition || !d.brand || !d.year) {
     return { valid: false, message: '⚠️ Completa todos los campos obligatorios (el precio debe ser mayor que cero)' };
   }
+  // Los topes son los de firestore.rules. Comprobarlos aquí evita el caso
+  // peor: el vehículo se sube a Cloudinary, Firestore rechaza el
+  // documento y el usuario solo ve "Error al guardar" sin saber por qué.
+  if (!(d.price < MAX_PRICE_RD)) {
+    return { valid: false, message: `⚠️ El precio máximo es RD$ ${formatAmount(MAX_PRICE_RD - 1)}` };
+  }
+  if (d.priceUSD != null && !(d.priceUSD < MAX_PRICE_USD)) {
+    return { valid: false, message: `⚠️ El precio máximo en USD es $${formatAmount(MAX_PRICE_USD - 1)}` };
+  }
   return { valid: true };
 }
 
@@ -2100,15 +2205,24 @@ function validatePublishForm(form) {
 // Cloudinary: continúa donde se quedó. Es la diferencia entre "se cayó la
 // conexión en la foto 8, vuelve a empezar desde la 1" y "pulsa Publicar
 // otra vez y termina en segundos".
+// Devuelve SIEMPRE { media, fallidos, total }.
+//
+// Antes lanzaba en cuanto una subida fallaba, y con ella se perdía la
+// publicación entera: con siete fotos y una conexión mala, que fallara la
+// primera bastaba para que no se pudiera publicar el vehículo de ninguna
+// manera. Las fotos son opcionales, así que un archivo que no sube no
+// puede ser un bloqueo — se anota, se sigue con el resto y quien publica
+// decide si continuar con las que sí subieron o volver al formulario.
 async function resolvePublishMedia(editId, onProgress, userClearedAll) {
   // Si el admin quitó a propósito todas las fotos al editar, debe quedarse
   // sin fotos. Antes, `pendingFiles.length === 0` se interpretaba siempre
   // como "no tocó las fotos" y se devolvía el media anterior: las imágenes
   // eliminadas reaparecían al guardar y era imposible dejar un vehículo sin
   // portada.
-  if (pendingFiles.length === 0 && userClearedAll) return [];
+  if (pendingFiles.length === 0 && userClearedAll) return { media: [], fallidos: [], total: 0 };
   if (pendingFiles.length > 0) {
     const media = [];
+    const fallidos = [];
     const total = pendingFiles.length;
     // Mantiene la pantalla encendida mientras dura la tanda: en Android,
     // bloquear el teléfono a mitad de la subida la congelaba y la
@@ -2124,10 +2238,11 @@ async function resolvePublishMedia(editId, onProgress, userClearedAll) {
             item.cloudUrl = result.url;
             item.type = result.type;
           } catch (error) {
-            // Se enriquece el error con la posición para que el mensaje
-            // diga QUÉ archivo falló, no un genérico inútil.
-            error.uploadContext = { index: i + 1, total, uploaded: i };
-            throw error;
+            // Se anota con su posición para poder decir QUÉ archivo falló,
+            // no un genérico inútil. `cloudUrl` sigue vacío, así que un
+            // segundo intento reintenta solo este.
+            fallidos.push({ index: i + 1, error });
+            continue;
           }
         }
         media.push({ type: item.type, src: item.cloudUrl });
@@ -2135,13 +2250,13 @@ async function resolvePublishMedia(editId, onProgress, userClearedAll) {
     } finally {
       LBMedia.releaseWakeLock();
     }
-    return media;
+    return { media, fallidos, total };
   }
   if (editId) {
     const existing = vehicles.find(v => v.id === editId);
-    return existing?.media || [];
+    return { media: (existing && existing.media) || [], fallidos: [], total: 0 };
   }
-  return [];
+  return { media: [], fallidos: [], total: 0 };
 }
 
 // ============================================================
@@ -2221,7 +2336,7 @@ document.getElementById('publish-submit-btn').addEventListener('click', async ()
   try {
     let media;
     try {
-      media = await resolvePublishMedia(form.editId, (i, total, percent) => {
+      const subida = await resolvePublishMedia(form.editId, (i, total, percent) => {
         const label = btn.querySelector('.btn-label') || btn;
         // El porcentaje real importa en móvil: sin él, una subida lenta
         // pero sana se lee como "se colgó" y el usuario recarga la página
@@ -2230,22 +2345,32 @@ document.getElementById('publish-submit-btn').addEventListener('click', async ()
           ? `⏳ Subiendo ${i} de ${total} · ${percent}%`
           : `⏳ Subiendo ${i} de ${total}...`;
       }, mediaClearedByUser);
+      if (token !== currentSaveToken) return;
+      media = subida.media;
+
+      // Alguna foto no subió. No se aborta: se explica qué pasó y se deja
+      // elegir entre publicar con lo que sí está o volver al formulario.
+      // Lo ya subido queda marcado, así que reintentar solo sube lo que
+      // falta en vez de empezar de cero.
+      if (subida.fallidos.length > 0) {
+        const primero = subida.fallidos[0];
+        const motivo = LBMedia.describeError(primero.error, { index: primero.index, total: subida.total });
+        console.error('Error subiendo a Cloudinary:', primero.error);
+        const conservadas = media.length;
+        const detalle = conservadas > 0
+          ? `Se subieron ${conservadas} de ${subida.total} archivo(s).`
+          : `No se pudo subir ninguno de los ${subida.total} archivo(s).`;
+        const accion = conservadas > 0
+          ? `Aceptar: ${form.editId ? 'guardar' : 'publicar'} ahora con ${conservadas} foto(s).`
+          : `Aceptar: ${form.editId ? 'guardar' : 'publicar'} sin fotos (podrás añadirlas después editando el vehículo).`;
+        const seguir = confirm(
+          `${motivo}\n\n${detalle}\n\n${accion}\nCancelar: volver al formulario y pulsar Publicar otra vez para reintentar solo lo que falta.`
+        );
+        if (!seguir || token !== currentSaveToken) return;
+      }
     } catch (e) {
       console.error('Error subiendo a Cloudinary:', e);
-      if (token === currentSaveToken) {
-        const context = e.uploadContext;
-        const message = LBMedia.describeError(e, context);
-        showToast(message, 6000);
-        // Si algo ya llegó a Cloudinary, decirlo evita que el usuario
-        // piense que tiene que volver a seleccionar las diez fotos.
-        if (context && context.uploaded > 0) {
-          setTimeout(() => {
-            if (token === currentSaveToken) {
-              showToast(`ℹ️ ${context.uploaded} de ${context.total} ya se subieron — pulsa Publicar de nuevo para continuar`, 6000);
-            }
-          }, 6200);
-        }
-      }
+      if (token === currentSaveToken) showToast(LBMedia.describeError(e, null), 6000);
       return; // el modal permanece abierto — el usuario no pierde lo que escribió
     }
     if (token !== currentSaveToken) return;

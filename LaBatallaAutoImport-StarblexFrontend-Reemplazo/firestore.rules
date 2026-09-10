@@ -86,7 +86,16 @@ service cloud.firestore {
 
         && d.price is number
         && d.price > 0
-        && d.price < 20000000
+        // Tope subido de 20.000.000 a 2.000.000.000 RD$. El anterior era
+        // un límite real de publicación, no una defensa: `price` SIEMPRE
+        // se almacena en pesos (un importe en USD se convierte con
+        // USD_TO_RD_RATE antes de guardarse), así que a la tasa vigente
+        // rechazaba cualquier vehículo por encima de unos USD 339.000.
+        // Se mantiene un techo para seguir descartando valores absurdos o
+        // corruptos; el resto de restricciones no cambia. El formulario
+        // valida el mismo tope (MAX_PRICE_RD en app.js) para que el
+        // rechazo llegue como mensaje y no como fallo mudo al guardar.
+        && d.price < 2000000000
 
         && d.category in [
           'sedanes',

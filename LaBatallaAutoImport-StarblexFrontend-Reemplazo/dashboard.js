@@ -426,12 +426,27 @@ function dbSkeletonList(n) {
 async function dbRenderPreferencias() {
   const result = await getPreferences();
   const prefs = (result.success && result.prefs) || {};
-  document.getElementById('db-pref-price-min').value = prefs.priceMin ?? '';
-  document.getElementById('db-pref-price-max').value = prefs.priceMax ?? '';
+  // Mismo criterio que el formulario de publicación: se guarda el número
+  // y se muestra con separadores de miles (ver parseAmount/formatAmount
+  // en app.js). Con <input type="number"> era imposible teclear
+  // "1,500,000" — el navegador descartaba el valor entero.
+  const minInput = document.getElementById('db-pref-price-min');
+  const maxInput = document.getElementById('db-pref-price-max');
+  attachAmountFormatter(minInput);
+  attachAmountFormatter(maxInput);
+  minInput.value = prefs.priceMin == null ? '' : formatAmount(prefs.priceMin);
+  maxInput.value = prefs.priceMax == null ? '' : formatAmount(prefs.priceMax);
   document.getElementById('db-pref-vehicle-type').value = prefs.vehicleType || '';
   document.getElementById('db-pref-transmission').value = prefs.transmission || '';
   document.getElementById('db-pref-fuel').value = prefs.fuel || '';
   document.getElementById('db-pref-brands').value = (prefs.brands || []).join(', ');
+}
+
+// Devuelve el número o null (igual que el `|| null` anterior: un 0 o un
+// campo vacío significan "sin preferencia").
+function dbLeerPrecioPref(id) {
+  const n = parseAmount(document.getElementById(id).value);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 let dbPrefsSaveBusy = false;
@@ -443,8 +458,8 @@ async function handleSavePreferences() {
   try {
     const brandsRaw = document.getElementById('db-pref-brands').value.trim();
     const prefs = {
-      priceMin: Number(document.getElementById('db-pref-price-min').value) || null,
-      priceMax: Number(document.getElementById('db-pref-price-max').value) || null,
+      priceMin: dbLeerPrecioPref('db-pref-price-min'),
+      priceMax: dbLeerPrecioPref('db-pref-price-max'),
       vehicleType: document.getElementById('db-pref-vehicle-type').value,
       transmission: document.getElementById('db-pref-transmission').value,
       fuel: document.getElementById('db-pref-fuel').value,

@@ -1,5 +1,5 @@
 // ============================================================
-// Batería de pruebas de firestore.rules — 102 casos.
+// Batería de pruebas de firestore.rules — 116 casos (102 previos + 14 del tope de precio).
 // Requiere: npm install -D @firebase/rules-unit-testing firebase
 // Ejecutar:  firebase emulators:exec --only firestore "node firestore_rules_test.js"
 // ============================================================
@@ -333,6 +333,59 @@ async function main() {
   await run('priceDisplay que no es ni texto ni null → denegado', async () => {
     await assertFails(setDoc(doc(como('adminL', 'adminl@test.com'), 'vehicles', 'pd1'),
       Object.assign(vehiculo('Display Malo 2025', 'display-malo-2025'), { priceDisplay: 123 })));
+  });
+
+  // ==========================================================
+  // TOPE DE PRECIO — subido de 20.000.000 a 2.000.000.000 RD$.
+  // El tope anterior rechazaba cualquier vehículo por encima de unos
+  // USD 339.000 (price se almacena siempre en pesos). Se comprueba cada
+  // importe de la matriz acordada y ambos lados exactos de la frontera:
+  // la regla es `< 2000000000`, así que 1.999.999.999 entra y
+  // 2.000.000.000 no.
+  // ==========================================================
+  const preciosValidos = [1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000, 1999999999];
+  for (let i = 0; i < preciosValidos.length; i++) {
+    const precio = preciosValidos[i];
+    await run(`Precio ${precio.toLocaleString('en-US')} → permitido`, async () => {
+      await assertSucceeds(setDoc(doc(como('adminL', 'adminl@test.com'), 'vehicles', `precio-ok-${i}`),
+        Object.assign(vehiculo(`Precio Valido ${i} 2025`, `precio-valido-${i}-2025`), { price: precio })));
+    });
+  }
+
+  await run('Precio 2,000,000,000 (el tope exacto) → denegado', async () => {
+    await assertFails(setDoc(doc(como('adminL', 'adminl@test.com'), 'vehicles', 'precio-tope'),
+      Object.assign(vehiculo('Precio Tope 2025', 'precio-tope-2025'), { price: 2000000000 })));
+  });
+
+  await run('Precio 2,000,000,001 (por encima del tope) → denegado', async () => {
+    await assertFails(setDoc(doc(como('adminL', 'adminl@test.com'), 'vehicles', 'precio-pasado'),
+      Object.assign(vehiculo('Precio Pasado 2025', 'precio-pasado-2025'), { price: 2000000001 })));
+  });
+
+  await run('Precio 0 → denegado (sigue exigiendo > 0)', async () => {
+    await assertFails(setDoc(doc(como('adminL', 'adminl@test.com'), 'vehicles', 'precio-cero'),
+      Object.assign(vehiculo('Precio Cero 2025', 'precio-cero-2025'), { price: 0 })));
+  });
+
+  await run('Precio como texto "1500000" → denegado (sigue exigiendo number)', async () => {
+    // Es la regresión que protege el cambio de <input type="number"> a
+    // type="text": si algún día el formulario dejara de convertir el
+    // valor, Firestore debe seguir rechazando la cadena.
+    await assertFails(setDoc(doc(como('adminL', 'adminl@test.com'), 'vehicles', 'precio-string'),
+      Object.assign(vehiculo('Precio Texto 2025', 'precio-texto-2025'), { price: '1500000' })));
+  });
+
+  await run('Precio con separadores como texto "1,500,000" → denegado', async () => {
+    await assertFails(setDoc(doc(como('adminL', 'adminl@test.com'), 'vehicles', 'precio-comas'),
+      Object.assign(vehiculo('Precio Comas 2025', 'precio-comas-2025'), { price: '1,500,000' })));
+  });
+
+  await run('Precio en USD convertido a RD$ por encima del tope viejo → permitido', async () => {
+    // USD 400.000 × 59 = RD$ 23.600.000: con el tope anterior este
+    // vehículo no se podía publicar de ninguna forma.
+    await assertSucceeds(setDoc(doc(como('adminL', 'adminl@test.com'), 'vehicles', 'usd-alto'),
+      Object.assign(vehiculo('Deportivo Importado 2025', 'deportivo-importado-2025'),
+        { price: 23600000, currency: 'USD', priceUSD: 400000, priceDisplay: 'USD$ 400,000 (RD$ 23,600,000)' })));
   });
 
   // ==========================================================

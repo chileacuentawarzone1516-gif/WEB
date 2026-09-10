@@ -1,5 +1,101 @@
 # RELEASE NOTES — La Batalla Auto Import
 
+## PRECIO CON SEPARADORES DE MILES Y PUBLICACIÓN QUE NO SE BLOQUEA
+
+Dos fallos que impedían publicar vehículos desde el teléfono, más lo que
+salió de auditar el resto del proyecto.
+
+### 1. El precio no admitía separadores de miles (`index.html`, `app.js`)
+
+**Causa raíz.** El campo era `<input type="number">`. Ese tipo no admite
+separadores de miles: en cuanto el navegador encuentra la segunda coma, el
+valor deja de ser un *floating-point number* válido y `.value` devuelve
+`""`. `parseFloat("")` es `NaN`, así que la validación respondía "el precio
+debe ser mayor que cero" sin mencionar nunca la coma. En el teclado
+numérico de Android la coma está pegada al 0, de modo que escribir
+`1,550,000` era el camino natural y el único que no funcionaba.
+
+**Solución.** Campo de texto con `inputmode="decimal"` y separación
+explícita entre el **valor interno** (número, el que se calcula y se
+guarda) y el **valor mostrado** (texto con separadores). Tres funciones
+nuevas en `app.js`, el mismo patrón que ya usaba la calculadora para el
+monto inicial:
+
+- `parseAmount(texto)` → número. La coma siempre separa miles; el punto
+  solo es decimal si hay uno y le siguen una o dos cifras, así que
+  `1.550.000` (formato europeo, que algunos teclados producen) tampoco se
+  interpreta como 1,55.
+- `formatAmount(número)` → texto agrupado en `es-DO`.
+- `attachAmountFormatter(input)` → formatea al escribir y recoloca el
+  cursor contando **cifras** a su izquierda, no posiciones absolutas.
+
+Lo que se persiste sigue siendo un `number`; en Firestore no entra ninguna
+cadena. El mismo defecto estaba en los filtros de precio del panel
+(`db-pref-price-min/max`), corregidos igual.
+
+### 2. Tope de precio en `firestore.rules` (20 M → 2.000 M RD$)
+
+Al probar la matriz completa apareció un límite real: la regla exigía
+`d.price < 20000000`. Como `price` se almacena **siempre** en pesos (un
+importe en USD se convierte con `USD_TO_RD_RATE` antes de guardarse), a la
+tasa vigente eso rechazaba cualquier vehículo por encima de unos
+USD 339.000 — un fallo de publicación, no una defensa. Cambiada **esa
+única línea**, con autorización expresa. El resto de restricciones
+(`is number`, `> 0`, tipos, autorización) queda intacto, y el formulario
+valida el mismo tope para que el rechazo llegue como mensaje y no como un
+"Error al guardar" mudo después de haber subido las fotos.
+
+### 3. Una foto que fallaba tumbaba la publicación entera (`app.js`)
+
+**Causa raíz.** No existía —ni existe— ninguna validación que exija 10
+imágenes: `MAX_IMAGES = 10` es un techo, `media` es opcional en las reglas
+y `media.size() <= 10` también es un máximo. Lo que fallaba era otra cosa:
+`resolvePublishMedia()` lanzaba en cuanto **una** subida fallaba, y con
+ella se perdía la publicación completa. Con siete fotos y una conexión
+mala, que fallara la primera bastaba para no poder publicar de ninguna
+manera.
+
+**Solución.** Los fallos se acumulan en vez de abortar: se sigue con el
+resto y se devuelve `{ media, fallidos, total }`. Si algo no subió, se
+explica qué pasó y se ofrece publicar con lo que sí está o volver al
+formulario; lo ya subido conserva su `cloudUrl`, así que reintentar sube
+**solo lo que falta**. Publicar con 0 fotos es válido y usa el placeholder
+de siempre.
+
+**Y el texto que confundía.** La etiqueta decía `(7/10 — quedan 3)`. Esa
+fracción se lee como un objetivo que hay que completar, y de ahí venía la
+idea de que hacían falta 10 fotos. Ahora dice *"(opcional — hasta 10)"* sin
+fotos y *"(3 de 10 — puedes añadir 7 más)"* con ellas.
+
+### 4. Hallazgos de la auditoría
+
+- **Guardar preferencias sin precio fallaba siempre** (`auth.js`). Con el
+  campo vacío se escribía `priceMin: null`, y la regla exige
+  `priceMin is number` *cuando la clave está presente*: Firestore rechazaba
+  el documento entero con un error de permisos. Confirmado contra el
+  emulador antes de tocar nada. Ahora "sin preferencia" **borra** el campo
+  (`FieldValue.delete()`), que es justo lo que la regla permite, y además
+  limpia una preferencia guardada antes.
+- **`<img src="">` en el lightbox** (`index.html`, `app.js`). La cadena
+  vacía se resuelve contra la URL del documento, así que el navegador se
+  descargaba el HTML entero como si fuera la imagen — el mismo antipatrón
+  que este proyecto ya había corregido en `getVehicleCover()`. Retirado el
+  atributo; al cerrar el vídeo se usa `removeAttribute('src') + load()`,
+  que es lo que corta de verdad la descarga.
+
+### Pruebas
+
+- **116 casos de `firestore.rules`** contra el emulador: 116 ✅ / 0 ❌
+  (14 nuevos del tope de precio, incluidos ambos lados exactos de la
+  frontera y el rechazo de precios como cadena).
+- **Navegador (Chromium):** 13 comprobaciones de precio, 17 de imágenes y
+  17 de regresión — catálogo, detalle, lightbox, calculadora, búsqueda,
+  favoritos y preferencias. Todas en verde, sin errores de consola propios.
+- **Responsive:** 12 viewports × 8 páginas = 96 combinaciones sin
+  desbordamiento horizontal; modal de publicación usable en 320 px e
+  inputs a 16 px (sin zoom automático en iOS).
+
+
 ## MARCA DE AGUA, PDF DESDE EL DASHBOARD Y COPIA POR CORREO
 
 Cierre de los tres pendientes que quedaron abiertos con la cotización en

@@ -711,7 +711,19 @@ async function savePreferences(prefs) {
   if (!authState.user) return { success: false, code: 'no-user' };
   const allowed = ['brands', 'priceMin', 'priceMax', 'vehicleType', 'transmission', 'fuel'];
   const data = {};
-  for (const key of allowed) if (key in prefs) data[key] = prefs[key];
+  // "Sin preferencia" se representa BORRANDO el campo, no escribiendo null.
+  // firestore.rules exige `priceMin is number` cuando la clave está
+  // presente, así que un null la hacía presente con el tipo equivocado y
+  // Firestore rechazaba el documento entero: guardar preferencias dejando
+  // el precio en blanco fallaba siempre con un error de permisos. Con
+  // delete() la clave desaparece, que es justo lo que la regla permite,
+  // y además limpia una preferencia guardada antes.
+  const borrar = firebase.firestore.FieldValue.delete();
+  for (const key of allowed) {
+    if (!(key in prefs)) continue;
+    const value = prefs[key];
+    data[key] = (value === null || value === undefined || value === '') ? borrar : value;
+  }
   try {
     await db.collection('users').doc(authState.user.uid).collection('preferences').doc('settings').set(data, { merge: true });
     countFirestoreOp('write');

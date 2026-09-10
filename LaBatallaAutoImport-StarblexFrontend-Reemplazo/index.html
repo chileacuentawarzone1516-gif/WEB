@@ -309,7 +309,7 @@
 <div id="lightbox" role="dialog" aria-modal="true">
   <button id="lightbox-close" aria-label="Cerrar">✕</button>
   <button id="lightbox-prev" aria-label="Anterior">‹</button>
-  <img id="lightbox-img" src="" alt="Foto ampliada" class="hidden" data-fallback="https://placehold.co/800x600/1e293b/38bdf8?text=Sin+imagen">
+  <img id="lightbox-img" alt="Foto ampliada" class="hidden" data-fallback="https://placehold.co/800x600/1e293b/38bdf8?text=Sin+imagen">
   <video id="lightbox-video" controls class="hidden"></video>
   <button id="lightbox-next" aria-label="Siguiente">›</button>
 </div>
@@ -430,9 +430,9 @@
             <option value="RD">RD$</option>
             <option value="USD">USD$</option>
           </select>
-          <input id="pub-price" type="number" placeholder="ej: 3650000" class="flex-1 bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
+          <input id="pub-price" type="text" inputmode="decimal" autocomplete="off" placeholder="ej: 3,650,000" class="flex-1 bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
         </div>
-        <p class="text-slate-500 text-xs mt-1">Selecciona la moneda y escribe el monto</p>
+        <p class="text-slate-500 text-xs mt-1">Selecciona la moneda y escribe el monto — los separadores de miles se añaden solos</p>
       </div>
       <div>
         <label class="text-slate-300 text-sm font-medium block mb-1" for="pub-category">Categoría *</label>
@@ -868,11 +868,11 @@
           </div>
           <div>
             <label for="db-pref-price-min">Precio mínimo (RD$)</label>
-            <input id="db-pref-price-min" type="number" min="0" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+            <input id="db-pref-price-min" type="text" inputmode="decimal" autocomplete="off" placeholder="ej: 1,500,000" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
           </div>
           <div>
             <label for="db-pref-price-max">Precio máximo (RD$)</label>
-            <input id="db-pref-price-max" type="number" min="0" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+            <input id="db-pref-price-max" type="text" inputmode="decimal" autocomplete="off" placeholder="ej: 1,500,000" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
           </div>
           <div>
             <label for="db-pref-vehicle-type">Tipo de vehículo</label>
@@ -1083,11 +1083,11 @@
 <script defer src="/hero-carousel.js?v=20260904b"></script>
 <script defer src="/media-upload.js?v=20260903"></script>
 <script defer src="/roles.js?v=20260728"></script>
-<script defer src="/app.js?v=20260905"></script>
-<script defer src="/auth.js?v=20260905"></script>
+<script defer src="/app.js?v=20260910"></script>
+<script defer src="/auth.js?v=20260910"></script>
 <script defer src="/auth-ui.js?v=20260728"></script>
 <script defer src="/invite-modal.js?v=20260811"></script>
 <script defer src="/calculadora.js?v=20260905"></script>
-<script defer src="/dashboard.js?v=20260905"></script>
+<script defer src="/dashboard.js?v=20260910"></script>
 </body>
 </html>
