@@ -14,6 +14,9 @@
 //   getHistoryRemote()
 //   deleteHistoryEntry(entryId)
 //   saveQuote(quoteData)              → cotizaciones (Fase 1.4)
+//     quoteData: vehicleId, vehicleName, downPayment, termMonths,
+//     monthlyPayment y, opcionales, vehiclePrice, downPaymentPct,
+//     institution, annualRate, vehicleType (necesarios para el PDF).
 //   getQuotesRemote()
 //   deleteQuote(quoteId)
 //   savePreferences(prefs)            → preferencias (Fase 1.6)
@@ -631,17 +634,43 @@ async function deleteHistoryEntry(entryId) {
 // ============================================================
 // FASE 1 — Cotizaciones (users/{uid}/quotes/{autoId})
 // ============================================================
+// Los cinco campos del bloque financiero son los que permiten REGENERAR
+// el PDF de la cotización desde el dashboard (institución, tasa y monto
+// financiado no se pueden deducir de los otros). Se envían solo cuando
+// vienen informados: las reglas los aceptan como opcionales, así que un
+// dato ausente no invalida la escritura entera.
+function buildQuotePayload(quoteData) {
+  const payload = {
+    vehicleId: quoteData.vehicleId || '',
+    vehicleName: quoteData.vehicleName || 'Vehículo',
+    downPayment: Number(quoteData.downPayment) || 0,
+    termMonths: Number(quoteData.termMonths) || 1,
+    monthlyPayment: Number(quoteData.monthlyPayment) || 0,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+  };
+  // Rangos alineados con firestore.rules: si el cliente enviara un valor
+  // fuera de rango, la escritura la rechazaría el servidor y se perdería
+  // también la cotización. Se recorta aquí para no llegar a ese caso.
+  const numero = (v, max) => {
+    const n = Number(v);
+    return isFinite(n) && n >= 0 && n <= max ? n : null;
+  };
+  const vehiclePrice = numero(quoteData.vehiclePrice, 1000000000);
+  const downPaymentPct = numero(quoteData.downPaymentPct, 100);
+  const annualRate = numero(quoteData.annualRate, 100);
+  if (vehiclePrice !== null) payload.vehiclePrice = vehiclePrice;
+  if (downPaymentPct !== null) payload.downPaymentPct = Math.round(downPaymentPct);
+  if (annualRate !== null) payload.annualRate = annualRate;
+  if (quoteData.institution) payload.institution = String(quoteData.institution).slice(0, 60);
+  if (quoteData.vehicleType) payload.vehicleType = String(quoteData.vehicleType).slice(0, 20);
+  return payload;
+}
+
 async function saveQuote(quoteData) {
   if (!authState.user) return { success: false, code: 'no-user' };
   try {
-    await db.collection('users').doc(authState.user.uid).collection('quotes').add({
-      vehicleId: quoteData.vehicleId || '',
-      vehicleName: quoteData.vehicleName || 'Vehículo',
-      downPayment: Number(quoteData.downPayment) || 0,
-      termMonths: Number(quoteData.termMonths) || 1,
-      monthlyPayment: Number(quoteData.monthlyPayment) || 0,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
+    await db.collection('users').doc(authState.user.uid).collection('quotes')
+      .add(buildQuotePayload(quoteData));
     countFirestoreOp('write');
     return { success: true };
   } catch (e) {
@@ -682,7 +711,19 @@ async function savePreferences(prefs) {
   if (!authState.user) return { success: false, code: 'no-user' };
   const allowed = ['brands', 'priceMin', 'priceMax', 'vehicleType', 'transmission', 'fuel'];
   const data = {};
-  for (const key of allowed) if (key in prefs) data[key] = prefs[key];
+  // "Sin preferencia" se representa BORRANDO el campo, no escribiendo null.
+  // firestore.rules exige `priceMin is number` cuando la clave está
+  // presente, así que un null la hacía presente con el tipo equivocado y
+  // Firestore rechazaba el documento entero: guardar preferencias dejando
+  // el precio en blanco fallaba siempre con un error de permisos. Con
+  // delete() la clave desaparece, que es justo lo que la regla permite,
+  // y además limpia una preferencia guardada antes.
+  const borrar = firebase.firestore.FieldValue.delete();
+  for (const key of allowed) {
+    if (!(key in prefs)) continue;
+    const value = prefs[key];
+    data[key] = (value === null || value === undefined || value === '') ? borrar : value;
+  }
   try {
     await db.collection('users').doc(authState.user.uid).collection('preferences').doc('settings').set(data, { merge: true });
     countFirestoreOp('write');

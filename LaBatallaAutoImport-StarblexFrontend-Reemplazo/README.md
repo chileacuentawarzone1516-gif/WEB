@@ -16,10 +16,15 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 ├── index.html                 SPA principal (catálogo, fichas, modales)
 ├── app.js                     Lógica: Firestore, CRUD admin, SEO dinámico, favoritos, galería
 ├── calculadora.js             Calculadora de financiamiento (modal + FAB)
+├── cotizacion-pdf.js          Maquetación de la cotización en PDF — módulo ES, carga bajo demanda
+├── pdf-core.js                Motor de PDF propio, sin dependencias — lo usa cotizacion-pdf.js
 ├── invite-modal.js            Invitación opcional de registro al contactar por WhatsApp
-├── logo-labatalla.png         Logo oficial, usado en el modal de invitación
+├── logo-labatalla.png         Logo oficial — modal de invitación y membrete del PDF
 ├── vehicles-demo.js           Datos de ejemplo — solo se descarga si Firebase falla
 ├── styles.css                 Estilos propios (complementa Tailwind)
+├── ficha-vehiculo.css         Especificaciones y características de la ficha de vehículo
+├── netlify/functions/         Funciones de servidor (Netlify)
+│   └── enviar-cotizacion.js   Envía por correo al asesor el PDF de cada solicitud
 ├── tailwind.css                Tailwind compilado (no editar a mano)
 ├── 404.html                   Página de error de Netlify
 ├── empresa/                   Páginas institucionales (HTML estático, una por sección)
@@ -84,7 +89,7 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
   juntos en `empresa/por-que-elegirnos.html`; si editas una pregunta, edita
   también su entrada en el JSON-LD de esa misma página (y en ninguna otra:
   el schema solo debe existir donde el contenido existe).
-- Cada vez que edites `app.js`, `calculadora.js`, `dashboard.js`, `styles.css` o `invite-modal.js`, incrementa el `?v=` de ese archivo en `index.html` (evita servir JS/CSS cacheado desacoplado del HTML nuevo). No hace falta subir el número de los archivos que no tocaste.
+- Cada vez que edites `app.js`, `calculadora.js`, `dashboard.js`, `styles.css`, `ficha-vehiculo.css` o `invite-modal.js`, incrementa el `?v=` de ese archivo en `index.html` (evita servir JS/CSS cacheado desacoplado del HTML nuevo). No hace falta subir el número de los archivos que no tocaste.
 
 ## Tareas pendientes del propietario (una sola vez)
 
@@ -128,7 +133,9 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 
 `index.html` referencia `roles.js`, `app.js`, `auth.js`, `auth-ui.js`,
 `calculadora.js`, `dashboard.js`, `invite-modal.js`,
-`styles.css`, `dashboard.css` y `tailwind.css` con `?v=AAAAMMDD`. Cada vez que
+`styles.css`, `ficha-vehiculo.css`, `dashboard.css` y `tailwind.css` con
+`?v=AAAAMMDD`. `cotizacion-pdf.js` y `pdf-core.js` no van en el `<head>`: su
+`?v=` está en el `import()` dinámico de `calculadora.js`. Cada vez que
 modifiques alguno de esos archivos, incrementa el valor de **ese archivo
 específico** en `index.html` — no hace falta subir los de archivos que no
 tocaste, pero tampoco olvides el que sí cambió: un `?v=` desactualizado deja
@@ -228,3 +235,33 @@ entorno de desarrollo, que no alcanza gstatic/jsDelivr/Cloudinary):
 - Comportamiento real en iOS Safari (teclado virtual, safe-area)
 - Vista previa social real (WhatsApp/Facebook) de `/` y `/empresa/*`
 - Indexación real por buscadores
+
+## Variables de entorno (Netlify)
+
+Se configuran en **Site configuration → Environment variables**. El sitio
+funciona sin ellas; lo único que no ocurre es el envío del correo.
+
+| Variable | Para qué sirve |
+|---|---|
+| `RESEND_API_KEY` | Clave de [Resend](https://resend.com) — plan gratuito: 3.000 correos/mes. |
+| `COTIZACION_EMAIL_TO` | Correo del asesor que recibe las solicitudes de financiamiento. |
+| `COTIZACION_EMAIL_FROM` | Remitente verificado en Resend. Sin dominio propio verificado, sirve `onboarding@resend.dev`. |
+| `FIREBASE_PROJECT_ID` / `FIREBASE_WEB_API_KEY` | Los usa la Edge Function `vehicle-og` para el Open Graph por vehículo. |
+
+Si falta cualquiera de las tres primeras, `enviar-cotizacion` responde 503,
+lo registra en los logs de Netlify y no envía nada. El cliente no ve ningún
+error: su solicitud ya salió por WhatsApp, que es el canal principal.
+
+**Puesta en marcha del correo, paso a paso:**
+
+1. Crea una cuenta gratuita en resend.com y genera una API key.
+2. Verifica un remitente. Para empezar vale `onboarding@resend.dev`; cuando
+   tengas dominio propio, verifícalo en Resend y usa algo como
+   `cotizaciones@labatallaautoimport.com` (mejor entregabilidad).
+3. Pega las tres variables en Netlify y vuelve a desplegar.
+4. Prueba: abre la calculadora, completa nombre y teléfono y pulsa
+   "Solicitar este Financiamiento". Debe llegar el correo con el PDF adjunto.
+
+La función **no** acepta el destinatario por petición: se lee siempre de
+`COTIZACION_EMAIL_TO`. Es lo que impide que alguien la use como relay de
+spam firmado con el dominio del negocio.

@@ -99,8 +99,9 @@
 # ------------------------------------------------------------
 # `publish = "."` publica TODA la carpeta, así que hoy son
 # descargables /firestore.rules, /firestore_rules_test.js,
-# /firebase.json, /cloudinary-sign-worker.js, /README.md y
-# /RELEASE_NOTES.md. Ninguno lo carga el sitio (verificado: 0
+# /firebase.json, /cloudinary-sign-worker.js, /README.md,
+# /RELEASE_NOTES.md y el árbol /netlify/ (código de la Edge Function
+# y de la Function de correo). Ninguno lo carga el sitio (verificado: 0
 # referencias en index.html y ningún <script> los pide), pero
 # entre todos publican el detalle de las reglas de seguridad, la
 # lógica de firma de Cloudinary y la deuda de seguridad conocida
@@ -149,9 +150,37 @@
   status = 404
   force = true
 
+# Código fuente de las funciones. No afecta a su ejecución: Netlify las
+# expone en /.netlify/functions/* (con punto), que es otra ruta.
+[[redirects]]
+  from = "/netlify/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
 [[edge_functions]]
   path = "/vehiculos/*"
   function = "vehicle-og"
+
+# ============================================================
+# FUNCIONES DE SERVIDOR
+# ------------------------------------------------------------
+# `publish = "."` publica todo el árbol del repositorio, así que la
+# carpeta netlify/ también quedaría servida como archivos estáticos.
+# El código fuente ya es público en GitHub y no contiene secretos (las
+# claves viven en variables de entorno), pero no hay ninguna razón para
+# servirlo: se devuelve 404. No afecta a las funciones, que Netlify
+# expone en /.netlify/functions/* — otra ruta distinta.
+# ============================================================
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# La copia por correo de una cotización nunca debe quedar cacheada.
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Cache-Control = "no-store"
 
 [[headers]]
   for = "/styles.css"
@@ -178,6 +207,25 @@
 
 [[headers]]
   for = "/calculadora.js"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
+# Generador de la cotización en PDF. Son módulos ES cargados con import()
+# dinámico desde calculadora.js (no van en el <head>), así que su caché
+# se invalida por el ?v= del propio import.
+[[headers]]
+  for = "/cotizacion-pdf.js"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
+[[headers]]
+  for = "/pdf-core.js"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
+# Estilos de la ficha de vehículo (especificaciones y características).
+[[headers]]
+  for = "/ficha-vehiculo.css"
   [headers.values]
     Cache-Control = "public, max-age=3600, must-revalidate"
 

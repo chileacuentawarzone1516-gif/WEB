@@ -1,0 +1,218 @@
+/* ============================================================
+   ficha-vehiculo.css — Componentes de la ficha de un vehículo
+   ------------------------------------------------------------
+   Se separó de styles.css (que ya superaba las 1.500 líneas y mezclaba
+   home, modales y ficha) para aislar la presentación de la página de
+   detalle. Todo lo de aquí es data-driven: sirve igual para los
+   vehículos publicados hoy y para los que se publiquen mañana, sin
+   tocar CSS.
+
+   Convención de nombres: prefijo `vd-` (vehicle detail).
+   ============================================================ */
+
+/* Tokens locales — derivados de la paleta del sitio (slate + sky).
+   Centralizados aquí para que un cambio de marca sea una sola edición. */
+:root {
+  --vd-surface: rgb(30, 41, 59);           /* slate-800: fondo de tarjeta */
+  --vd-surface-soft: rgba(255, 255, 255, 0.035);
+  --vd-border: rgba(148, 163, 184, 0.16);
+  --vd-border-strong: rgba(148, 163, 184, 0.28);
+  --vd-accent: rgb(56, 189, 248);          /* sky-400 */
+  --vd-accent-soft: rgba(56, 189, 248, 0.12);
+  --vd-label: rgb(148, 163, 184);          /* slate-400 — contraste AA */
+  --vd-value: rgb(241, 245, 249);          /* slate-100 */
+  --vd-radius: 14px;
+}
+
+/* ------------------------------------------------------------
+   Tarjeta de sección
+   ------------------------------------------------------------ */
+.vd-card {
+  background: var(--vd-surface);
+  border: 1px solid var(--vd-border);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.vd-card-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 16px;
+  font-size: 17px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+/* Marca de acento a la izquierda del título: repite el lenguaje visual
+   de las tarjetas de resultados de la calculadora. */
+.vd-card-title::before {
+  content: '';
+  width: 3px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--vd-accent);
+  flex-shrink: 0;
+}
+.vd-card-title svg { width: 18px; height: 18px; color: var(--vd-accent); flex-shrink: 0; }
+
+/* ------------------------------------------------------------
+   Especificaciones — mosaico de fichas etiqueta/valor
+   ------------------------------------------------------------ */
+.vd-spec-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.vd-spec {
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: var(--vd-radius);
+  background: var(--vd-surface-soft);
+  border: 1px solid var(--vd-border);
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+.vd-spec:hover { border-color: var(--vd-border-strong); background: rgba(255, 255, 255, 0.055); }
+
+.vd-spec dt {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--vd-label);
+}
+.vd-spec dd {
+  margin: 7px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--vd-value);
+  line-height: 1.3;
+  overflow-wrap: break-word; /* nombres largos de color/marca no rompen la retícula */
+}
+/* Valor no informado: se mantiene la ficha por consistencia visual,
+   pero se atenúa para que no compita con los datos reales. */
+.vd-spec dd.vd-spec-empty { color: rgb(100, 116, 139); font-weight: 600; }
+
+.vd-spec-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--vd-accent);
+  flex-shrink: 0;
+}
+.vd-spec-icon svg { width: 13px; height: 13px; }
+
+/* ------------------------------------------------------------
+   Características — retícula de píldoras con icono contextual
+   ------------------------------------------------------------ */
+.vd-feature-grid {
+  display: grid;
+  /* auto-fill + minmax: 2 columnas en móvil, 3 en tablet y 4 en
+     escritorio, sin una sola media query. El mínimo de 165px es el
+     ancho a partir del cual una característica típica ("Asientos
+     calefaccionados") entra en dos líneas como mucho. */
+  grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.vd-feature {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 11px 13px;
+  border-radius: var(--vd-radius);
+  background: var(--vd-surface-soft);
+  border: 1px solid var(--vd-border);
+  transition: border-color 0.18s ease, background-color 0.18s ease, transform 0.18s ease;
+}
+.vd-feature:hover {
+  border-color: rgba(56, 189, 248, 0.4);
+  background: rgba(56, 189, 248, 0.07);
+  transform: translateY(-1px);
+}
+
+.vd-feature-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--vd-accent-soft);
+  color: var(--vd-accent);
+}
+.vd-feature-icon svg { width: 16px; height: 16px; }
+
+.vd-feature-text {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: rgb(226, 232, 240);
+  /* break-word (no `anywhere`): una palabra solo se parte si de verdad
+     no cabe. Con `anywhere` el navegador partía "calefaccionados" aun
+     teniendo espacio, para optimizar el ajuste. */
+  overflow-wrap: break-word;
+}
+
+/* ------------------------------------------------------------
+   Insignia de historial (Carfax)
+   ------------------------------------------------------------
+   Antes la etiqueta decía siempre "CLEAN CARFAX" sobre un recuadro
+   verde, incluso cuando el valor era "Sin Carfax": el color y el
+   rótulo contradecían al dato. Ahora la etiqueta es neutra
+   ("Historial") y el estado lo comunica el modificador. */
+.vd-badge { border-radius: 12px; padding: 12px 18px; border: 1px solid; }
+.vd-badge-label { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--vd-label); margin: 0 0 4px; }
+.vd-badge-value { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 15px; font-weight: 700; line-height: 1.2; }
+.vd-badge-value svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+.vd-badge--ok { background: rgba(34, 197, 94, 0.08); border-color: rgba(34, 197, 94, 0.28); }
+.vd-badge--ok .vd-badge-value { color: rgb(74, 222, 128); }
+.vd-badge--none { background: rgba(148, 163, 184, 0.07); border-color: rgba(148, 163, 184, 0.24); }
+.vd-badge--none .vd-badge-value { color: rgb(203, 213, 225); }
+
+/* Estado vacío — mismo patrón que el dashboard: icono + mensaje guía.
+   Como vive dentro de la retícula de características, tiene que ocupar
+   la fila completa; si no, quedaría encajonado en una sola columna. */
+.vd-empty {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 16px;
+  border-radius: var(--vd-radius);
+  border: 1px dashed var(--vd-border-strong);
+  color: var(--vd-label);
+  font-size: 13.5px;
+}
+.vd-empty svg { width: 18px; height: 18px; flex-shrink: 0; color: rgb(100, 116, 139); }
+
+/* ------------------------------------------------------------
+   Adaptación por ancho
+   ------------------------------------------------------------ */
+@media (min-width: 640px) {
+  .vd-card { padding: 24px; }
+  .vd-spec-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+/* Pantallas muy estrechas (iPhone SE y similares): una sola columna
+   evita que los valores largos se partan letra a letra. */
+@media (max-width: 359px) {
+  .vd-spec-grid { grid-template-columns: 1fr; }
+  .vd-feature-grid { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vd-spec, .vd-feature { transition: none; }
+  .vd-feature:hover { transform: none; }
+}

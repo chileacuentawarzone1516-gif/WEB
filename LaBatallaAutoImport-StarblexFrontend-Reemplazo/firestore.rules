@@ -86,7 +86,16 @@ service cloud.firestore {
 
         && d.price is number
         && d.price > 0
-        && d.price < 20000000
+        // Tope subido de 20.000.000 a 2.000.000.000 RD$. El anterior era
+        // un límite real de publicación, no una defensa: `price` SIEMPRE
+        // se almacena en pesos (un importe en USD se convierte con
+        // USD_TO_RD_RATE antes de guardarse), así que a la tasa vigente
+        // rechazaba cualquier vehículo por encima de unos USD 339.000.
+        // Se mantiene un techo para seguir descartando valores absurdos o
+        // corruptos; el resto de restricciones no cambia. El formulario
+        // valida el mismo tope (MAX_PRICE_RD en app.js) para que el
+        // rechazo llegue como mensaje y no como fallo mudo al guardar.
+        && d.price < 2000000000
 
         && d.category in [
           'sedanes',
@@ -472,17 +481,47 @@ service cloud.firestore {
     }
 
     // Cotizaciones guardadas desde la calculadora: users/{uid}/quotes/{autoId}.
+    //
+    // Los cinco campos del bloque de datos financieros (vehiclePrice,
+    // downPaymentPct, institution, annualRate, vehicleType) se añadieron
+    // para poder REGENERAR el PDF de la cotización desde el dashboard:
+    // sin ellos el documento no puede indicar institución, tasa ni monto
+    // financiado. Son OPCIONALES a propósito — las cotizaciones creadas
+    // antes de este cambio no los tienen y deben seguir siendo legibles,
+    // y una futura versión del cliente que deje de enviarlos tampoco
+    // debe romperse. Cuando vienen, se validan con el mismo rigor que
+    // los originales: tipo correcto y rango acotado, para que nadie
+    // pueda inflar el documento con datos arbitrarios.
     match /users/{uid}/quotes/{quoteId} {
       allow read, delete: if signedIn() && request.auth.uid == uid;
       allow create: if signedIn() && request.auth.uid == uid
         && request.resource.data.keys().hasOnly([
-          'vehicleId', 'vehicleName', 'downPayment', 'termMonths', 'monthlyPayment', 'createdAt'
+          'vehicleId', 'vehicleName', 'downPayment', 'termMonths', 'monthlyPayment', 'createdAt',
+          'vehiclePrice', 'downPaymentPct', 'institution', 'annualRate', 'vehicleType'
         ])
         && request.resource.data.vehicleName is string && request.resource.data.vehicleName.size() <= 150
         && request.resource.data.downPayment is number && request.resource.data.downPayment >= 0
         && request.resource.data.termMonths is number && request.resource.data.termMonths > 0
         && request.resource.data.monthlyPayment is number && request.resource.data.monthlyPayment >= 0
-        && request.resource.data.createdAt is timestamp;
+        && request.resource.data.createdAt is timestamp
+        && (!('vehiclePrice' in request.resource.data)
+            || (request.resource.data.vehiclePrice is number
+                && request.resource.data.vehiclePrice >= 0
+                && request.resource.data.vehiclePrice <= 1000000000))
+        && (!('downPaymentPct' in request.resource.data)
+            || (request.resource.data.downPaymentPct is number
+                && request.resource.data.downPaymentPct >= 0
+                && request.resource.data.downPaymentPct <= 100))
+        && (!('institution' in request.resource.data)
+            || (request.resource.data.institution is string
+                && request.resource.data.institution.size() <= 60))
+        && (!('annualRate' in request.resource.data)
+            || (request.resource.data.annualRate is number
+                && request.resource.data.annualRate >= 0
+                && request.resource.data.annualRate <= 100))
+        && (!('vehicleType' in request.resource.data)
+            || (request.resource.data.vehicleType is string
+                && request.resource.data.vehicleType.size() <= 20));
       allow update: if false;
     }
 

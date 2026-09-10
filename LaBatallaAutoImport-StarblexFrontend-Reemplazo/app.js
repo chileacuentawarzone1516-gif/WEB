@@ -396,6 +396,89 @@ function fmtPrice(p, v) {
   if (v && v.priceDisplay) return v.priceDisplay;
   return 'RD$ ' + Number(p).toLocaleString('es-DO');
 }
+
+// ============================================================
+// IMPORTES — valor interno (número) separado del valor mostrado
+// ------------------------------------------------------------
+// El campo de precio era <input type="number">. Ese tipo NO admite
+// separadores de miles: en cuanto el navegador encuentra la segunda coma
+// el valor deja de ser un "floating-point number" válido y `.value`
+// devuelve "" — `parseFloat("")` es NaN y la publicación se rechazaba
+// con "el precio debe ser mayor que cero", sin decir nunca que el
+// problema era la coma. En el teclado numérico de Android la coma está
+// junto al 0, así que escribir "1,550,000" era el camino natural... y el
+// único que no funcionaba.
+//
+// El patrón es el que ya usaba la calculadora para el monto inicial:
+// input de TEXTO, se conserva el NÚMERO para calcular y persistir, y se
+// muestra el texto formateado. Convención dominicana (es-DO): coma para
+// los miles, punto para los decimales.
+// ============================================================
+
+// Tope máximo de precio en RD$. Debe coincidir con firestore.rules
+// (`d.price < 2000000000`): validarlo también aquí convierte un rechazo
+// silencioso del servidor en un mensaje que explica qué corregir.
+const MAX_PRICE_RD = 2000000000;
+// Tope de firestore.rules para `priceUSD` (`< 20000000`).
+const MAX_PRICE_USD = 20000000;
+
+// "1,550,000.50" -> 1550000.5 · "" o texto sin cifras -> NaN
+function parseAmount(value) {
+  // La coma es SIEMPRE separador de miles (es-DO, y es lo que emite
+  // formatAmount). El punto solo es decimal cuando hay uno único y le
+  // siguen una o dos cifras — los céntimos; en cualquier otro caso
+  // ("1.550.000", formato europeo que algunos teclados producen) también
+  // separa miles. Así ninguna forma razonable de teclear el importe
+  // acaba interpretada como un número mil veces menor.
+  let raw = String(value == null ? '' : value).replace(/[^\d.,]/g, '').replace(/,/g, '');
+  const dots = raw.split('.');
+  raw = (dots.length === 2 && /^\d{1,2}$/.test(dots[1])) ? dots[0] + '.' + dots[1] : dots.join('');
+  if (!/^\d+(\.\d+)?$/.test(raw)) return NaN;
+  return Number(raw);
+}
+
+// 1550000 -> "1,550,000" · 1550000.5 -> "1,550,000.5"
+function formatAmount(n) {
+  if (!Number.isFinite(n)) return '';
+  const [entera, decimal] = String(n).split('.');
+  const agrupada = Number(entera).toLocaleString('es-DO');
+  return decimal ? `${agrupada}.${decimal}` : agrupada;
+}
+
+// Formatea mientras se escribe y recoloca el cursor contando CIFRAS a su
+// izquierda: los separadores aparecen y desaparecen con cada pulsación,
+// así que la posición absoluta no sirve como referencia.
+function attachAmountFormatter(input) {
+  if (!input || input.dataset.amountFormatter) return;
+  input.dataset.amountFormatter = '1';
+  input.addEventListener('input', () => {
+    const antes = input.value;
+    const caret = input.selectionStart == null ? antes.length : input.selectionStart;
+    const cifrasIzquierda = antes.slice(0, caret).replace(/\D/g, '').length;
+    const n = parseAmount(antes);
+    if (!Number.isFinite(n)) return; // campo vacío o a medio escribir: no estorbar
+    // Un punto recién tecleado ("1500." o "1500.5") desaparecería al
+    // formatear e impediría escribir decimales, así que se respeta tal
+    // cual mientras el importe se está escribiendo.
+    const cola = /\.\d{0,2}$/.test(antes) ? antes.slice(antes.indexOf('.')) : '';
+    const formateado = cola ? formatAmount(Math.trunc(n)) + cola : formatAmount(n);
+    if (formateado === antes) return;
+    input.value = formateado;
+    let pos = 0;
+    let vistas = 0;
+    while (pos < formateado.length && vistas < cifrasIzquierda) {
+      if (/\d/.test(formateado[pos])) vistas++;
+      pos++;
+    }
+    try { input.setSelectionRange(pos, pos); } catch (e) { /* input sin selección */ }
+  });
+  // Al salir del campo se normaliza: "1.550.000" o "1550000" quedan
+  // igual de legibles que si se hubieran escrito con separadores.
+  input.addEventListener('blur', () => {
+    const n = parseAmount(input.value);
+    input.value = Number.isFinite(n) ? formatAmount(n) : '';
+  });
+}
 // ============================================================
 // ROUTING REAL — Slugs y URLs por vehículo (reemplaza #auto-id)
 // ============================================================
@@ -1146,6 +1229,134 @@ function populateYears(selId, from=1970, to=2027) {
 // ============================================================
 let currentVehicleId = null;
 let galleryMedia = [], galleryIdx = 0;
+
+// ============================================================
+// FICHA — Especificaciones y características (ver ficha-vehiculo.css)
+// ------------------------------------------------------------
+// Antes ambas listas eran texto plano en una rejilla de Tailwind. Se
+// reescribieron como componentes con icono para que la ficha se lea de
+// un vistazo. Todo es data-driven: los vehículos que se publiquen a
+// futuro heredan el diseño sin tocar HTML ni CSS.
+// ============================================================
+
+// Icono de cada especificación. Se usan nombres presentes en la versión
+// de Lucide que carga el sitio (0.263.0) y, aun así, todo pasa por
+// lucideIconName() para no dejar huecos si un día cambia la librería.
+const SPEC_ICONS = {
+  'Marca': 'car', 'Año': 'calendar', 'Estado': 'sparkles', 'Categoría': 'layers',
+  'Millaje': 'gauge', 'Color': 'palette', 'Transmisión': 'cog',
+};
+
+// Reglas texto → icono para las características. Se evalúan en orden, así
+// que las más específicas van primero. Ampliar esta tabla es la única
+// edición necesaria para cubrir equipamiento nuevo.
+const FEATURE_ICON_RULES = [
+  [/c[áa]mara|retrovisor|360|reversa/i, 'camera'],
+  [/carplay|android auto/i, 'smartphone'],
+  [/pantalla|t[áa]ctil|touch|display|infotainment|multimedia/i, 'monitor'],
+  [/bluetooth/i, 'bluetooth'],
+  [/gps|navegaci[óo]n|waze/i, 'map-pin'],
+  [/bocina|sonido|audio|bose|harman|jbl|parlante|sub/i, 'volume-2'],
+  [/techo|sunroof|panor[áa]mic|quemacoco|corredizo/i, 'sun'],
+  [/cuero|piel|asiento|tapicer[íi]a/i, 'armchair'],
+  [/clima|aire|a\/c|calefacci[óo]n|calefactad|ventilad/i, 'wind'],
+  [/sensor|parqueo|park|punto ciego|colisi[óo]n|frenado|asistencia/i, 'radar'],
+  [/crucero|cruise|control de velocidad/i, 'gauge'],
+  [/llave|keyless|arranque|push start|bot[óo]n/i, 'key-round'],
+  [/rin|aro|llanta|neum[áa]tic/i, 'circle-dot'],
+  [/4x4|awd|4wd|tracci[óo]n|off.?road/i, 'mountain'],
+  [/turbo|caballo|\bhp\b|motor|cilindr|v6|v8/i, 'zap'],
+  [/led|luz|luces|faro|x[ée]non|halogen/i, 'lightbulb'],
+  [/airbag|abs|seguridad|alarma|blindaj|isofix/i, 'shield'],
+  [/usb|carga|inal[áa]mbric|cargador|bater[íi]a/i, 'battery-charging'],
+  [/autom[áa]tic|transmisi[óo]n|caja|manual|paddle/i, 'cog'],
+  [/el[ée]ctric|h[íi]brid|gasolina|di[ée]sel|combustible|gas/i, 'fuel'],
+  [/vidrio|ventana|cristal|polariza/i, 'square'],
+  [/garant[íi]a|servicio|mantenimiento/i, 'badge-check'],
+];
+const FEATURE_ICON_FALLBACK = 'check-circle';
+
+// kebab-case → PascalCase, que es como Lucide indexa sus iconos.
+function toPascalIcon(name) {
+  return name.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('');
+}
+// Devuelve `name` si Lucide lo conoce; si no, el icono de reserva. Evita
+// el hueco silencioso que deja un data-lucide inexistente. Mientras la
+// librería no haya cargado se confía en el nombre pedido (se resuelve al
+// llamar a lucide.createIcons() al final del render).
+function lucideIconName(name, fallback = FEATURE_ICON_FALLBACK) {
+  const icons = window.lucide?.icons;
+  if (!icons) return name;
+  if (icons[toPascalIcon(name)] || icons[name]) return name;
+  return fallback;
+}
+
+function featureIconFor(text) {
+  const rule = FEATURE_ICON_RULES.find(([re]) => re.test(text));
+  return lucideIconName(rule ? rule[1] : FEATURE_ICON_FALLBACK);
+}
+
+// Etiquetas legibles del campo `condition` — un único punto de verdad.
+const CONDITION_LABELS = { nuevo: 'Nuevo', importado: 'Recién Importado', usado: 'Usado' };
+// Claves reales del selector de publicación (#pub-category).
+const CATEGORY_LABELS = { sedanes: 'Sedán', suvs: 'SUV', pickups: 'Camioneta' };
+
+// Insignia de historial. El estado se comunica con una clase (no con
+// estilos en línea), para que color, borde e icono cambien juntos y
+// nunca queden en contradicción con el texto.
+function renderVehicleCarfax(v) {
+  const box = document.getElementById('detail-carfax-box');
+  const value = document.getElementById('detail-carfax');
+  if (!box || !value) return;
+  const limpio = v.carfax === 'si';
+  box.classList.toggle('vd-badge--ok', limpio);
+  box.classList.toggle('vd-badge--none', !limpio);
+  const icono = lucideIconName(limpio ? 'shield-check' : 'shield-alert', 'shield');
+  value.innerHTML = `<i data-lucide="${escapeAttr(icono)}" aria-hidden="true"></i>` +
+    (limpio ? 'Clean Carfax' : 'Sin reporte');
+}
+
+function renderVehicleSpecs(v) {
+  const specs = document.getElementById('detail-specs');
+  if (!specs) return;
+  const categoria = v.category ? (CATEGORY_LABELS[String(v.category).toLowerCase()] || v.category) : '';
+  const filas = [
+    ['Marca', v.brand],
+    ['Año', v.year],
+    ['Estado', CONDITION_LABELS[v.condition] || CONDITION_LABELS.usado],
+    ['Categoría', categoria],
+    ['Millaje', v.mileage ? `${v.mileage} km` : ''],
+    ['Color', v.color],
+    ['Transmisión', v.transmission],
+  ];
+  specs.innerHTML = filas.map(([label, value]) => {
+    const vacio = value === undefined || value === null || String(value).trim() === '';
+    const icono = lucideIconName(SPEC_ICONS[label] || 'info', 'info');
+    return `<div class="vd-spec">
+      <dt><span class="vd-spec-icon"><i data-lucide="${escapeAttr(icono)}" aria-hidden="true"></i></span>${escapeHtml(label)}</dt>
+      <dd class="vd-spec-value${vacio ? ' vd-spec-empty' : ''}">${vacio ? 'No especificado' : escapeHtml(String(value))}</dd>
+    </div>`;
+  }).join('');
+}
+
+function renderVehicleFeatures(v) {
+  const list = document.getElementById('detail-features');
+  if (!list) return;
+  const feats = (Array.isArray(v.features) ? v.features : [])
+    .map(f => String(f).trim()).filter(Boolean);
+  if (feats.length === 0) {
+    list.innerHTML = `<li class="vd-empty">
+      <i data-lucide="info" aria-hidden="true"></i>
+      Este vehículo aún no tiene características detalladas. Escríbenos y te contamos todo su equipamiento.
+    </li>`;
+    return;
+  }
+  list.innerHTML = feats.map(f => `<li class="vd-feature">
+      <span class="vd-feature-icon"><i data-lucide="${escapeAttr(featureIconFor(f))}" aria-hidden="true"></i></span>
+      <span class="vd-feature-text">${escapeHtml(f)}</span>
+    </li>`).join('');
+}
+
 function openDetail(id) {
   const v = vehicles.find(x => x.id === id);
   if (!v) return;
@@ -1194,39 +1405,13 @@ function openDetail(id) {
   // Info
   document.getElementById('detail-name').textContent = v.name;
   document.getElementById('detail-price').textContent = fmtPrice(v.price, v);
-  document.getElementById('detail-carfax').textContent = v.carfax === 'si' ? '✅ Clean Carfax' : '❌ Sin Carfax';
-  document.getElementById('detail-carfax').style.color = v.carfax === 'si' ? '#4ade80' : '#f87171';
+  renderVehicleCarfax(v);
   // WhatsApp link con URL real específica de esta publicación
   const vehicleUrl = getVehicleUrl(v);
   const waMsg = `Hola, estoy interesado en el *${v.name}* — ${fmtPrice(v.price, v)}\n\n🔗 Ver publicación: ${vehicleUrl}\n\n¿Está disponible?`;
   document.getElementById('detail-whatsapp-btn').href = `https://wa.me/18097759771?text=${encodeURIComponent(waMsg)}`;
-  // Specs
-  const specs = document.getElementById('detail-specs');
-  specs.innerHTML = '';
-  const specData = [
-    ['Marca', v.brand], ['Año', v.year],
-    ['Estado', v.condition === 'nuevo' ? 'Nuevo' : v.condition === 'importado' ? 'Recién Importado' : 'Usado'],
-    ['Millaje', v.mileage ? v.mileage + ' km' : 'N/D'],
-    ['Color', v.color || 'N/D'],
-    ['Transmisión', v.transmission || 'N/D']
-  ];
-  specData.forEach(([label, value]) => {
-    specs.innerHTML += `<div><p class="text-slate-400 mb-1">${escapeHtml(label)}</p><p class="text-white font-medium">${escapeHtml(value)}</p></div>`;
-  });
-  // Features
-  const featList = document.getElementById('detail-features');
-  featList.innerHTML = '';
-  const feats = Array.isArray(v.features) ? v.features : [];
-  if (feats.length === 0) {
-    featList.innerHTML = '<li class="text-slate-400">No especificadas</li>';
-  } else {
-    feats.forEach(f => {
-      const li = document.createElement('li');
-      li.className = 'flex items-center gap-2 text-slate-200';
-      li.innerHTML = `<i data-lucide="check-circle" class="w-4 h-4 text-sky-400 shrink-0"></i> ${escapeHtml(f)}`;
-      featList.appendChild(li);
-    });
-  }
+  renderVehicleSpecs(v);
+  renderVehicleFeatures(v);
   // Calculadora de financiamiento — el botón "Simular financiamiento"
   // abre el modal global precargado con este vehículo
   const openCalcBtn = document.getElementById('detail-open-calc-btn');
@@ -1473,7 +1658,11 @@ function closeLightbox() {
   const lb = document.getElementById('lightbox');
   const lbVid = document.getElementById('lightbox-video');
   if (lb) lb.classList.remove('open');
-  if (lbVid) { try { lbVid.pause(); lbVid.src = ''; } catch(e){} }
+  // `src = ''` NO libera el vídeo: la cadena vacía se resuelve contra la
+  // URL del documento, así que el navegador se descarga el HTML entero
+  // como si fuera el medio. removeAttribute + load() es lo que corta de
+  // verdad la descarga en curso.
+  if (lbVid) { try { lbVid.pause(); lbVid.removeAttribute('src'); lbVid.load(); } catch(e){} }
   unlockBodyScroll();
 }
 document.getElementById('lightbox-close')?.addEventListener('click', closeLightbox);
@@ -1653,6 +1842,8 @@ document.getElementById('publish-cancel-btn').addEventListener('click', closePub
 function openPublishModal(vehicle) {
   const modal = document.getElementById('publish-modal');
   const title = document.getElementById('modal-title');
+  // Idempotente: se ignora si ya está enganchado en este input.
+  attachAmountFormatter(document.getElementById('pub-price'));
   // Libera los object URLs del formulario anterior. Sin esto, abrir el modal,
   // elegir fotos y volver a abrirlo (sin pasar por closePublishModal) dejaba
   // los blobs retenidos en memoria durante toda la sesión.
@@ -1664,9 +1855,9 @@ function openPublishModal(vehicle) {
     title.textContent = 'Editar Vehículo';
     document.getElementById('pub-edit-id').value = vehicle.id;
     document.getElementById('pub-name').value = vehicle.name || '';
-    document.getElementById('pub-price').value = (vehicle.currency === 'USD' && vehicle.priceUSD)
-      ? vehicle.priceUSD
-      : (vehicle.price || '');
+    document.getElementById('pub-price').value = formatAmount(
+      (vehicle.currency === 'USD' && vehicle.priceUSD) ? vehicle.priceUSD : vehicle.price
+    );
     document.getElementById('pub-category').value = vehicle.category || '';
     document.getElementById('pub-condition').value = vehicle.condition || '';
     document.getElementById('pub-brand').value = vehicle.brand || '';
@@ -1799,11 +1990,18 @@ function updateImgLabel() {
   if (!labelText) return;
   const remaining = MAX_IMAGES - pendingFiles.length;
   if (remaining <= 0) {
-    labelText.textContent = '✅ Máximo de 10 fotos/videos alcanzado';
+    labelText.textContent = `✅ Has alcanzado el máximo de ${MAX_IMAGES} fotos/videos`;
     if (input) input.disabled = true;
     if (labelEl) { labelEl.style.opacity = '0.5'; labelEl.style.pointerEvents = 'none'; }
   } else {
-    labelText.textContent = `Seleccionar fotos o videos (${pendingFiles.length}/10 — quedan ${remaining})`;
+    // El texto anterior era "(3/10 — quedan 7)". Esa fracción se lee como
+    // un objetivo que hay que completar, y más de una vez se entendió que
+    // hacían falta 10 fotos para poder publicar. Las fotos son OPCIONALES
+    // y 10 es solo el techo (el mismo que impone firestore.rules), así
+    // que el texto lo dice con esas palabras.
+    labelText.textContent = pendingFiles.length === 0
+      ? `Seleccionar fotos o videos (opcional — hasta ${MAX_IMAGES})`
+      : `Seleccionar fotos o videos (${pendingFiles.length} de ${MAX_IMAGES} — puedes añadir ${remaining} más)`;
     if (input) input.disabled = false;
     if (labelEl) { labelEl.style.opacity = '1'; labelEl.style.pointerEvents = 'auto'; }
   }
@@ -1948,7 +2146,7 @@ function renderImgPreview() {
 // FORMULARIO — lectura y validación, sin efectos secundarios
 // ============================================================
 function readPublishForm() {
-  const priceRaw = parseFloat(document.getElementById('pub-price').value);
+  const priceRaw = parseAmount(document.getElementById('pub-price').value);
   const currency = document.getElementById('pub-currency').value; // 'RD' o 'USD'
   const price = currency === 'USD' ? Math.round(priceRaw * USD_TO_RD_RATE) : Math.round(priceRaw);
   const priceUSD = currency === 'USD' ? priceRaw : null;
@@ -1987,6 +2185,15 @@ function validatePublishForm(form) {
   if (!d.name || !(form.priceRaw > 0) || !d.category || !d.condition || !d.brand || !d.year) {
     return { valid: false, message: '⚠️ Completa todos los campos obligatorios (el precio debe ser mayor que cero)' };
   }
+  // Los topes son los de firestore.rules. Comprobarlos aquí evita el caso
+  // peor: el vehículo se sube a Cloudinary, Firestore rechaza el
+  // documento y el usuario solo ve "Error al guardar" sin saber por qué.
+  if (!(d.price < MAX_PRICE_RD)) {
+    return { valid: false, message: `⚠️ El precio máximo es RD$ ${formatAmount(MAX_PRICE_RD - 1)}` };
+  }
+  if (d.priceUSD != null && !(d.priceUSD < MAX_PRICE_USD)) {
+    return { valid: false, message: `⚠️ El precio máximo en USD es $${formatAmount(MAX_PRICE_USD - 1)}` };
+  }
   return { valid: true };
 }
 
@@ -1998,15 +2205,24 @@ function validatePublishForm(form) {
 // Cloudinary: continúa donde se quedó. Es la diferencia entre "se cayó la
 // conexión en la foto 8, vuelve a empezar desde la 1" y "pulsa Publicar
 // otra vez y termina en segundos".
+// Devuelve SIEMPRE { media, fallidos, total }.
+//
+// Antes lanzaba en cuanto una subida fallaba, y con ella se perdía la
+// publicación entera: con siete fotos y una conexión mala, que fallara la
+// primera bastaba para que no se pudiera publicar el vehículo de ninguna
+// manera. Las fotos son opcionales, así que un archivo que no sube no
+// puede ser un bloqueo — se anota, se sigue con el resto y quien publica
+// decide si continuar con las que sí subieron o volver al formulario.
 async function resolvePublishMedia(editId, onProgress, userClearedAll) {
   // Si el admin quitó a propósito todas las fotos al editar, debe quedarse
   // sin fotos. Antes, `pendingFiles.length === 0` se interpretaba siempre
   // como "no tocó las fotos" y se devolvía el media anterior: las imágenes
   // eliminadas reaparecían al guardar y era imposible dejar un vehículo sin
   // portada.
-  if (pendingFiles.length === 0 && userClearedAll) return [];
+  if (pendingFiles.length === 0 && userClearedAll) return { media: [], fallidos: [], total: 0 };
   if (pendingFiles.length > 0) {
     const media = [];
+    const fallidos = [];
     const total = pendingFiles.length;
     // Mantiene la pantalla encendida mientras dura la tanda: en Android,
     // bloquear el teléfono a mitad de la subida la congelaba y la
@@ -2022,10 +2238,11 @@ async function resolvePublishMedia(editId, onProgress, userClearedAll) {
             item.cloudUrl = result.url;
             item.type = result.type;
           } catch (error) {
-            // Se enriquece el error con la posición para que el mensaje
-            // diga QUÉ archivo falló, no un genérico inútil.
-            error.uploadContext = { index: i + 1, total, uploaded: i };
-            throw error;
+            // Se anota con su posición para poder decir QUÉ archivo falló,
+            // no un genérico inútil. `cloudUrl` sigue vacío, así que un
+            // segundo intento reintenta solo este.
+            fallidos.push({ index: i + 1, error });
+            continue;
           }
         }
         media.push({ type: item.type, src: item.cloudUrl });
@@ -2033,13 +2250,13 @@ async function resolvePublishMedia(editId, onProgress, userClearedAll) {
     } finally {
       LBMedia.releaseWakeLock();
     }
-    return media;
+    return { media, fallidos, total };
   }
   if (editId) {
     const existing = vehicles.find(v => v.id === editId);
-    return existing?.media || [];
+    return { media: (existing && existing.media) || [], fallidos: [], total: 0 };
   }
-  return [];
+  return { media: [], fallidos: [], total: 0 };
 }
 
 // ============================================================
@@ -2119,7 +2336,7 @@ document.getElementById('publish-submit-btn').addEventListener('click', async ()
   try {
     let media;
     try {
-      media = await resolvePublishMedia(form.editId, (i, total, percent) => {
+      const subida = await resolvePublishMedia(form.editId, (i, total, percent) => {
         const label = btn.querySelector('.btn-label') || btn;
         // El porcentaje real importa en móvil: sin él, una subida lenta
         // pero sana se lee como "se colgó" y el usuario recarga la página
@@ -2128,22 +2345,32 @@ document.getElementById('publish-submit-btn').addEventListener('click', async ()
           ? `⏳ Subiendo ${i} de ${total} · ${percent}%`
           : `⏳ Subiendo ${i} de ${total}...`;
       }, mediaClearedByUser);
+      if (token !== currentSaveToken) return;
+      media = subida.media;
+
+      // Alguna foto no subió. No se aborta: se explica qué pasó y se deja
+      // elegir entre publicar con lo que sí está o volver al formulario.
+      // Lo ya subido queda marcado, así que reintentar solo sube lo que
+      // falta en vez de empezar de cero.
+      if (subida.fallidos.length > 0) {
+        const primero = subida.fallidos[0];
+        const motivo = LBMedia.describeError(primero.error, { index: primero.index, total: subida.total });
+        console.error('Error subiendo a Cloudinary:', primero.error);
+        const conservadas = media.length;
+        const detalle = conservadas > 0
+          ? `Se subieron ${conservadas} de ${subida.total} archivo(s).`
+          : `No se pudo subir ninguno de los ${subida.total} archivo(s).`;
+        const accion = conservadas > 0
+          ? `Aceptar: ${form.editId ? 'guardar' : 'publicar'} ahora con ${conservadas} foto(s).`
+          : `Aceptar: ${form.editId ? 'guardar' : 'publicar'} sin fotos (podrás añadirlas después editando el vehículo).`;
+        const seguir = confirm(
+          `${motivo}\n\n${detalle}\n\n${accion}\nCancelar: volver al formulario y pulsar Publicar otra vez para reintentar solo lo que falta.`
+        );
+        if (!seguir || token !== currentSaveToken) return;
+      }
     } catch (e) {
       console.error('Error subiendo a Cloudinary:', e);
-      if (token === currentSaveToken) {
-        const context = e.uploadContext;
-        const message = LBMedia.describeError(e, context);
-        showToast(message, 6000);
-        // Si algo ya llegó a Cloudinary, decirlo evita que el usuario
-        // piense que tiene que volver a seleccionar las diez fotos.
-        if (context && context.uploaded > 0) {
-          setTimeout(() => {
-            if (token === currentSaveToken) {
-              showToast(`ℹ️ ${context.uploaded} de ${context.total} ya se subieron — pulsa Publicar de nuevo para continuar`, 6000);
-            }
-          }, 6200);
-        }
-      }
+      if (token === currentSaveToken) showToast(LBMedia.describeError(e, null), 6000);
       return; // el modal permanece abierto — el usuario no pierde lo que escribió
     }
     if (token !== currentSaveToken) return;

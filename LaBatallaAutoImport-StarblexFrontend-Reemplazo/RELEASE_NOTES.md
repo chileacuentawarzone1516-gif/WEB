@@ -1,5 +1,275 @@
 # RELEASE NOTES — La Batalla Auto Import
 
+## PRECIO CON SEPARADORES DE MILES Y PUBLICACIÓN QUE NO SE BLOQUEA
+
+Dos fallos que impedían publicar vehículos desde el teléfono, más lo que
+salió de auditar el resto del proyecto.
+
+### 1. El precio no admitía separadores de miles (`index.html`, `app.js`)
+
+**Causa raíz.** El campo era `<input type="number">`. Ese tipo no admite
+separadores de miles: en cuanto el navegador encuentra la segunda coma, el
+valor deja de ser un *floating-point number* válido y `.value` devuelve
+`""`. `parseFloat("")` es `NaN`, así que la validación respondía "el precio
+debe ser mayor que cero" sin mencionar nunca la coma. En el teclado
+numérico de Android la coma está pegada al 0, de modo que escribir
+`1,550,000` era el camino natural y el único que no funcionaba.
+
+**Solución.** Campo de texto con `inputmode="decimal"` y separación
+explícita entre el **valor interno** (número, el que se calcula y se
+guarda) y el **valor mostrado** (texto con separadores). Tres funciones
+nuevas en `app.js`, el mismo patrón que ya usaba la calculadora para el
+monto inicial:
+
+- `parseAmount(texto)` → número. La coma siempre separa miles; el punto
+  solo es decimal si hay uno y le siguen una o dos cifras, así que
+  `1.550.000` (formato europeo, que algunos teclados producen) tampoco se
+  interpreta como 1,55.
+- `formatAmount(número)` → texto agrupado en `es-DO`.
+- `attachAmountFormatter(input)` → formatea al escribir y recoloca el
+  cursor contando **cifras** a su izquierda, no posiciones absolutas.
+
+Lo que se persiste sigue siendo un `number`; en Firestore no entra ninguna
+cadena. El mismo defecto estaba en los filtros de precio del panel
+(`db-pref-price-min/max`), corregidos igual.
+
+### 2. Tope de precio en `firestore.rules` (20 M → 2.000 M RD$)
+
+Al probar la matriz completa apareció un límite real: la regla exigía
+`d.price < 20000000`. Como `price` se almacena **siempre** en pesos (un
+importe en USD se convierte con `USD_TO_RD_RATE` antes de guardarse), a la
+tasa vigente eso rechazaba cualquier vehículo por encima de unos
+USD 339.000 — un fallo de publicación, no una defensa. Cambiada **esa
+única línea**, con autorización expresa. El resto de restricciones
+(`is number`, `> 0`, tipos, autorización) queda intacto, y el formulario
+valida el mismo tope para que el rechazo llegue como mensaje y no como un
+"Error al guardar" mudo después de haber subido las fotos.
+
+### 3. Una foto que fallaba tumbaba la publicación entera (`app.js`)
+
+**Causa raíz.** No existía —ni existe— ninguna validación que exija 10
+imágenes: `MAX_IMAGES = 10` es un techo, `media` es opcional en las reglas
+y `media.size() <= 10` también es un máximo. Lo que fallaba era otra cosa:
+`resolvePublishMedia()` lanzaba en cuanto **una** subida fallaba, y con
+ella se perdía la publicación completa. Con siete fotos y una conexión
+mala, que fallara la primera bastaba para no poder publicar de ninguna
+manera.
+
+**Solución.** Los fallos se acumulan en vez de abortar: se sigue con el
+resto y se devuelve `{ media, fallidos, total }`. Si algo no subió, se
+explica qué pasó y se ofrece publicar con lo que sí está o volver al
+formulario; lo ya subido conserva su `cloudUrl`, así que reintentar sube
+**solo lo que falta**. Publicar con 0 fotos es válido y usa el placeholder
+de siempre.
+
+**Y el texto que confundía.** La etiqueta decía `(7/10 — quedan 3)`. Esa
+fracción se lee como un objetivo que hay que completar, y de ahí venía la
+idea de que hacían falta 10 fotos. Ahora dice *"(opcional — hasta 10)"* sin
+fotos y *"(3 de 10 — puedes añadir 7 más)"* con ellas.
+
+### 4. Hallazgos de la auditoría
+
+- **Guardar preferencias sin precio fallaba siempre** (`auth.js`). Con el
+  campo vacío se escribía `priceMin: null`, y la regla exige
+  `priceMin is number` *cuando la clave está presente*: Firestore rechazaba
+  el documento entero con un error de permisos. Confirmado contra el
+  emulador antes de tocar nada. Ahora "sin preferencia" **borra** el campo
+  (`FieldValue.delete()`), que es justo lo que la regla permite, y además
+  limpia una preferencia guardada antes.
+- **`<img src="">` en el lightbox** (`index.html`, `app.js`). La cadena
+  vacía se resuelve contra la URL del documento, así que el navegador se
+  descargaba el HTML entero como si fuera la imagen — el mismo antipatrón
+  que este proyecto ya había corregido en `getVehicleCover()`. Retirado el
+  atributo; al cerrar el vídeo se usa `removeAttribute('src') + load()`,
+  que es lo que corta de verdad la descarga.
+
+### Pruebas
+
+- **116 casos de `firestore.rules`** contra el emulador: 116 ✅ / 0 ❌
+  (14 nuevos del tope de precio, incluidos ambos lados exactos de la
+  frontera y el rechazo de precios como cadena).
+- **Navegador (Chromium):** 13 comprobaciones de precio, 17 de imágenes y
+  17 de regresión — catálogo, detalle, lightbox, calculadora, búsqueda,
+  favoritos y preferencias. Todas en verde, sin errores de consola propios.
+- **Responsive:** 12 viewports × 8 páginas = 96 combinaciones sin
+  desbordamiento horizontal; modal de publicación usable en 320 px e
+  inputs a 16 px (sin zoom automático en iOS).
+
+
+## MARCA DE AGUA, PDF DESDE EL DASHBOARD Y COPIA POR CORREO
+
+Cierre de los tres pendientes que quedaron abiertos con la cotización en
+PDF, más el riesgo de Safari que estaba documentado pero sin resolver.
+
+### 1. Compartir en iPhone ya no puede fallar (`calculadora.js`)
+
+Safari exige que `navigator.share()` se invoque **dentro** del gesto del
+usuario. Construir el PDF antes consumía esa activación y el compartir
+podía terminar en `NotAllowedError`; había un plan B (descargar), pero el
+camino bueno fallaba justo en el sistema donde más se usa.
+
+Ahora el documento se **prepara por adelantado**: cada vez que cambia la
+cotización se regenera en segundo plano, con un rebote de 600 ms para no
+recalcular mientras se arrastra el deslizador de la inicial. Al pulsar
+"Compartir", si el documento ya está listo, `share()` se llama sin un solo
+`await` por delante. Verificado en navegador leyendo
+`navigator.userActivation.isActive` en el momento de la llamada: **true**.
+
+La clave de caché incluye todo lo que aparece impreso (vehículo, precio,
+institución, tipo, inicial, plazo, nombre y teléfono); si algo cambia, el
+documento se descarta. Al cerrar el modal se libera.
+
+De paso, el logo del membrete pasa a cargarse **una vez por sesión** en vez
+de en cada regeneración.
+
+### 2. Marca de agua "COTIZACIÓN REFERENCIAL" (`pdf-core.js`, `cotizacion-pdf.js`)
+
+Diagonal, al 6 % de opacidad, por encima del contenido. Deja claro que el
+documento es una simulación y no una aprobación de crédito, por si alguien
+lo presentara en una institución financiera.
+
+Requirió añadir al motor de PDF dos capacidades que no tenía: **giro** de
+texto (matriz de transformación) y **transparencia** (recursos `ExtGState`
+con `/ca`, uno por nivel de opacidad usado, no uno por llamada).
+
+### 3. Regenerar el PDF desde "Cotizaciones guardadas"
+
+Cada cotización del dashboard tiene ahora su botón de descarga en PDF.
+
+Para que fuera posible, la cotización guarda cinco datos más —
+`vehiclePrice`, `downPaymentPct`, `institution`, `annualRate` y
+`vehicleType` — porque institución, tasa y monto financiado **no se pueden
+deducir** de lo que ya se almacenaba. Las reglas de Firestore los validan
+con el mismo rigor que los originales (tipo y rango acotado) y los tratan
+como **opcionales**: las cotizaciones creadas antes de este cambio siguen
+siendo legibles y descargables.
+
+El generador tolera los huecos: si el vehículo ya no está publicado, el
+documento se arma con lo guardado, omitiendo las filas sin dato en vez de
+inventarlas. La tarjeta del vehículo ajusta su altura para no dejar hueco.
+
+La batería de `firestore_rules_test.js` pasa de 92 a **102 casos**, con 10
+nuevos sobre estos campos (formato antiguo, campo desconocido, institución
+larga o no textual, inicial del 120 %, tasa negativa, precio fuera de rango
+y en el límite). Los 102 verificados contra el emulador de Firestore.
+
+### 4. Copia por correo al asesor (`netlify/functions/enviar-cotizacion.js`, nuevo)
+
+Al pulsar "Solicitar este Financiamiento", además de abrir WhatsApp, la
+solicitud se envía al correo del asesor con el PDF adjunto. Si el cliente
+cierra WhatsApp sin llegar a enviarlo, o el mensaje se pierde entre
+conversaciones, la solicitud sigue estando en la bandeja de entrada.
+
+Se resolvió con una **Netlify Function** (el plan gratuito ya las incluye,
+sin coste ni infraestructura nueva) que llama a **Resend** — 3.000 correos
+al mes gratis. Se eligió frente a una Cloud Function de Firebase porque
+esta última obliga a pasar el proyecto al plan Blaze, de pago.
+
+La función es un endpoint público, así que se trató como tal:
+
+- El **destinatario nunca viene del cliente**: sale de una variable de
+  entorno. Aceptarlo por petición la convertiría en un relay de spam
+  firmado con el dominio del negocio.
+- Solo acepta el **mismo origen**, comparando el `Origin` con el `host` de
+  la propia petición (así las previsualizaciones funcionan sin listas).
+- **Límite de frecuencia** por IP y tope de tamaño.
+- El adjunto se valida como PDF real por su firma `%PDF-`; el nombre de
+  archivo se sanea y todo texto del cliente se escapa antes de entrar en el
+  HTML del correo.
+- Sin las variables configuradas responde 503, lo registra y **no rompe
+  nada**: el cliente no ve ningún error porque su solicitud ya salió por
+  WhatsApp.
+
+El envío es silencioso y no bloquea: va después de abrir WhatsApp para no
+gastar la activación del gesto que `window.open` necesita, y usa
+`keepalive` mientras el cuerpo cabe en el límite de 64 KB de la
+especificación (hoy ronda los 39 KB).
+
+Probado con 11 casos, incluidos los de abuso: intento de fijar
+destinatario, XSS en el nombre, ruta en el nombre de archivo, adjunto que
+no es PDF, origen ajeno y ráfaga de peticiones.
+
+Las variables (`RESEND_API_KEY`, `COTIZACION_EMAIL_TO`,
+`COTIZACION_EMAIL_FROM`) están documentadas en el README con su puesta en
+marcha paso a paso. **Hasta que se configuren, el correo no se envía**;
+todo lo demás funciona igual.
+
+Se añadió Resend a la lista de proveedores de la política de privacidad, y
+el árbol `/netlify/` deja de servirse como archivos estáticos (404), en
+línea con lo que ya se hacía con `firestore.rules` y compañía.
+
+## COTIZACIÓN EN PDF Y REDISEÑO DE LA FICHA DE VEHÍCULO
+
+Tres peticiones sobre el modal de financiamiento y la página de detalle.
+
+### 1. Fuera el botón "Contactar por WhatsApp" duplicado (`index.html`, `calculadora.js`)
+
+El CTA principal del modal, "Solicitar este Financiamiento", ya abre el chat
+del asesor con la cotización redactada. El botón de abajo apuntaba al **mismo
+número y al mismo mensaje**: dos caminos idénticos compitiendo, y el verde de
+WhatsApp repetido restaba jerarquía al CTA real. Se elimina.
+
+En su lugar la fila de acciones queda con las dos cosas que el CTA no hace:
+descargar el documento y compartirlo.
+
+### 2. Cotización en PDF (`pdf-core.js` y `cotizacion-pdf.js`, nuevos)
+
+"Compartir cotización" ya no comparte un texto suelto: genera un documento
+con la marca, el vehículo, la institución y el desglose completo.
+
+**Sin librerías externas.** Se escribió un generador de PDF propio (~9 KB) en
+vez de cargar jsPDF (~350 KB desde un CDN). Motivos: no añade orígenes a la
+Content-Security-Policy ni dependencias de terceros que auditar, y el peso es
+40 veces menor. Usa las fuentes base del estándar PDF (Helvetica, 0 bytes
+incrustados) con `WinAnsiEncoding`, que cubre el español completo, y los
+metadatos van en UTF-16BE para que acentos y rayas se lean bien en el visor.
+
+**Carga bajo demanda.** Los dos módulos entran con `import()` dinámico al
+pulsar el botón, y se precargan en segundo plano (`requestIdleCallback`) al
+abrir el modal: quien solo mira el catálogo no descarga ni un byte, y quien
+pide su cotización la recibe al instante.
+
+**El documento** lleva membrete con el emblema del logo real —recortado por
+`canvas` para descartar el texto incrustado, ilegible a ese tamaño, y con el
+color de fondo tomado del propio logo para que encaje sin recuadro—, folio,
+fecha, tarjeta del vehículo con enlace a su publicación, banda destacada con
+la cuota, tabla de diez filas con el desglose, datos del solicitante, aviso
+legal de que el cálculo es referencial y pie con los canales de contacto.
+
+Añade dos cifras que la calculadora no mostraba y toda cotización formal
+lleva: **total de intereses** y **total a pagar**.
+
+**Compartir** entrega el PDF como archivo (en Android e iOS va directo a
+WhatsApp). Donde el navegador no acepta archivos, descarga el documento y
+comparte o copia el resumen: la acción nunca termina sin resultado.
+
+### 3. Especificaciones y características rediseñadas (`ficha-vehiculo.css`, nuevo)
+
+Eran dos listas de texto plano en una rejilla de dos columnas. Ahora:
+
+- **Especificaciones**: mosaico de fichas con icono, etiqueta en versalitas y
+  valor destacado. Se suma **Categoría** (Sedán / SUV / Camioneta), que estaba
+  en los datos y no se mostraba. Los campos sin dato ya no dicen "N/D": dicen
+  "No especificado" atenuado.
+- **Características**: píldoras con **icono contextual** deducido del texto
+  (cámara, techo, cuero, sensores, rines, motor, luces…), sobre una retícula
+  `auto-fill` que pasa de 2 a 4 columnas sin una sola media query. Ampliar la
+  tabla `FEATURE_ICON_RULES` de `app.js` es lo único que hay que tocar para
+  cubrir equipamiento nuevo.
+- **Estado vacío** con icono y salida ("escríbenos y te contamos"), en vez del
+  escueto "No especificadas".
+
+Todo es data-driven: los vehículos que se publiquen a futuro heredan el diseño
+sin tocar HTML ni CSS.
+
+**De paso, un defecto real:** la insignia de historial decía siempre "CLEAN
+CARFAX" sobre un recuadro **verde**, incluso cuando el valor era "Sin Carfax"
+— el color y el rótulo contradecían al dato. Ahora la etiqueta es neutra
+("Historial") y el estado lo comunican el texto, el icono y el color juntos.
+
+Los estilos van en un archivo propio porque `styles.css` ya pasaba de 1.500
+líneas mezclando home, modales y ficha.
+
 ## PUBLICACIÓN DE VEHÍCULOS EN MÓVIL Y CARRUSEL DEL HERO
 
 Dos defectos reportados desde un teléfono Android: "❌ Error subiendo fotos"

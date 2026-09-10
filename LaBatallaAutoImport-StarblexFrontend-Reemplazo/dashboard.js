@@ -265,6 +265,36 @@ async function dbRenderFavoritos() {
 // ============================================================
 // FASE 1 — Cotizaciones (pestaña dedicada, Firestore)
 // ============================================================
+// Regenera el PDF de una cotización guardada. Si el vehículo sigue
+// publicado se enriquece el documento con su precio, marca, año y
+// enlace; si ya no existe, se genera con lo guardado (el generador
+// omite las filas sin dato en vez de inventarlas).
+async function dbDescargarCotizacionPDF(btn, quote) {
+  if (!quote || !window.LB_COTIZACION) return;
+  if (btn.dataset.busy === '1') return; // evita dobles pulsaciones
+  btn.dataset.busy = '1';
+  btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
+  try {
+    // `vehicles` es la global de app.js (declarada con let, así que no
+    // cuelga de window). El resto del archivo la usa igual.
+    const vehiculo = typeof vehicles !== 'undefined'
+      ? vehicles.find(v => v.id === quote.vehicleId)
+      : null;
+    const documento = await window.LB_COTIZACION.generar(
+      window.LB_COTIZACION.desdeCotizacionGuardada(quote, vehiculo));
+    window.LB_COTIZACION.descargar(documento);
+    showToast('📄 Cotización descargada en PDF');
+  } catch (e) {
+    console.error('No se pudo regenerar la cotización en PDF:', e);
+    showToast('❌ No se pudo generar el PDF. Revisa tu conexión e inténtalo de nuevo.');
+  } finally {
+    delete btn.dataset.busy;
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+  }
+}
+
 async function dbRenderCotizaciones() {
   const wrap = document.getElementById('db-quotes-content');
   wrap.innerHTML = dbSkeletonList(3);
@@ -276,15 +306,29 @@ async function dbRenderCotizaciones() {
     return;
   }
 
-  wrap.innerHTML = result.items.map(q => `
+  // Índice por id para no recorrer la lista dentro de cada manejador.
+  const porId = new Map(result.items.map(q => [q.id, q]));
+
+  wrap.innerHTML = result.items.map(q => {
+    const institucion = q.institution ? ` · ${escapeHtml(q.institution)}` : '';
+    return `
     <div class="db-hist-item" data-quote-id="${escapeAttr(q.id)}">
       <div class="db-quote-icon"><i data-lucide="calculator"></i></div>
       <div style="flex:1;min-width:0;">
         <p class="db-hist-item-name">${escapeHtml(q.vehicleName)}</p>
-        <p class="db-hist-item-meta">Cuota: ${escapeHtml(fmtPrice(q.monthlyPayment))} / mes · ${q.termMonths} meses · ${escapeHtml(dbFormatRelative(dbToMillis(q.createdAt)))}</p>
+        <p class="db-hist-item-meta">Cuota: ${escapeHtml(fmtPrice(q.monthlyPayment))} / mes · ${q.termMonths} meses${institucion} · ${escapeHtml(dbFormatRelative(dbToMillis(q.createdAt)))}</p>
       </div>
+      <button type="button" class="db-pdf-btn" data-quote-pdf="${escapeAttr(q.id)}" title="Descargar en PDF" aria-label="Descargar la cotización de ${escapeAttr(q.vehicleName)} en PDF"><i data-lucide="file-down"></i></button>
       <button type="button" class="db-remove-btn" data-remove-quote="${escapeAttr(q.id)}" aria-label="Eliminar cotización"><i data-lucide="trash-2"></i></button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+
+  wrap.querySelectorAll('[data-quote-pdf]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      dbDescargarCotizacionPDF(btn, porId.get(btn.dataset.quotePdf));
+    });
+  });
 
   wrap.querySelectorAll('[data-remove-quote]').forEach(btn => {
     btn.addEventListener('click', async (e) => {
@@ -382,12 +426,27 @@ function dbSkeletonList(n) {
 async function dbRenderPreferencias() {
   const result = await getPreferences();
   const prefs = (result.success && result.prefs) || {};
-  document.getElementById('db-pref-price-min').value = prefs.priceMin ?? '';
-  document.getElementById('db-pref-price-max').value = prefs.priceMax ?? '';
+  // Mismo criterio que el formulario de publicación: se guarda el número
+  // y se muestra con separadores de miles (ver parseAmount/formatAmount
+  // en app.js). Con <input type="number"> era imposible teclear
+  // "1,500,000" — el navegador descartaba el valor entero.
+  const minInput = document.getElementById('db-pref-price-min');
+  const maxInput = document.getElementById('db-pref-price-max');
+  attachAmountFormatter(minInput);
+  attachAmountFormatter(maxInput);
+  minInput.value = prefs.priceMin == null ? '' : formatAmount(prefs.priceMin);
+  maxInput.value = prefs.priceMax == null ? '' : formatAmount(prefs.priceMax);
   document.getElementById('db-pref-vehicle-type').value = prefs.vehicleType || '';
   document.getElementById('db-pref-transmission').value = prefs.transmission || '';
   document.getElementById('db-pref-fuel').value = prefs.fuel || '';
   document.getElementById('db-pref-brands').value = (prefs.brands || []).join(', ');
+}
+
+// Devuelve el número o null (igual que el `|| null` anterior: un 0 o un
+// campo vacío significan "sin preferencia").
+function dbLeerPrecioPref(id) {
+  const n = parseAmount(document.getElementById(id).value);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 let dbPrefsSaveBusy = false;
@@ -399,8 +458,8 @@ async function handleSavePreferences() {
   try {
     const brandsRaw = document.getElementById('db-pref-brands').value.trim();
     const prefs = {
-      priceMin: Number(document.getElementById('db-pref-price-min').value) || null,
-      priceMax: Number(document.getElementById('db-pref-price-max').value) || null,
+      priceMin: dbLeerPrecioPref('db-pref-price-min'),
+      priceMax: dbLeerPrecioPref('db-pref-price-max'),
       vehicleType: document.getElementById('db-pref-vehicle-type').value,
       transmission: document.getElementById('db-pref-transmission').value,
       fuel: document.getElementById('db-pref-fuel').value,
@@ -562,7 +621,7 @@ function dbSetTab(tab) {
   document.getElementById('db-panel-publicaciones')?.classList.toggle('hidden', tab !== 'publicaciones');
   if (tab === 'historial') dbRenderHistory();
   if (tab === 'favoritos') dbRenderFavoritos();
-  if (tab === 'cotizaciones') dbRenderCotizaciones();
+  if (tab === 'cotizaciones') { window.LB_COTIZACION?.precargar(); dbRenderCotizaciones(); }
   if (tab === 'publicaciones') dbRenderPublicaciones();
   if (tab === 'perfil') {
     const { user, profile } = getCurrentUser();

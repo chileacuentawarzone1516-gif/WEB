@@ -81,8 +81,9 @@
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
-<link rel="stylesheet" href="/styles.css?v=20260904b">
-<link rel="stylesheet" href="/dashboard.css?v=20260902">
+<link rel="stylesheet" href="/styles.css?v=20260905">
+<link rel="stylesheet" href="/ficha-vehiculo.css?v=20260905">
+<link rel="stylesheet" href="/dashboard.css?v=20260905">
 </head>
 <body style="background: rgb(15, 23, 42);" class="w-full min-h-screen">
 
@@ -308,7 +309,7 @@
 <div id="lightbox" role="dialog" aria-modal="true">
   <button id="lightbox-close" aria-label="Cerrar">✕</button>
   <button id="lightbox-prev" aria-label="Anterior">‹</button>
-  <img id="lightbox-img" src="" alt="Foto ampliada" class="hidden" data-fallback="https://placehold.co/800x600/1e293b/38bdf8?text=Sin+imagen">
+  <img id="lightbox-img" alt="Foto ampliada" class="hidden" data-fallback="https://placehold.co/800x600/1e293b/38bdf8?text=Sin+imagen">
   <video id="lightbox-video" controls class="hidden"></video>
   <button id="lightbox-next" aria-label="Siguiente">›</button>
 </div>
@@ -354,19 +355,27 @@
         <p class="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-1">Precio</p>
         <p id="detail-price" class="text-sky-400 font-black" style="font-size:clamp(18px,4vw,24px);"></p>
       </div>
-      <div class="rounded-xl px-5 py-3" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);">
-        <p class="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-1">Clean Carfax</p>
-        <p id="detail-carfax" class="font-bold text-base"></p>
+      <div id="detail-carfax-box" class="vd-badge vd-badge--ok">
+        <p class="vd-badge-label">Historial</p>
+        <p id="detail-carfax" class="vd-badge-value"></p>
       </div>
     </div>
-    <div class="bg-slate-800 rounded-xl p-6 mb-6">
-      <h2 class="text-white font-bold text-lg mb-4">Especificaciones</h2>
-      <div id="detail-specs" class="grid grid-cols-2 gap-4 text-sm"></div>
-    </div>
-    <div class="bg-slate-800 rounded-xl p-6 mb-6">
-      <h2 class="text-white font-bold text-lg mb-4">Características</h2>
-      <ul id="detail-features" class="space-y-2"></ul>
-    </div>
+    <!-- Especificaciones y características — ver ficha-vehiculo.css.
+         Ambas listas las construye renderVehicleSpecs()/renderVehicleFeatures()
+         en app.js a partir de los datos del vehículo, así que cualquier
+         publicación futura hereda este diseño sin tocar el HTML. -->
+    <section class="vd-card" aria-labelledby="detail-specs-title">
+      <h2 id="detail-specs-title" class="vd-card-title">
+        <i data-lucide="clipboard-list" aria-hidden="true"></i> Especificaciones
+      </h2>
+      <dl id="detail-specs" class="vd-spec-grid"></dl>
+    </section>
+    <section class="vd-card" aria-labelledby="detail-features-title">
+      <h2 id="detail-features-title" class="vd-card-title">
+        <i data-lucide="sparkles" aria-hidden="true"></i> Características
+      </h2>
+      <ul id="detail-features" class="vd-feature-grid"></ul>
+    </section>
     <!-- Simular financiamiento — abre la calculadora modal precargada con este vehículo -->
     <button type="button" id="detail-open-calc-btn" class="w-full flex items-center justify-center gap-2 mb-6 lb-calc-cta" style="background:rgba(56,189,248,0.12);border:1.5px solid rgba(56,189,248,0.4);color:#38bdf8;box-shadow:none;">
       <i data-lucide="calculator" class="w-5 h-5"></i>
@@ -421,9 +430,9 @@
             <option value="RD">RD$</option>
             <option value="USD">USD$</option>
           </select>
-          <input id="pub-price" type="number" placeholder="ej: 3650000" class="flex-1 bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
+          <input id="pub-price" type="text" inputmode="decimal" autocomplete="off" placeholder="ej: 3,650,000" class="flex-1 bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
         </div>
-        <p class="text-slate-500 text-xs mt-1">Selecciona la moneda y escribe el monto</p>
+        <p class="text-slate-500 text-xs mt-1">Selecciona la moneda y escribe el monto — los separadores de miles se añaden solos</p>
       </div>
       <div>
         <label class="text-slate-300 text-sm font-medium block mb-1" for="pub-category">Categoría *</label>
@@ -859,11 +868,11 @@
           </div>
           <div>
             <label for="db-pref-price-min">Precio mínimo (RD$)</label>
-            <input id="db-pref-price-min" type="number" min="0" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+            <input id="db-pref-price-min" type="text" inputmode="decimal" autocomplete="off" placeholder="ej: 1,500,000" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
           </div>
           <div>
             <label for="db-pref-price-max">Precio máximo (RD$)</label>
-            <input id="db-pref-price-max" type="number" min="0" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
+            <input id="db-pref-price-max" type="text" inputmode="decimal" autocomplete="off" placeholder="ej: 1,500,000" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
           </div>
           <div>
             <label for="db-pref-vehicle-type">Tipo de vehículo</label>
@@ -1049,15 +1058,22 @@
     </button>
     <p class="lb-calc-disclaimer">* Cálculo referencial sujeto a aprobación y tasa final de la institución. Un asesor te contactará para confirmar condiciones.</p>
 
-    <!-- Acciones posteriores al cálculo -->
+    <!-- Acciones posteriores al cálculo.
+         El contacto por WhatsApp ya lo cubre el CTA principal de arriba
+         ("Solicitar este Financiamiento"), que abre el chat del asesor
+         con la cotización redactada: repetirlo aquí duplicaba el mismo
+         destino y restaba peso a las acciones documentales. -->
     <div id="calc-modal-actions" class="calc-modal-actions hidden">
-      <a id="calc-modal-action-whatsapp" href="#" target="_blank" rel="noopener noreferrer" class="calc-modal-action-btn calc-modal-action-btn--primary">
-        <svg class="w-4 h-4 fill-current shrink-0"><use href="#icon-whatsapp"/></svg> Contactar por WhatsApp
-      </a>
+      <button type="button" id="calc-modal-action-pdf" class="calc-modal-action-btn calc-modal-action-btn--primary">
+        <i data-lucide="file-down" class="w-4 h-4" aria-hidden="true"></i>
+        <span class="calc-modal-action-label">Descargar cotización en PDF</span>
+      </button>
       <button type="button" id="calc-modal-action-share" class="calc-modal-action-btn">
-        <i data-lucide="share-2" class="w-4 h-4" aria-hidden="true"></i> Compartir cotización
+        <i data-lucide="share-2" class="w-4 h-4" aria-hidden="true"></i>
+        <span class="calc-modal-action-label">Compartir cotización</span>
       </button>
     </div>
+    <p id="calc-modal-actions-hint" class="lb-calc-actions-hint hidden">Recibirás un documento con el logo, el detalle del vehículo, la institución y tu cuota estimada.</p>
   </div>
 </div>
 
@@ -1067,11 +1083,11 @@
 <script defer src="/hero-carousel.js?v=20260904b"></script>
 <script defer src="/media-upload.js?v=20260903"></script>
 <script defer src="/roles.js?v=20260728"></script>
-<script defer src="/app.js?v=20260904b"></script>
-<script defer src="/auth.js?v=20260728"></script>
+<script defer src="/app.js?v=20260910"></script>
+<script defer src="/auth.js?v=20260910"></script>
 <script defer src="/auth-ui.js?v=20260728"></script>
 <script defer src="/invite-modal.js?v=20260811"></script>
-<script defer src="/calculadora.js?v=20260902"></script>
-<script defer src="/dashboard.js?v=20260902"></script>
+<script defer src="/calculadora.js?v=20260905"></script>
+<script defer src="/dashboard.js?v=20260910"></script>
 </body>
 </html>
