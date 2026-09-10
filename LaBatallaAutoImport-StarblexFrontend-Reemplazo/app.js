@@ -261,6 +261,18 @@ const VEHICLE_FIELDS = [
 function sanitizeVehicleForWrite(v) {
   const out = {};
   for (const k of VEHICLE_FIELDS) if (v[k] !== undefined) out[k] = v[k];
+  // Punto único por el que pasa TODA escritura de vehículo: aquí `media`
+  // queda en su forma canónica antes de tocar Firestore. Así el documento
+  // no puede guardar nunca un elemento null, un {url:...} a medio mapear
+  // ni una URL vacía —los tres casos que acababan en src="" o
+  // src="[object Object]" al renderizar—, y editar un vehículo antiguo
+  // además SANEA su media de paso, igual que ya limpiaba `adminKey`.
+  // El recorte a MAX_IMAGES respeta el límite de firestore.rules
+  // (d.media.size() <= 10): pasarse hace que la escritura entera se
+  // rechace con permission-denied.
+  if (out.media !== undefined) {
+    out.media = LBMediaModel.normalizeMediaList(out.media).slice(0, MAX_IMAGES);
+  }
   return out;
 }
 // ————— Guardar vehículo — SOLO persistencia —————
@@ -540,18 +552,18 @@ function escapeHtml(str) {
 }
 // Escapa para usar dentro de un atributo entre comillas (src, alt, data-id, href)
 function escapeAttr(str) { return escapeHtml(str); }
-// Resuelve la foto de portada de un vehículo desde el esquema real de
-// `media` ({type, src} o string suelto de registros antiguos), cayendo a
-// `img` y por último al placeholder que se le indique. Antes cada punto
-// de render resolvía esto por su cuenta con criterios distintos: uno caía
-// al propio objeto de media (renderizaba src="[object Object]", petición
-// 404 real) y dos caían a cadena vacía (<img src=""> vuelve a pedir el
-// documento HTML completo). Un solo criterio para todos.
+// Resuelve la foto de portada de un vehículo. La lógica REAL (qué formas
+// de `media` se aceptan, qué se descarta, cómo se deduce el tipo) vive en
+// media-model.js, que es el único intérprete de `media` del proyecto.
+// Aquí solo queda el punto de entrada que ya usaba el resto de app.js.
+//
+// Antes cada punto de render lo resolvía por su cuenta con criterios
+// distintos: uno caía al propio objeto de media (renderizaba
+// src="[object Object]", petición 404 real), dos caían a cadena vacía
+// (<img src=""> vuelve a pedir el documento HTML completo) y ninguno
+// contemplaba un elemento null ni un vídeo como portada.
 function getVehicleCover(v, placeholder) {
-  const first = v && Array.isArray(v.media) && v.media.length > 0 ? v.media[0] : null;
-  if (typeof first === 'string' && first) return first;
-  if (first && typeof first.src === 'string' && first.src) return first.src;
-  return (v && typeof v.img === 'string' && v.img) ? v.img : placeholder;
+  return LBMediaModel.coverSrc(v, placeholder);
 }
 // Inserta una transformación de Cloudinary (f_auto,q_auto + ancho) en
 // cualquier URL que provenga de Cloudinary. Si la URL no es de
@@ -1368,20 +1380,9 @@ function openDetail(id) {
   // esa llamada, causando que el alt mostrara el vehículo anterior.
   currentDetailVehicle = v;
   window.LB_DASHBOARD?.trackView(id);
-  // Build media list — extraer .src correctamente del objeto {type, src}
-  galleryMedia = [];
-  if (v.media && v.media.length > 0) {
-    v.media.forEach(m => {
-      if (typeof m === 'string') {
-        galleryMedia.push({ type: 'image', src: m });
-      } else if (m && m.src) {
-        galleryMedia.push({ type: m.type || 'image', src: m.src });
-      }
-    });
-  }
-  if (galleryMedia.length === 0 && v.img) {
-    galleryMedia.push({ type: 'image', src: v.img });
-  }
+  // Galería: un único normalizador (media-model.js) para `media` + caída a
+  // `img` de los registros antiguos. Nunca entra un elemento sin `src`.
+  galleryMedia = LBMediaModel.galleryList(v);
   if (galleryMedia.length === 0) galleryMedia.push({ type:'image', src:'https://placehold.co/800x450/1e293b/38bdf8?text=Sin+Imagen' });
   galleryIdx = 0;
   renderGalleryMedia();
@@ -1879,14 +1880,11 @@ function openPublishModal(vehicle) {
     document.getElementById('pub-tag-negociable').checked = !!vehicle.tags?.negociable;
     document.getElementById('pub-tag-unicodueno').checked = !!vehicle.tags?.unicodueno;
     document.getElementById('pub-tag-importado').checked = !!vehicle.tags?.importado;
-    // Cargar fotos existentes en pendingFiles como URLs ya subidas
-    const existingMedia = vehicle.media && vehicle.media.length > 0
-      ? vehicle.media
-      : (vehicle.img ? [{ type: 'image', src: vehicle.img }] : []);
-    existingMedia.forEach(m => {
-      const src = typeof m === 'string' ? m : (m.src || '');
-      const type = typeof m === 'string' ? 'image' : (m.type || 'image');
-      if (src) pendingFiles.push({ file: null, localUrl: src, type, cloudUrl: src });
+    // Cargar fotos existentes en pendingFiles como URLs ya subidas. Mismo
+    // normalizador que usan catálogo y ficha: un documento antiguo con
+    // cadenas sueltas, un hueco null o un {url:...} se abre igual de bien.
+    LBMediaModel.galleryList(vehicle).forEach(m => {
+      pendingFiles.push({ file: null, localUrl: m.src, type: m.type, cloudUrl: m.src, error: null });
     });
     renderImgPreview();
     updateImgLabel();
@@ -2058,7 +2056,7 @@ document.getElementById('pub-images').addEventListener('change', function() {
   toAdd.forEach(file => {
     const localUrl = URL.createObjectURL(file);
     const type = file.type.startsWith('video') ? 'video' : 'image';
-    pendingFiles.push({ file, localUrl, type, cloudUrl: null });
+    pendingFiles.push({ file, localUrl, type, cloudUrl: null, error: null });
   });
   renderImgPreview();
   this.value = '';
@@ -2081,15 +2079,24 @@ function renderImgPreview() {
   container.innerHTML = '';
   pendingFiles.forEach((item, i) => {
     const wrap = document.createElement('div');
-    wrap.className = 'preview-item relative';
+    // `preview-item--failed` tiñe el borde de rojo; el badge de estado
+    // dice si esa foto YA está en Cloudinary o si es la que falló. Sin
+    // estas dos señales, reintentar era a ciegas.
+    wrap.className = 'preview-item relative' + (item.error ? ' preview-item--failed' : '');
     const portadaBadge = i === 0
       ? `<span style="position:absolute;bottom:2px;left:2px;background:rgba(14,165,233,0.9);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;letter-spacing:.5px;">PORTADA</span>`
       : '';
+    const stateBadge = item.error
+      ? `<span class="preview-state preview-state--fail" title="${escapeAttr(LBMedia.describeTechnical(item.error))}">NO SUBIÓ</span>`
+      : (item.cloudUrl ? `<span class="preview-state preview-state--ok">SUBIDA</span>` : '');
     const src = item.cloudUrl || item.localUrl;
+    // El color rojo del fallo lo pone `.preview-item--failed` en styles.css,
+    // no una utilidad de Tailwind: tailwind.css es un bundle PRE-PODADO y
+    // `border-red-500` no está dentro, así que la clase no existiría.
     const border = i === 0 ? 'border-sky-400' : 'border-slate-600';
     if (item.type === 'video') {
       wrap.innerHTML = `<video src="${escapeAttr(src)}" class="w-full h-20 object-cover rounded-lg border-2 ${border}" muted></video>
-        ${portadaBadge}
+        ${portadaBadge}${stateBadge}
         <button class="remove-img" data-idx="${i}">✕</button>`;
     } else if (!item.cloudUrl && isPreviewUnrenderable(item.file)) {
       // HEIC/HEIF sin subir todavía: no intentar <img>, mostrar estado
@@ -2098,7 +2105,7 @@ function renderImgPreview() {
           <i data-lucide="image" class="w-4 h-4 text-sky-400"></i>
           <span class="text-[9px] text-slate-400 leading-tight">Se convertirá al subir</span>
         </div>
-        ${portadaBadge}
+        ${portadaBadge}${stateBadge}
         <button class="remove-img" data-idx="${i}">✕</button>`;
     } else {
       // Si la miniatura no se puede renderizar (archivo corrupto, objectURL
@@ -2107,7 +2114,7 @@ function renderImgPreview() {
       // error "?", que se leía como imagen rota sobre el badge PORTADA.
       wrap.innerHTML = `<img src="${escapeAttr(src)}" class="w-full h-20 object-cover rounded-lg border-2 ${border}" alt="preview"
         data-preview-border="${border}">
-        ${portadaBadge}
+        ${portadaBadge}${stateBadge}
         <button class="remove-img" data-idx="${i}">✕</button>`;
     }
     container.appendChild(wrap);
@@ -2141,6 +2148,116 @@ function renderImgPreview() {
   });
   updateImgLabel();
 }
+// ============================================================
+// MODAL DE FALLO DE SUBIDA — decisión informada en vez de confirm()
+// ------------------------------------------------------------
+// Devuelve una promesa que resuelve a:
+//   'retry'    → volver a intentar SOLO los archivos sin cloudUrl
+//   'continue' → seguir con lo que sí se subió (o sin fotos, si el
+//                usuario marcó la casilla de forma explícita)
+//   'back'     → volver al formulario sin publicar, sin perder nada
+//
+// El confirm() anterior tenía dos únicas salidas, y su "Aceptar" con
+// cero subidas publicaba el vehículo sin fotos y descartaba los archivos
+// elegidos: así es como una caída de la subida acababa en una ficha con
+// "Sin Imagen" y siete fotos perdidas.
+// ============================================================
+let mediaFailResolve = null;
+
+function closeMediaFailModal(decision) {
+  const modal = document.getElementById('media-fail-modal');
+  if (!modal || modal.classList.contains('hidden')) return;
+  modal.classList.add('hidden');
+  unlockBodyScroll();
+  const resolve = mediaFailResolve;
+  mediaFailResolve = null;
+  if (resolve) resolve(decision);
+}
+
+function renderMediaFailList(fallidos) {
+  const list = document.getElementById('media-fail-list');
+  list.innerHTML = '';
+  fallidos.forEach(f => {
+    const li = document.createElement('li');
+    li.className = 'lb-mf__item';
+    // textContent, no innerHTML: el nombre del archivo lo elige el
+    // usuario y puede contener < o &.
+    const name = document.createElement('span');
+    name.className = 'lb-mf__item-name';
+    name.textContent = `${f.index}. ${f.name}`;
+    const why = document.createElement('span');
+    why.className = 'lb-mf__item-why';
+    why.textContent = LBMedia.describeTechnical(f.error);
+    li.appendChild(name);
+    li.appendChild(why);
+    list.appendChild(li);
+  });
+}
+
+function showMediaFailureDialog({ fallidos, subidas, total, isEdit }) {
+  return new Promise(resolve => {
+    // Un resolve pendiente sería una promesa colgada para siempre.
+    if (mediaFailResolve) { const stale = mediaFailResolve; mediaFailResolve = null; stale('back'); }
+    mediaFailResolve = resolve;
+
+    const verbo = isEdit ? 'Guardar' : 'Publicar';
+    const primero = fallidos[0];
+    document.getElementById('media-fail-summary').textContent =
+      subidas > 0
+        ? `Se subieron ${subidas} de ${total} archivo(s). Faltan ${fallidos.length}.`
+        : `No se pudo subir ninguno de los ${total} archivo(s).`;
+    document.getElementById('media-fail-reason').textContent =
+      LBMedia.describeError(primero.error, { index: primero.index, total });
+    renderMediaFailList(fallidos);
+    document.getElementById('media-fail-report').textContent = LBMedia.getDiagnosticsReport();
+
+    const continueBtn = document.getElementById('media-fail-continue');
+    const ackWrap = document.getElementById('media-fail-ack-wrap');
+    const ackCb = document.getElementById('media-fail-ack');
+    const noPhotosBtn = document.getElementById('media-fail-nophotos');
+
+    // Con algo subido, seguir es una opción razonable y va como acción
+    // secundaria. Con CERO subidas, seguir significa publicar sin fotos
+    // habiendo elegido varias: eso exige marcar la casilla primero.
+    continueBtn.classList.toggle('hidden', subidas === 0);
+    continueBtn.textContent = `${verbo} con ${subidas} foto(s)`;
+    ackWrap.classList.toggle('hidden', subidas > 0);
+    noPhotosBtn.classList.toggle('hidden', subidas > 0);
+    noPhotosBtn.textContent = `${verbo} sin fotos`;
+    ackCb.checked = false;
+    noPhotosBtn.disabled = true;
+    ackWrap.querySelector('span').textContent = subidas === 0 && total > 0
+      ? `Entiendo que ninguna foto se subió y aun así quiero ${verbo.toLowerCase()} el vehículo sin fotos.`
+      : '';
+
+    document.getElementById('media-fail-modal').classList.remove('hidden');
+    lockBodyScroll();
+  });
+}
+
+document.getElementById('media-fail-retry').addEventListener('click', () => closeMediaFailModal('retry'));
+document.getElementById('media-fail-continue').addEventListener('click', () => closeMediaFailModal('continue'));
+document.getElementById('media-fail-nophotos').addEventListener('click', () => closeMediaFailModal('continue'));
+document.getElementById('media-fail-back').addEventListener('click', () => closeMediaFailModal('back'));
+document.getElementById('media-fail-ack').addEventListener('change', e => {
+  document.getElementById('media-fail-nophotos').disabled = !e.target.checked;
+});
+document.getElementById('media-fail-copy').addEventListener('click', async () => {
+  const btn = document.getElementById('media-fail-copy');
+  const texto = document.getElementById('media-fail-report').textContent;
+  try {
+    // navigator.clipboard exige contexto seguro (https) y puede estar
+    // denegado; si falla, el <pre> es seleccionable a mano y se le da el
+    // foco para que Ctrl+A / seleccionar todo funcione.
+    await navigator.clipboard.writeText(texto);
+    btn.textContent = '✅ Copiado';
+  } catch (e) {
+    document.getElementById('media-fail-report').focus();
+    btn.textContent = 'Selecciona y copia el texto';
+  }
+  setTimeout(() => { btn.textContent = 'Copiar informe'; }, 2500);
+});
+
 // Submit
 // ============================================================
 // FORMULARIO — lectura y validación, sin efectos secundarios
@@ -2237,11 +2354,17 @@ async function resolvePublishMedia(editId, onProgress, userClearedAll) {
             const result = await uploadToCloudinary(item.file, percent => onProgress?.(i + 1, total, percent));
             item.cloudUrl = result.url;
             item.type = result.type;
+            item.error = null;
           } catch (error) {
-            // Se anota con su posición para poder decir QUÉ archivo falló,
-            // no un genérico inútil. `cloudUrl` sigue vacío, así que un
-            // segundo intento reintenta solo este.
-            fallidos.push({ index: i + 1, error });
+            // Se anota con su posición y su nombre para poder decir QUÉ
+            // archivo falló, no un genérico inútil. `cloudUrl` sigue
+            // vacío, así que un segundo intento reintenta solo este.
+            // El error se guarda también en el propio item para que la
+            // miniatura del formulario lo muestre en rojo: sin esa marca,
+            // tras un fallo parcial no había forma de ver cuál de las
+            // siete fotos era la que faltaba.
+            item.error = error;
+            fallidos.push({ index: i + 1, name: (item.file && item.file.name) || `archivo ${i + 1}`, error });
             continue;
           }
         }
@@ -2269,8 +2392,15 @@ async function updateVehicle(editId, data, media, token) {
   const existing = idx !== -1 ? vehicles[idx] : null;
   if (!existing) return { success: false, notFound: true };
 
-  const coverImg = media.length > 0 ? media[0].src : '';
-  const updated = { ...existing, ...data, img: coverImg || existing.img, media };
+  // `media` ya es la lista FINAL que decidió resolvePublishMedia (las fotos
+  // que quedan tras editar, no un añadido). Por eso `img` se deriva de ella
+  // sin caer a `existing.img`: con la caída anterior, quitar todas las
+  // fotos de un vehículo era imposible —el documento conservaba `img` y
+  // tanto el catálogo como la galería seguían pintando la portada vieja—.
+  // coverSrc además salta los vídeos: una URL .mp4 en el <img> de la
+  // tarjeta es una imagen rota garantizada.
+  const coverImg = LBMediaModel.coverSrc({ media }, '');
+  const updated = { ...existing, ...data, img: coverImg, media };
   // Slug inmutable: se conserva el existente.
   updated.slug = existing.slug || getVehicleSlug(existing);
 
@@ -2300,7 +2430,7 @@ async function updateVehicle(editId, data, media, token) {
   return { success: true, vehicle: updated };
 }
 async function publishVehicle(data, media, token) {
-  const coverImg = media.length > 0 ? media[0].src : '';
+  const coverImg = LBMediaModel.coverSrc({ media }, '');
   const newV = { ...data, id: genId(), img: coverImg, media, createdAt: Date.now() };
   newV.slug = generateUniqueSlug(data.name, newV.id); // slug estable de por vida
 
@@ -2336,7 +2466,7 @@ document.getElementById('publish-submit-btn').addEventListener('click', async ()
   try {
     let media;
     try {
-      const subida = await resolvePublishMedia(form.editId, (i, total, percent) => {
+      const reportarProgreso = (i, total, percent) => {
         const label = btn.querySelector('.btn-label') || btn;
         // El porcentaje real importa en móvil: sin él, una subida lenta
         // pero sana se lee como "se colgó" y el usuario recarga la página
@@ -2344,29 +2474,43 @@ document.getElementById('publish-submit-btn').addEventListener('click', async ()
         label.textContent = percent > 0
           ? `⏳ Subiendo ${i} de ${total} · ${percent}%`
           : `⏳ Subiendo ${i} de ${total}...`;
-      }, mediaClearedByUser);
+      };
+
+      // Bucle de subida con reintento dirigido. Cada vuelta reintenta
+      // SOLO los archivos que siguen sin `cloudUrl`: lo que ya llegó a
+      // Cloudinary no se vuelve a subir nunca. Antes esto era un
+      // confirm() de dos salidas que, con cero subidas, publicaba el
+      // vehículo sin fotos y tiraba los archivos elegidos.
+      let subida = await resolvePublishMedia(form.editId, reportarProgreso, mediaClearedByUser);
       if (token !== currentSaveToken) return;
+
+      while (subida.fallidos.length > 0) {
+        renderImgPreview(); // marca en rojo las miniaturas que no subieron
+        console.error('Fallos de subida a Cloudinary:',
+          subida.fallidos.map(f => ({ archivo: f.name, detalle: LBMedia.describeTechnical(f.error) })));
+        const decision = await showMediaFailureDialog({
+          fallidos: subida.fallidos,
+          subidas: subida.media.length,
+          total: subida.total,
+          isEdit: !!form.editId,
+        });
+        if (token !== currentSaveToken) return;
+        // 'back': el modal de publicación sigue abierto con todo dentro
+        // (texto, precio y los archivos elegidos, los subidos marcados en
+        // verde) — pulsar Publicar otra vez retoma donde se quedó.
+        if (decision !== 'retry' && decision !== 'continue') return;
+        if (decision === 'continue') break;
+        subida = await resolvePublishMedia(form.editId, reportarProgreso, mediaClearedByUser);
+        if (token !== currentSaveToken) return;
+      }
       media = subida.media;
 
-      // Alguna foto no subió. No se aborta: se explica qué pasó y se deja
-      // elegir entre publicar con lo que sí está o volver al formulario.
-      // Lo ya subido queda marcado, así que reintentar solo sube lo que
-      // falta en vez de empezar de cero.
-      if (subida.fallidos.length > 0) {
-        const primero = subida.fallidos[0];
-        const motivo = LBMedia.describeError(primero.error, { index: primero.index, total: subida.total });
-        console.error('Error subiendo a Cloudinary:', primero.error);
-        const conservadas = media.length;
-        const detalle = conservadas > 0
-          ? `Se subieron ${conservadas} de ${subida.total} archivo(s).`
-          : `No se pudo subir ninguno de los ${subida.total} archivo(s).`;
-        const accion = conservadas > 0
-          ? `Aceptar: ${form.editId ? 'guardar' : 'publicar'} ahora con ${conservadas} foto(s).`
-          : `Aceptar: ${form.editId ? 'guardar' : 'publicar'} sin fotos (podrás añadirlas después editando el vehículo).`;
-        const seguir = confirm(
-          `${motivo}\n\n${detalle}\n\n${accion}\nCancelar: volver al formulario y pulsar Publicar otra vez para reintentar solo lo que falta.`
-        );
-        if (!seguir || token !== currentSaveToken) return;
+      // Se eligieron archivos, ninguno subió y aun así se continúa: es
+      // una decisión consciente (hubo que marcar la casilla), pero el
+      // aviso posterior deja claro que el vehículo queda sin fotos y que
+      // se pueden añadir editándolo.
+      if (subida.total > 0 && media.length === 0) {
+        showToast('⚠️ El vehículo se guardará SIN fotos — puedes añadirlas después con Editar', 6000);
       }
     } catch (e) {
       console.error('Error subiendo a Cloudinary:', e);
@@ -2399,6 +2543,10 @@ document.getElementById('publish-submit-btn').addEventListener('click', async ()
 });
 // Limpiar pendingFiles al cerrar modal
 function closePublishModal() {
+  // Si quedara un aviso de fallo abierto, su promesa seguiría sin
+  // resolverse y el flujo de publicación se quedaría colgado para
+  // siempre con `operations.vehicle.save` en true (botón bloqueado).
+  closeMediaFailModal('back');
   const modal = document.getElementById('publish-modal');
   if (!modal.classList.contains('hidden')) unlockBodyScroll();
   modal.classList.add('hidden');
@@ -2951,6 +3099,12 @@ function setupModalAccessibility(modalId, closeFn) {
 
   function onKeydown(e) {
     if (modal.classList.contains('hidden')) return;
+    // El modal de fallo de subida se abre ENCIMA del de publicación, que
+    // sigue visible detrás a propósito (para no perder lo escrito). Sin
+    // esta guarda, un Escape lo cerraría todo: el oyente del modal de
+    // abajo también está activo porque su elemento no está `hidden`.
+    const topModal = document.getElementById('media-fail-modal');
+    if (topModal && !topModal.classList.contains('hidden') && modal !== topModal) return;
     if (e.key === 'Escape') { e.preventDefault(); closeFn(); return; }
     if (e.key === 'Tab') {
       const focusable = getFocusable();
@@ -2982,6 +3136,9 @@ function setupModalAccessibility(modalId, closeFn) {
 setupModalAccessibility('delete-modal', () => document.getElementById('delete-cancel-btn').click());
 setupModalAccessibility('publish-modal', closePublishModal);
 setupModalAccessibility('account-modal', closeAccountModal);
+// Escape aquí equivale a "Volver al formulario": nunca a publicar. Cerrar
+// el aviso no puede ser jamás el camino corto a guardar sin fotos.
+setupModalAccessibility('media-fail-modal', () => closeMediaFailModal('back'));
 
 // ============================================================
 // ARRANQUE — DEBE SER LO ÚLTIMO DE ESTE ARCHIVO.

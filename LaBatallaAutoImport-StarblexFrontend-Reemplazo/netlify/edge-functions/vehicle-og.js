@@ -166,7 +166,7 @@ function cldOptimize(url, width, height) {
 //   - Cloudinary: las fija la propia transformación. `c_fill` recorta a las
 //     dos dimensiones dadas, así que la imagen sale exactamente a
 //     1200x630 — la proporción 1.91:1 que piden Facebook y WhatsApp.
-//   - preview.jpg: es un archivo del repositorio, 1204x644 medidos.
+//   - og-cover.jpg: es un archivo del repositorio, 1200x630 medidos.
 //   - Cualquier otro origen (las fotos de Pexels del catálogo base): no se
 //     conocen, y no se inventan.
 //
@@ -180,22 +180,34 @@ function cldOptimize(url, width, height) {
 // misma función contra el Firestore real de producción.
 const OG_IMAGE_WIDTH = 1200;
 const OG_IMAGE_HEIGHT = 630;
-const PREVIEW_WIDTH = 1204;
-const PREVIEW_HEIGHT = 644;
+// Imagen de marca de respaldo. Antes era /preview.jpg (1204x644), que
+// llevaba incrustado el emblema ANTIGUO: un vehículo sin fotos compartía
+// el logo viejo. Ahora es el mismo archivo que declara index.html, así que
+// la identidad al compartir es una sola en todo el sitio.
+const FALLBACK_IMAGE = `${SITE_URL}/og-cover.jpg`;
+const FALLBACK_WIDTH = 1200;
+const FALLBACK_HEIGHT = 630;
 
 function pickImage(vehicle) {
-  const candidate = vehicle.media[0] || vehicle.img || `${SITE_URL}/preview.jpg`;
+  // `normalizeVehicle` ya deja `media` como array de cadenas, pero el
+  // acceso directo a media[0] daba `undefined` en un vehículo sin fotos y
+  // dependía de que esa normalización nunca cambiara. Se comprueba aquí.
+  const first = Array.isArray(vehicle.media) && vehicle.media.length > 0 ? vehicle.media[0] : '';
+  const candidate = (typeof first === 'string' && first) ? first
+    : (typeof vehicle.img === 'string' && vehicle.img ? vehicle.img : FALLBACK_IMAGE);
   if (!/^https?:\/\//i.test(candidate)) {
-    return { url: `${SITE_URL}/preview.jpg`, width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT };
+    return { url: FALLBACK_IMAGE, width: FALLBACK_WIDTH, height: FALLBACK_HEIGHT, type: 'image/jpeg' };
   }
   const optimized = cldOptimize(candidate, OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT);
   if (optimized !== candidate) {
-    return { url: optimized, width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT };
+    // f_auto negocia el formato con el rastreador (JPEG, PNG o WebP según
+    // lo que acepte), así que declarar un og:image:type fijo sería mentir.
+    return { url: optimized, width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT, type: null };
   }
-  if (candidate === `${SITE_URL}/preview.jpg`) {
-    return { url: candidate, width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT };
+  if (candidate === FALLBACK_IMAGE) {
+    return { url: candidate, width: FALLBACK_WIDTH, height: FALLBACK_HEIGHT, type: 'image/jpeg' };
   }
-  return { url: candidate, width: null, height: null };
+  return { url: candidate, width: null, height: null, type: null };
 }
 
 function formatPrice(vehicle) {
@@ -233,6 +245,8 @@ function buildMeta(vehicle, requestedSlug) {
     image: image.url,
     imageWidth: image.width,
     imageHeight: image.height,
+    imageType: image.type,
+    imageAlt: `${vehicle.name} en La Batalla Auto Import`,
   };
 }
 
@@ -245,6 +259,19 @@ function injectMeta(html, meta) {
     [/<meta\s+property=["']og:description["'][^>]*>/i, `<meta property="og:description" content="${htmlEscape(meta.description)}">`],
     [/<meta\s+property=["']og:url["'][^>]*>/i, `<meta property="og:url" content="${htmlEscape(meta.canonical)}">`],
     [/<meta\s+property=["']og:image["'][^>]*>/i, `<meta property="og:image" content="${htmlEscape(meta.image)}">`],
+    // og:image:secure_url y og:image:alt NO se reescribían. Desde que
+    // index.html los declara, un vehículo compartido habría mostrado la
+    // portada genérica del sitio en vez de su foto: WhatsApp y Facebook
+    // dan prioridad a secure_url cuando existe. Se inyectan siempre junto
+    // a og:image para que las tres etiquetas describan la MISMA imagen.
+    [/<meta\s+property=["']og:image:secure_url["'][^>]*>/i, `<meta property="og:image:secure_url" content="${htmlEscape(meta.image)}">`],
+    [/<meta\s+property=["']og:image:alt["'][^>]*>/i, `<meta property="og:image:alt" content="${htmlEscape(meta.imageAlt)}">`],
+    [/<meta\s+name=["']twitter:image:alt["'][^>]*>/i, `<meta name="twitter:image:alt" content="${htmlEscape(meta.imageAlt)}">`],
+    // El tipo solo se declara cuando se conoce de verdad (la imagen de
+    // marca). Con f_auto, Cloudinary sirve el formato que acepte cada
+    // rastreador, así que la etiqueta se retira en vez de inventarla.
+    [/<meta\s+property=["']og:image:type["'][^>]*>/i,
+      meta.imageType ? `<meta property="og:image:type" content="${meta.imageType}">` : ''],
     [/<meta\s+name=["']twitter:title["'][^>]*>/i, `<meta name="twitter:title" content="${htmlEscape(meta.title)}">`],
     [/<meta\s+name=["']twitter:description["'][^>]*>/i, `<meta name="twitter:description" content="${htmlEscape(meta.description)}">`],
     [/<meta\s+name=["']twitter:image["'][^>]*>/i, `<meta name="twitter:image" content="${htmlEscape(meta.image)}">`],

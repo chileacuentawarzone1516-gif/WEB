@@ -25,6 +25,9 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 ├── ficha-vehiculo.css         Especificaciones y características de la ficha de vehículo
 ├── netlify/functions/         Funciones de servidor (Netlify)
 │   └── enviar-cotizacion.js   Envía por correo al asesor el PDF de cada solicitud
+├── media-model.js              ÚNICO intérprete del campo `media` (normalización + portada).
+│                               Lo usan app.js y dashboard.js; vehicle-og.js tiene su propia
+│                               copia porque corre en Deno y no comparte scope.
 ├── tailwind.css                Tailwind compilado (no editar a mano)
 ├── 404.html                   Página de error de Netlify
 ├── empresa/                   Páginas institucionales (HTML estático, una por sección)
@@ -37,9 +40,19 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 ├── pagina-estatica.css        Estilos compartidos por /empresa/* y las páginas legales
 ├── site.webmanifest           Web App Manifest (PWA / pantalla de inicio)
 ├── robots.txt / sitemap.xml   SEO — el sitemap se regenera automáticamente
-├── favicon-16.png / favicon-32.png / apple-touch-icon.png / icon192.png / icon512.png
-│                               Iconos de marca (símbolo, sin texto — favicon.png ya no se usa)
+├── favicon-16.png / favicon-32.png / favicon-48.png / apple-touch-icon.png
+│   icon192.png / icon512.png   Iconos de marca (símbolo, sin texto). favicon.png ya no lo
+│                               referencia ninguna página; se conserva servido y regenerado
+│                               con la marca actual por si algún cliente lo pide.
 ├── logo-hero.png               Logo completo (con texto), badge en la esquina superior del hero
+├── logo-mark-96.png            Símbolo a 96 px para la cabecera de la ficha y el panel de
+│                               cuenta (antes se pedía a Cloudinary y esa URL ya no resolvía)
+├── og-cover.jpg                Portada social CANÓNICA, 1200x630. Es el og:image de index.html,
+│                               de /empresa/* y el respaldo de la Edge Function.
+├── preview.jpg                 Ruta HEREDADA de la portada social (1204x644). Ya no la declara
+│                               ninguna página, pero las tarjetas de WhatsApp/Facebook
+│                               compartidas antes del cambio siguen apuntando aquí, así que se
+│                               mantiene publicada y regenerada con la marca actual.
 ├── netlify.toml                Redirects SPA, Edge Functions, headers de cache y seguridad
 ├── firebase.json               Apunta a firestore.rules para deploy de reglas
 ├── firestore.rules             Reglas de seguridad (lectura pública, escritura solo admin)

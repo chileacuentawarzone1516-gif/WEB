@@ -75,11 +75,15 @@ function dbFormatRelative(ts) {
   if (diffH < 24) return `Hace ${diffH} h`;
   return `Hace ${Math.floor(diffH / 24)} d`;
 }
+// Miniatura del panel. Delega en el normalizador único (media-model.js):
+// la versión anterior hacía `v.media[0].src` sin comprobar el elemento, así
+// que un solo documento con un hueco `null` en el array lanzaba TypeError
+// y dejaba en blanco la pestaña entera del dashboard.
 function dbThumb(v) {
-  const raw = v.media && v.media.length > 0
-    ? (typeof v.media[0] === 'string' ? v.media[0] : (v.media[0].src || v.img || ''))
-    : (v.img || 'https://placehold.co/120x120/1e293b/38bdf8?text=Auto');
-  return cldOptimize(raw, 120);
+  return cldOptimize(
+    LBMediaModel.coverSrc(v, 'https://placehold.co/120x120/1e293b/38bdf8?text=Auto'),
+    120
+  );
 }
 function dbGetInitials(name) {
   if (!name) return '👤';
