@@ -1,5 +1,187 @@
 # RELEASE NOTES — La Batalla Auto Import
 
+## SUBIDA DE FOTOS DIAGNOSTICABLE, LOGO OFICIAL Y PREVIEW SOCIAL SIN EL LOGO ANTIGUO
+
+Tres problemas reportados con capturas de producción: la publicación de un
+vehículo fallaba con las 7 fotos elegidas, el vehículo quedaba con "Sin
+Imagen", y el enlace compartido por WhatsApp seguía mostrando el emblema
+antiguo de la marca.
+
+### 1. Por qué "Se perdió la conexión (archivo 1 de 7)" no decía la verdad
+
+**Causa raíz.** `media-upload.js` clasificaba con el **mismo** código
+(`network`) dos fallos que no tienen nada que ver:
+
+- la petición al Worker de firma no llegó a completarse;
+- la transferencia del archivo a Cloudinary se cortó.
+
+El primero es el que se ve en la captura, y ahí está el problema de fondo:
+cuando el navegador rechaza una petición cross-origin por CORS, **no
+entrega ni el status HTTP ni el cuerpo**; `fetch` lanza un `TypeError`
+indistinguible del de una red caída. Con esa única señal, el módulo
+concluía "se perdió la conexión" y el mensaje culpaba a la conexión del
+usuario aunque la conexión estuviera perfecta.
+
+Que los 7 archivos fallaran (21 intentos con espera exponencial, en un
+escritorio cuya página y cuyo Firestore funcionaban) descarta una red
+intermitente: eso es un rechazo determinista.
+
+**Solución.** El módulo ahora distingue **etapa** (`sign` / `upload`) y usa
+una **sonda de alcance** para desambiguar lo que el navegador oculta: ante
+un `fetch` que lanza, se repite la petición en `mode: 'no-cors'` (petición
+simple, sin preflight, que el navegador no bloquea). Si esa resuelve, el
+servidor está vivo y el fallo es CORS/política (`sign_cors`, **no** se
+reintenta: es configuración); si también rechaza, el host no se alcanza
+(`sign_unreachable`, sí se reintenta).
+
+Además se registra un informe con status HTTP, cuerpo real de la respuesta
+(recortado), archivo, intento y milisegundos, accesible desde el propio
+modal de fallo y copiable. No incluye ID Token, firma ni api_key.
+
+También se detecta una firma incompleta ANTES de llamar a Cloudinary,
+nombrando qué campo falta — un 401 de Cloudinary por ese motivo era
+imposible de diagnosticar desde el otro lado.
+
+### 2. Por qué el vehículo quedaba con "Sin Imagen"
+
+**Causa raíz.** Ante un fallo total, `app.js` mostraba un `confirm()`
+nativo cuyo **"Aceptar" publicaba el vehículo con `media: []`**, y a
+continuación `closePublishModal()` descartaba los 7 archivos elegidos. Un
+fallo de infraestructura se convertía, con un clic, en un vehículo
+publicado sin fotos y sin camino de vuelta.
+
+**Solución.** Modal propio (`#media-fail-modal`) con tres salidas:
+
+- **Reintentar los que faltan** (acción destacada) — vuelve a subir SOLO
+  los archivos sin `cloudUrl`; lo ya subido no se re-sube nunca.
+- **Publicar/Guardar con N foto(s)** — solo aparece si hay alguna.
+- **Publicar sin fotos** — solo con cero subidas, **deshabilitado** hasta
+  marcar una casilla de confirmación explícita.
+
+`Escape` equivale a "volver al formulario", nunca a publicar. Las
+miniaturas marcan cada archivo como `SUBIDA` o `NO SUBIÓ`, con el motivo
+técnico en el `title`.
+
+### 3. Normalización única de `media` (`media-model.js`, nuevo)
+
+**Causa raíz.** `media` se interpretaba en cinco sitios con cinco
+criterios distintos. `dashboard.js` hacía `v.media[0].src` sin comprobar el
+elemento: **un solo documento con un hueco `null` lanzaba TypeError y
+dejaba en blanco la pestaña entera del panel**. Ninguno contemplaba
+`{url}`, `{secure_url}` ni `{cloudUrl}`, ni impedía que un vídeo acabara
+como portada de una `<img>`.
+
+**Solución.** Un único intérprete. Tolerante en la entrada (cadenas
+sueltas, `{src}`, `{url}`, `{secure_url}`, `{cloudUrl}`, nulos, huecos),
+estricto en la salida (`{type, src}` con `src` siempre renderizable).
+`sanitizeVehicleForWrite()` lo aplica, así que **ninguna escritura puede
+meter basura en Firestore** y editar un vehículo antiguo además lo sanea.
+Se recorta a 10 elementos: pasarse del límite de `firestore.rules` hace que
+la escritura entera se rechace con `permission-denied`.
+
+**Defecto adicional corregido.** `updateVehicle()` hacía
+`img: coverImg || existing.img`. Con esa caída, quitar todas las fotos de
+un vehículo era imposible: el documento conservaba `img` y tanto el
+catálogo como la galería seguían pintando la portada vieja.
+
+### 4. El monograma "LB" de la esquina superior derecha
+
+**Causa raíz.** No era un avatar ni una inicial de marca. La cabecera de la
+ficha pedía el logo a
+`res.cloudinary.com/dqayvw3zt/.../labatalla/logo.png`, una URL que ya no
+resuelve. Al fallar la carga, el respaldo `data-fallback` sustituía el src
+por `https://placehold.co/40x40/1e293b/38bdf8?text=LB`: el "LB" era el
+marcador de posición de una imagen rota. El mismo archivo se pedía en el
+panel de acceso, donde el respaldo era `hide` y por eso allí simplemente
+no aparecía logo.
+
+**Solución.** Asset local `logo-mark-96.png` (96x96, derivado de
+`icon512.png`, 9 KB) con `srcset` a `icon192.png` para pantallas 2x,
+`width`/`height` declarados y respaldo también local. Cero dependencias de
+terceros para la identidad visual.
+
+### 5. El logo antiguo en la vista previa de WhatsApp
+
+**Causa raíz.** `og:image` apuntaba a `/preview.jpg`, y ese archivo lleva
+incrustado el emblema metálico **antiguo**.
+
+**Solución con cache busting por ruta.** Regenerar `preview.jpg`
+conservando el nombre no habría bastado: WhatsApp, Facebook y Telegram
+cachean la vista previa **por URL** y siguen sirviendo durante semanas la
+copia que ya descargaron. Por eso:
+
+- **`/og-cover.jpg`** (1200x630, proporción 1.91:1) es la portada social
+  canónica nueva. Ruta nueva = caché invalidada de inmediato. No afecta al
+  SEO: `og:image` no es una URL indexable.
+- **`/preview.jpg` se mantiene publicado y regenerado** con la marca
+  actual, para que las tarjetas ya compartidas no devuelvan 404 y muestren
+  el logo nuevo al revalidar.
+- `favicon.png` (que era un JPEG con extensión .png y el emblema antiguo,
+  ya no referenciado por ninguna página) se regeneró como PNG real con la
+  marca actual en vez de borrarse.
+
+Se añaden `og:image:secure_url`, `og:image:type`, `og:image:alt`,
+`og:site_name` y `twitter:image:alt`, que faltaban.
+
+**Defecto que esto destapó.** `vehicle-og.js` reescribía `og:image` pero
+no `og:image:secure_url`. En cuanto index.html declara secure_url, un
+vehículo compartido habría mostrado la portada genérica del sitio en lugar
+de su foto, porque WhatsApp y Facebook dan prioridad a `secure_url`. La
+Edge Function ahora inyecta las tres etiquetas juntas, y retira
+`og:image:type` cuando la imagen pasa por `f_auto` (ahí el formato lo
+negocia Cloudinary con cada rastreador y declararlo sería mentir).
+
+### 6. La conversión a RD$ de los vehículos en USD se retira
+
+**Causa raíz.** La tarjeta de un vehículo en USD mostraba
+`USD$ 32,900 (RD$ 1,941,100)`. Ese paréntesis NO era una conversión en
+vivo: `readPublishForm()` lo calculaba **una sola vez, al publicar**, y lo
+guardaba como texto en `priceDisplay`. A partir de ahí quedaba congelado.
+
+La tasa (`USD_TO_RD_RATE`) sale de `config/finanzas.tasaUsdRd` en
+Firestore, con 59 como respaldo en código. Auditada contra los criterios
+de una fuente fiable:
+
+| Criterio | Estado |
+|---|---|
+| Fuente de tipo de cambio | Documento de Firestore editable a mano |
+| Actualización automática | ❌ no existe (sin API, sin cron) |
+| Sello de tiempo | ❌ no se guarda |
+| Pantalla para editarla | ❌ no hay; se edita en la consola de Firebase |
+| Control de errores | ✔ `catch` → respaldo 59 |
+| **Refresco de fichas ya publicadas** | ❌ **ninguno: el texto está congelado** |
+
+La última fila es la decisiva: aunque se actualizara la tasa, un vehículo
+publicado hace meses seguiría enseñando la conversión de aquel día. El
+sitio afirmaba un importe en RD$ con apariencia de actual que podía llevar
+meses desfasado.
+
+**Solución.** Se muestra solo el precio en la moneda en que se publicó.
+`fmtPrice()` —punto único por el que pasan las 17 llamadas del proyecto
+(tarjetas, ficha, calculadora, PDF, WhatsApp, panel)— retira el paréntesis
+al pintar, así que **los vehículos ya publicados quedan corregidos sin
+tocar un solo dato de Firestore**; y `readPublishForm()` deja de generarlo
+para los nuevos. La Edge Function hace la misma retirada para que el
+título que se comparte tampoco lleve la tasa vieja.
+
+`price` (siempre en RD$) NO se toca: lo usan los filtros, el orden, la
+calculadora y la validación de `firestore.rules`.
+
+Si algún día se conecta una fuente de cambio real (API con caché, respaldo
+y sello de tiempo), `fmtPrice()` es el único punto a revertir.
+
+### Archivos
+
+`media-model.js` (nuevo), `media-upload.js`, `app.js`, `dashboard.js`,
+`index.html`, `styles.css`, `netlify.toml`,
+`netlify/edge-functions/vehicle-og.js`, `empresa/*.html` (4),
+`README.md`, y los assets `og-cover.jpg` (nuevo), `logo-mark-96.png`
+(nuevo), `preview.jpg` y `favicon.png` (regenerados).
+
+No se tocaron `firestore.rules`, `firebase.json`, `auth.js` ni
+`cloudinary-sign-worker.js`.
+
+
 ## PRECIO CON SEPARADORES DE MILES Y PUBLICACIÓN QUE NO SE BLOQUEA
 
 Dos fallos que impedían publicar vehículos desde el teléfono, más lo que

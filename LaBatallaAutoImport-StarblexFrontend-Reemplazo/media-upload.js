@@ -60,13 +60,73 @@
   // qué explicarle a la persona que está publicando.
   // ============================================================
   class UploadError extends Error {
-    constructor(message, { code, retryable = false, status = 0 } = {}) {
+    constructor(message, { code, retryable = false, status = 0, stage = '', detail = '' } = {}) {
       super(message);
       this.name = 'UploadError';
       this.code = code;
       this.retryable = retryable;
       this.status = status;
+      // `stage` distingue "no se pudo pedir la firma" de "se cayó la
+      // transferencia del archivo". Sin esta distinción los dos fallos se
+      // reportaban con el mismo texto ("se perdió la conexión") y era
+      // imposible saber si el problema era la red del usuario o la
+      // configuración del servidor de firma.
+      this.stage = stage;          // 'sign' | 'upload'
+      // Cuerpo real de la respuesta (recortado). Es lo único que permite
+      // saber POR QUÉ rechazó Cloudinary o el Worker.
+      this.detail = detail;
     }
+  }
+
+  // ============================================================
+  // DIAGNÓSTICO — sin esto no hay forma de contestar "¿qué status HTTP
+  // devolvió?" desde el móvil de quien publica, que es exactamente donde
+  // ocurre el fallo y donde nadie tiene una consola abierta.
+  //
+  // Anillo acotado en memoria (no se persiste, no viaja a ningún sitio):
+  // se vacía al recargar la página. Solo lo lee el modal de fallo, que
+  // permite copiarlo para pegarlo en un mensaje.
+  // ============================================================
+  const DIAGNOSTICS_LIMIT = 40;
+  const diagnostics = [];
+
+  function recordDiagnostic(entry) {
+    diagnostics.push({ at: new Date().toISOString(), ...entry });
+    if (diagnostics.length > DIAGNOSTICS_LIMIT) diagnostics.shift();
+  }
+
+  function getDiagnostics() { return diagnostics.slice(); }
+
+  // Informe en texto plano, listo para copiar y pegar. Deliberadamente NO
+  // incluye el ID Token, la firma ni la api_key: el informe está pensado
+  // para compartirse por WhatsApp o correo.
+  function getDiagnosticsReport() {
+    const head = [
+      `La Batalla Auto Import — diagnóstico de subida`,
+      `Fecha: ${new Date().toISOString()}`,
+      `Origen: ${location.origin}`,
+      `Servidor de firma: ${SIGN_URL}`,
+      `Navegador: ${navigator.userAgent}`,
+      `Conexión: ${navigator.onLine ? 'online' : 'offline'}` +
+        (navigator.connection && navigator.connection.effectiveType
+          ? ` (${navigator.connection.effectiveType})` : ''),
+      '',
+    ];
+    if (diagnostics.length === 0) head.push('(sin incidencias registradas)');
+    const body = diagnostics.map(d => {
+      const parts = [
+        d.at,
+        `etapa=${d.stage || '—'}`,
+        `codigo=${d.code || '—'}`,
+        d.status ? `http=${d.status}` : 'http=(sin respuesta)',
+        d.attempt ? `intento=${d.attempt}/${MAX_ATTEMPTS}` : '',
+        d.file ? `archivo="${d.file.name}" ${Math.round((d.file.size || 0) / 1024)}KB ${d.file.type || 'sin tipo'}` : '',
+        d.ms != null ? `${d.ms}ms` : '',
+      ].filter(Boolean);
+      const detail = d.detail ? `\n    respuesta: ${d.detail}` : '';
+      return `  ${parts.join(' · ')}${detail}`;
+    });
+    return head.concat(body).join('\n');
   }
 
   // ============================================================
@@ -215,11 +275,52 @@
 
   function invalidateSignatures() { signatureCache.clear(); }
 
-  async function getSignature({ idToken, purpose, uid, forceRefresh }) {
+  // ------------------------------------------------------------
+  // SONDA DE ALCANCE — distingue "no hay red" de "el servidor está ahí
+  // pero rechaza este origen".
+  //
+  // POR QUÉ HACE FALTA: cuando una petición cross-origin es rechazada por
+  // CORS, el navegador NO entrega ni el status ni el cuerpo; `fetch`
+  // lanza un TypeError idéntico al de una caída de red. Con esa única
+  // señal, el mensaje que veía el usuario era siempre "se perdió la
+  // conexión", aunque la conexión estuviera perfecta y el problema fuese
+  // que el Worker no tiene este dominio en su whitelist ALLOWED_ORIGINS.
+  //
+  // Esta sonda envía una petición SIMPLE (sin cabeceras propias y con el
+  // Content-Type por defecto), que por definición no dispara preflight y
+  // que el navegador no bloquea: la respuesta llega opaca pero la promesa
+  // se resuelve. Por tanto:
+  //   resuelve  → el servidor CONTESTA; el fallo real es CORS/política.
+  //   rechaza   → el host no se alcanza (DNS, red caída, CSP connect-src).
+  // ------------------------------------------------------------
+  async function probeSignEndpoint() {
+    try {
+      await fetch(SIGN_URL, { method: 'POST', mode: 'no-cors', cache: 'no-store' });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Recorta el cuerpo de una respuesta para el informe: lo justo para leer
+  // el mensaje de error del servidor sin volcar una página HTML entera.
+  const MAX_DETAIL_CHARS = 300;
+  function trimDetail(text) {
+    if (typeof text !== 'string') return '';
+    const clean = text.replace(/\s+/g, ' ').trim();
+    return clean.length > MAX_DETAIL_CHARS ? `${clean.slice(0, MAX_DETAIL_CHARS)}…` : clean;
+  }
+
+  async function readBodyForDiagnostics(response) {
+    try { return trimDetail(await response.text()); } catch (e) { return ''; }
+  }
+
+  async function getSignature({ idToken, purpose, uid, forceRefresh, fileInfo }) {
     const key = cacheKey(purpose, uid);
     const cached = signatureCache.get(key);
     if (!forceRefresh && cached && Date.now() - cached.at < SIGNATURE_TTL_MS) return cached.payload;
 
+    const startedAt = Date.now();
     let response;
     try {
       response = await fetch(SIGN_URL, {
@@ -228,15 +329,51 @@
         body: JSON.stringify({ purpose }),
       });
     } catch (e) {
-      throw new UploadError('No se pudo contactar con el servidor de firma', { code: 'network', retryable: true });
+      // El navegador no dice si fue CORS o red. Se pregunta a la sonda.
+      const reachable = await probeSignEndpoint();
+      const code = reachable ? 'sign_cors' : 'sign_unreachable';
+      const detail = reachable
+        ? 'El servidor de firma respondió a una petición simple pero el navegador bloqueó la petición real: falta la cabecera Access-Control-Allow-Origin para ' + location.origin + ' (whitelist ALLOWED_ORIGINS del Worker) o el Worker devolvió un error sin cabeceras CORS.'
+        : 'El host del servidor de firma no se alcanzó (DNS, red o connect-src del CSP). Mensaje del navegador: ' + (e && e.message ? e.message : 'sin detalle');
+      recordDiagnostic({ stage: 'sign', code, status: 0, detail, file: fileInfo, ms: Date.now() - startedAt });
+      throw new UploadError(
+        reachable ? 'El servidor de firma rechazó este origen (CORS)' : 'No se pudo contactar con el servidor de firma',
+        // CORS no se arregla reintentando: es configuración. Se corta ya
+        // en lugar de gastar 3 intentos por archivo (21 esperas con 7
+        // fotos) para acabar en el mismo sitio.
+        { code, retryable: !reachable, stage: 'sign', detail }
+      );
     }
-    if (response.status === 401 || response.status === 403) {
-      throw new UploadError('No autorizado para subir archivos', { code: 'unauthorized', status: response.status });
-    }
+
+    const ms = Date.now() - startedAt;
     if (!response.ok) {
-      throw new UploadError('No se pudo firmar la subida', { code: 'sign_failed', status: response.status, retryable: response.status >= 500 });
+      const detail = await readBodyForDiagnostics(response);
+      const isAuth = response.status === 401 || response.status === 403;
+      const code = isAuth ? 'unauthorized' : 'sign_failed';
+      recordDiagnostic({ stage: 'sign', code, status: response.status, detail, file: fileInfo, ms });
+      throw new UploadError(
+        isAuth ? 'No autorizado para subir archivos' : 'No se pudo firmar la subida',
+        { code, status: response.status, retryable: !isAuth && response.status >= 500, stage: 'sign', detail }
+      );
     }
-    const payload = await response.json();
+
+    let payload;
+    try {
+      payload = await response.json();
+    } catch (e) {
+      const detail = 'El servidor de firma respondió 200 con un cuerpo que no es JSON.';
+      recordDiagnostic({ stage: 'sign', code: 'sign_failed', status: response.status, detail, file: fileInfo, ms });
+      throw new UploadError('El servidor de firma devolvió una respuesta ilegible', { code: 'sign_failed', status: response.status, retryable: true, stage: 'sign', detail });
+    }
+    // Una firma incompleta produce un 401 de Cloudinary imposible de
+    // diagnosticar desde el otro lado. Se detecta aquí, donde sí se sabe
+    // qué falta.
+    const missing = ['signature', 'timestamp', 'apiKey', 'cloudName', 'folder'].filter(k => !payload || !payload[k]);
+    if (missing.length > 0) {
+      const detail = `Faltan campos en la firma: ${missing.join(', ')}. Revisa las variables de entorno del Worker.`;
+      recordDiagnostic({ stage: 'sign', code: 'sign_failed', status: response.status, detail, file: fileInfo, ms });
+      throw new UploadError('La firma recibida está incompleta', { code: 'sign_failed', status: response.status, retryable: false, stage: 'sign', detail });
+    }
     signatureCache.set(key, { payload, at: Date.now() });
     return payload;
   }
@@ -285,7 +422,10 @@
         if (status >= 200 && status < 300) {
           const data = safeParse(xhr.responseText);
           if (!data || !data.secure_url) {
-            reject(new UploadError('Cloudinary respondió sin URL', { code: 'bad_response', retryable: true }));
+            reject(new UploadError('Cloudinary respondió sin URL', {
+              code: 'bad_response', status, retryable: true, stage: 'upload',
+              detail: trimDetail(xhr.responseText),
+            }));
             return;
           }
           resolve(data);
@@ -300,6 +440,8 @@
         reject(new UploadError(detail, {
           code: isSignatureRejected ? 'signature_rejected' : 'http',
           status,
+          stage: 'upload',
+          detail: trimDetail(xhr.responseText),
           // 429 (límite de peticiones) y 5xx sí merecen reintento; un 400
           // por archivo inválido, no: reintentarlo daría el mismo error.
           retryable: isSignatureRejected || status === 429 || status >= 500,
@@ -308,11 +450,19 @@
 
       xhr.addEventListener('error', () => {
         clearTimeout(stallTimer);
-        reject(new UploadError('Fallo de red durante la subida', { code: 'network', retryable: true }));
+        // XHR tampoco distingue CORS de caída de red, pero aquí la
+        // ambigüedad es menor: api.cloudinary.com sí devuelve CORS
+        // abierto, así que un `error` en esta etapa es casi siempre
+        // transferencia interrumpida. Se etiqueta como etapa 'upload'
+        // para no confundirlo nunca con el fallo del servidor de firma.
+        reject(new UploadError('Fallo de red durante la transferencia del archivo', {
+          code: 'network', retryable: true, stage: 'upload',
+          detail: 'La petición a api.cloudinary.com terminó sin respuesta HTTP (transferencia interrumpida o bloqueo del navegador).',
+        }));
       });
       xhr.addEventListener('abort', () => {
         clearTimeout(stallTimer);
-        reject(new UploadError('Subida cancelada', { code: 'aborted', retryable: false }));
+        reject(new UploadError('Subida cancelada', { code: 'aborted', retryable: false, stage: 'upload' }));
       });
 
       armStallTimer();
@@ -350,15 +500,24 @@
     }
 
     const prepared = await prepareForUpload(file);
+    // Se registra el archivo YA PREPARADO (tras comprimir): es lo que de
+    // verdad viaja, y su tamaño es el dato que importa cuando hay que
+    // decidir si el problema es el peso o la red.
+    const fileInfo = {
+      name: (prepared && prepared.name) || (file && file.name) || 'archivo',
+      size: (prepared && prepared.size) || 0,
+      type: (prepared && prepared.type) || '',
+    };
     let lastError = null;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const attemptStartedAt = Date.now();
       try {
         const idToken = await getIdToken();
         // Tras un fallo de autorización se descarta la firma cacheada por
         // si el problema era precisamente una firma vieja.
         const signed = await getSignature({
-          idToken, purpose, uid,
+          idToken, purpose, uid, fileInfo,
           forceRefresh: !!lastError && lastError.code === 'signature_rejected',
         });
 
@@ -382,9 +541,26 @@
         lastError = error instanceof UploadError
           ? error
           : new UploadError(error.message || 'Error desconocido', { code: 'unknown', retryable: true });
+        lastError.attempt = attempt;
+        lastError.fileInfo = fileInfo;
+        // Los fallos de la etapa de firma ya se registraron con su status
+        // y su cuerpo dentro de getSignature. Aquí se registra el resto
+        // (transferencia, respuesta de Cloudinary) para que el informe
+        // recoja la cadena completa, no solo el último eslabón.
+        if (lastError.stage !== 'sign') {
+          recordDiagnostic({
+            stage: lastError.stage || 'upload',
+            code: lastError.code,
+            status: lastError.status || 0,
+            detail: lastError.detail || lastError.message,
+            file: fileInfo,
+            attempt,
+            ms: Date.now() - attemptStartedAt,
+          });
+        }
         if (lastError.code === 'signature_rejected') invalidateSignatures();
         if (!lastError.retryable || attempt === MAX_ATTEMPTS) throw lastError;
-        console.warn(`Subida fallida (intento ${attempt}/${MAX_ATTEMPTS}): ${lastError.message}`);
+        console.warn(`Subida fallida (intento ${attempt}/${MAX_ATTEMPTS}) [${lastError.stage}/${lastError.code}${lastError.status ? ' HTTP ' + lastError.status : ''}]: ${lastError.message}`, lastError.detail || '');
         await wait(RETRY_BASE_MS * Math.pow(2, attempt - 1));
       }
     }
@@ -442,8 +618,17 @@
         return `❌ La autorización de subida caducó${position} — vuelve a pulsar Publicar`;
       case 'timeout':
         return `❌ La conexión es demasiado lenta${position} — inténtalo con mejor señal o con menos fotos`;
+      // Antes este mensaje ("se perdió la conexión") lo daban también los
+      // fallos del servidor de firma, que NO son de conexión. Ahora solo
+      // lo da la transferencia real del archivo.
       case 'network':
-        return `❌ Se perdió la conexión${position} — las fotos ya subidas se conservan, vuelve a pulsar Publicar`;
+        return `❌ Se cortó la transferencia del archivo${position} — las fotos ya subidas se conservan, vuelve a pulsar Publicar`;
+      case 'sign_unreachable':
+        return '❌ No se pudo contactar con el servidor de subidas — comprueba tu conexión y vuelve a intentarlo';
+      // Configuración, no conexión: reintentar no sirve de nada y decirle
+      // al usuario que lo intente otra vez es mentirle.
+      case 'sign_cors':
+        return '❌ El servidor de subidas está rechazando este sitio — es un problema de configuración, no de tu conexión. Avisa al administrador (detalles técnicos abajo).';
       case 'http':
         return `❌ El servidor rechazó el archivo${position} — prueba con otra foto o vídeo`;
       case 'bad_response':
@@ -452,6 +637,15 @@
       default:
         return `❌ No se pudieron subir las fotos${position} — inténtalo de nuevo`;
     }
+  }
+
+  // Línea técnica de UN error, para listarlo junto al archivo que falló.
+  // Es lo que convierte "no se pudo subir" en algo accionable.
+  function describeTechnical(error) {
+    if (!error) return 'Error desconocido';
+    const stage = error.stage === 'sign' ? 'firma' : error.stage === 'upload' ? 'subida' : '—';
+    const status = error.status ? `HTTP ${error.status}` : 'sin respuesta HTTP';
+    return `[${stage} · ${error.code || 'desconocido'} · ${status}] ${error.detail || error.message || ''}`.trim();
   }
 
   window.LBMedia = {
@@ -465,5 +659,8 @@
     acquireWakeLock,
     releaseWakeLock,
     describeError,
+    describeTechnical,
+    getDiagnostics,
+    getDiagnosticsReport,
   };
 })();

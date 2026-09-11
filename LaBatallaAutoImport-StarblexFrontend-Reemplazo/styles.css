@@ -517,3 +517,184 @@ footer a, #empresa-page a.inline-flex, #contacto a:not([class*="rounded"]) {
    cederle el eje horizontal al gesto.
    ============================================================ */
 #detail-media-container, #lightbox { touch-action: pan-y; }
+
+/* ============================================================
+   MODAL DE FALLO DE SUBIDA (#media-fail-modal)
+   ------------------------------------------------------------
+   CSS propio, no utilidades de Tailwind: tailwind.css es un bundle
+   PRE-PODADO de 18 KB generado con las clases que ya usaba el HTML.
+   Cualquier utilidad nueva que no estuviera en esa poda simplemente
+   no existe en el archivo y el modal se vería sin estilos.
+   ============================================================ */
+.lb-mf {
+  position: fixed;
+  inset: 0;
+  /* Por encima del modal de publicación (z-50), que sigue abierto
+     detrás: el usuario no debe perder lo que ya escribió. */
+  z-index: 60;
+  background: rgba(2, 6, 23, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow-y: auto;
+}
+.lb-mf.hidden { display: none; }
+.lb-mf__panel {
+  background: rgb(15, 23, 42);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-radius: 18px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.lb-mf__head {
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(248, 113, 113, 0.07);
+}
+.lb-mf__title {
+  color: #fecaca;
+  font-weight: 800;
+  font-size: 17px;
+  line-height: 1.3;
+  margin: 0 0 4px;
+}
+.lb-mf__summary { color: #cbd5e1; font-size: 13px; margin: 0; line-height: 1.5; }
+.lb-mf__body { padding: 16px 20px; overflow-y: auto; flex: 1 1 auto; }
+.lb-mf__reason {
+  color: #f1f5f9;
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin: 0 0 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 3px solid #f87171;
+  border-radius: 0 10px 10px 0;
+  padding: 10px 12px;
+}
+.lb-mf__list { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 8px; }
+.lb-mf__item {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 9px 11px;
+}
+.lb-mf__item-name {
+  color: #e2e8f0;
+  font-size: 12.5px;
+  font-weight: 700;
+  display: block;
+  /* Un nombre de archivo de cámara es largo y no tiene espacios: sin
+     esto desborda el panel en móvil. */
+  overflow-wrap: anywhere;
+}
+.lb-mf__item-why { color: #94a3b8; font-size: 11.5px; line-height: 1.5; display: block; margin-top: 2px; overflow-wrap: anywhere; }
+.lb-mf__details { margin: 0 0 12px; }
+.lb-mf__summary-toggle {
+  color: #7dd3fc;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 6px 0;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+.lb-mf__summary-toggle:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; border-radius: 6px; }
+.lb-mf__report {
+  background: rgb(2, 6, 23);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #cbd5e1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  line-height: 1.55;
+  padding: 10px;
+  margin: 6px 0 8px;
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.lb-mf__report:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.lb-mf__ack {
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: 12px;
+  padding: 11px 12px;
+}
+.lb-mf__ack.hidden { display: none; }
+.lb-mf__ack-label {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  color: #e2e8f0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.lb-mf__ack-cb { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; accent-color: #f87171; cursor: pointer; }
+.lb-mf__actions {
+  padding: 14px 20px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: grid;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.lb-mf__btn {
+  /* 44px: objetivo táctil mínimo recomendado (WCAG 2.5.5). */
+  min-height: 44px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 800;
+  border: 1px solid transparent;
+  cursor: pointer;
+  padding: 11px 16px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+  line-height: 1.25;
+}
+.lb-mf__btn.hidden { display: none; }
+.lb-mf__btn:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.lb-mf__btn--primary { background: #0284c7; color: #fff; }
+.lb-mf__btn--primary:hover { background: #0369a1; }
+.lb-mf__btn--secondary { background: rgba(56, 189, 248, 0.12); color: #7dd3fc; border-color: rgba(56, 189, 248, 0.4); }
+.lb-mf__btn--secondary:hover { background: rgba(56, 189, 248, 0.2); }
+.lb-mf__btn--danger { background: rgba(248, 113, 113, 0.12); color: #fca5a5; border-color: rgba(248, 113, 113, 0.4); }
+.lb-mf__btn--danger:hover:not(:disabled) { background: rgba(248, 113, 113, 0.22); }
+.lb-mf__btn--danger:disabled { opacity: 0.45; cursor: not-allowed; }
+.lb-mf__btn--ghost { background: transparent; color: #cbd5e1; border-color: rgba(255, 255, 255, 0.14); }
+.lb-mf__btn--ghost:hover { color: #fff; border-color: rgba(255, 255, 255, 0.28); }
+/* El botón de copiar vive dentro de un <details>, pero sigue siendo un
+   objetivo táctil: se mantiene en 44 px de alto (WCAG 2.5.5) y solo se
+   reduce el ancho para que no compita visualmente con las acciones
+   principales del modal. */
+.lb-mf__btn--inline { padding: 7px 14px; font-size: 12px; font-weight: 700; justify-self: start; }
+
+/* Miniaturas del formulario: estado por archivo. Sin esto, tras un fallo
+   parcial no había forma de ver CUÁL de las siete fotos no subió. */
+.preview-state {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  line-height: 1.5;
+}
+.preview-state--ok { background: rgba(16, 185, 129, 0.92); color: #022c22; }
+.preview-state--fail { background: rgba(239, 68, 68, 0.94); color: #fff; }
+.preview-item--failed img,
+.preview-item--failed video,
+.preview-item--failed > div:first-child { border-color: #ef4444 !important; }
+
+@media (max-width: 480px) {
+  .lb-mf { padding: 10px; align-items: flex-start; padding-top: 24px; }
+  .lb-mf__panel { max-height: calc(100vh - 48px); }
+  .lb-mf__title { font-size: 16px; }
+}

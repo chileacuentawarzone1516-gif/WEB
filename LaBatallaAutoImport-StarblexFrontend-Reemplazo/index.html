@@ -32,9 +32,30 @@
   <meta property="og:type" content="website">
   <meta property="og:title" content="La Batalla Auto Import">
   <meta property="og:description" content="Sedanes, SUVs y camionetas al mejor precio. Financiamiento disponible en República Dominicana.">
-  <meta property="og:image" content="https://labatallaautoimport.netlify.app/preview.jpg">
-  <meta property="og:image:width" content="1204">
-  <meta property="og:image:height" content="644">
+  <!-- ============================================================
+       IMAGEN SOCIAL — /og-cover.jpg (1200x630, proporción 1.91:1)
+       ------------------------------------------------------------
+       RUTA NUEVA A PROPÓSITO. Hasta aquí se servía /preview.jpg, que
+       llevaba incrustado el emblema metálico ANTIGUO de la marca. No
+       bastaba con regenerar ese archivo conservando su nombre: WhatsApp,
+       Facebook y Telegram cachean la vista previa POR URL y durante
+       semanas siguen sirviendo la copia que ya descargaron, así que el
+       logo viejo habría seguido apareciendo al compartir el enlace.
+       Cambiar la ruta es lo único que invalida esa caché de forma
+       inmediata y sin efectos sobre el SEO (og:image no es una URL
+       indexable: no hay enlaces entrantes ni ranking que perder).
+
+       /preview.jpg SE MANTIENE publicado y se ha regenerado con la marca
+       actual: las tarjetas ya compartidas apuntan a esa URL y, cuando el
+       rastreador revalide, obtendrá el logo nuevo en vez de un 404.
+       ============================================================ -->
+  <meta property="og:image" content="https://labatallaautoimport.netlify.app/og-cover.jpg">
+  <meta property="og:image:secure_url" content="https://labatallaautoimport.netlify.app/og-cover.jpg">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Logo de La Batalla Auto Import — sedanes, SUVs y camionetas en República Dominicana">
+  <meta property="og:site_name" content="La Batalla Auto Import">
   <meta property="og:url" content="https://labatallaautoimport.netlify.app/">
   <meta property="og:locale" content="es_DO">
 
@@ -60,7 +81,8 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="La Batalla Auto Import">
   <meta name="twitter:description" content="Sedanes, SUVs y camionetas al mejor precio. Financiamiento disponible.">
-  <meta name="twitter:image" content="https://labatallaautoimport.netlify.app/preview.jpg">
+  <meta name="twitter:image" content="https://labatallaautoimport.netlify.app/og-cover.jpg">
+  <meta name="twitter:image:alt" content="Logo de La Batalla Auto Import — sedanes, SUVs y camionetas en República Dominicana">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
@@ -81,7 +103,7 @@
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
-<link rel="stylesheet" href="/styles.css?v=20260905">
+<link rel="stylesheet" href="/styles.css?v=20260910b">
 <link rel="stylesheet" href="/ficha-vehiculo.css?v=20260905">
 <link rel="stylesheet" href="/dashboard.css?v=20260905">
 </head>
@@ -94,7 +116,7 @@
   "@type": "AutoDealer",
   "name": "La Batalla Auto Import",
   "url": "https://labatallaautoimport.netlify.app/",
-  "image": "https://labatallaautoimport.netlify.app/preview.jpg",
+  "image": "https://labatallaautoimport.netlify.app/og-cover.jpg",
   "telephone": "+18097759771",
   "priceRange": "RD$1,500,000 - RD$10,000,000",
   "address": {
@@ -314,22 +336,114 @@
   <button id="lightbox-next" aria-label="Siguiente">›</button>
 </div>
 
+<!-- ============================================================
+     MODAL: FALLO DE SUBIDA DE FOTOS
+     ------------------------------------------------------------
+     Sustituye al confirm() nativo que resolvía este caso. El confirm
+     tenía tres problemas reales, no estéticos:
+
+       1. Su botón "Aceptar" publicaba el vehículo SIN NINGUNA foto
+          cuando fallaban las 7, y acto seguido el formulario se cerraba
+          y descartaba los archivos elegidos. Una caída de infraestructura
+          se convertía en un vehículo publicado con "Sin Imagen" y sin
+          camino de vuelta salvo volver a editarlo y reelegir las fotos.
+       2. No ofrecía reintentar: había que cerrar, volver a abrir y
+          empezar de cero.
+       3. No podía mostrar el motivo técnico (status HTTP, respuesta del
+          servidor), que es justo lo que hace falta para saber si el
+          problema es la conexión de quien publica o la configuración del
+          servidor de firma.
+
+     Aquí la acción destacada es REINTENTAR, publicar sin fotos exige
+     marcar una casilla, y el motivo real está a un clic.
+     ============================================================ -->
+<div id="media-fail-modal" class="lb-mf hidden" role="dialog" aria-modal="true" aria-labelledby="media-fail-title" aria-describedby="media-fail-summary" tabindex="-1">
+  <div class="lb-mf__panel">
+    <div class="lb-mf__head">
+      <h2 id="media-fail-title" class="lb-mf__title">No se pudieron subir todas las fotos</h2>
+      <p id="media-fail-summary" class="lb-mf__summary"></p>
+    </div>
+    <div class="lb-mf__body">
+      <p id="media-fail-reason" class="lb-mf__reason"></p>
+      <ul id="media-fail-list" class="lb-mf__list"></ul>
+      <details class="lb-mf__details">
+        <summary class="lb-mf__summary-toggle">Ver detalles técnicos</summary>
+        <pre id="media-fail-report" class="lb-mf__report" tabindex="0"></pre>
+        <button type="button" id="media-fail-copy" class="lb-mf__btn lb-mf__btn--ghost lb-mf__btn--inline">Copiar informe</button>
+      </details>
+      <div id="media-fail-ack-wrap" class="lb-mf__ack hidden">
+        <label class="lb-mf__ack-label" for="media-fail-ack">
+          <input type="checkbox" id="media-fail-ack" class="lb-mf__ack-cb">
+          <span>Entiendo que <strong>ninguna foto se subió</strong> y aun así quiero publicar el vehículo sin fotos.</span>
+        </label>
+      </div>
+    </div>
+    <div class="lb-mf__actions">
+      <button type="button" id="media-fail-retry" class="lb-mf__btn lb-mf__btn--primary">Reintentar los que faltan</button>
+      <button type="button" id="media-fail-continue" class="lb-mf__btn lb-mf__btn--secondary hidden"></button>
+      <button type="button" id="media-fail-nophotos" class="lb-mf__btn lb-mf__btn--danger hidden" disabled>Publicar sin fotos</button>
+      <button type="button" id="media-fail-back" class="lb-mf__btn lb-mf__btn--ghost">Volver al formulario</button>
+    </div>
+  </div>
+</div>
+
 <!-- DETAIL PAGE -->
 <div id="detail-page" class="page-hidden">
   <div class="sticky top-0 z-30 bg-slate-900 shadow-md px-6 py-4 flex items-center gap-4">
     <button id="back-btn" class="flex items-center gap-2 text-white font-medium hover:text-sky-400 transition">
       <i data-lucide="arrow-left" class="w-5 h-5"></i> Volver
     </button>
-    <img class="h-10 w-10 object-contain ml-auto rounded-full" loading="lazy"
-      src="https://res.cloudinary.com/dqayvw3zt/image/upload/f_auto,q_auto,w_80/labatalla/logo.png"
-      alt="La Batalla Auto Import logo" data-fallback="https://placehold.co/40x40/1e293b/38bdf8?text=LB">
+    <!-- Logo oficial. ANTES apuntaba a un archivo alojado en Cloudinary
+         (labatalla/logo.png) que ya no resuelve: al fallar la carga, el
+         respaldo data-fallback sustituía el src por una imagen generada de
+         placehold.co con el texto "LB". Ese era el monograma que aparecía
+         arriba a la derecha — no un avatar de usuario ni una inicial de
+         marca, sino el marcador de posición de una imagen rota.
+         Ahora el asset es local (misma marca que favicon, manifest y
+         Open Graph), así que no depende de ningún tercero. -->
+    <img class="h-10 w-10 object-contain ml-auto rounded-full" loading="lazy" decoding="async"
+      width="40" height="40"
+      src="/logo-mark-96.png" srcset="/logo-mark-96.png 96w, /icon192.png 192w" sizes="40px"
+      alt="La Batalla Auto Import" data-fallback="/favicon-48.png">
   </div>
   <div class="max-w-3xl mx-auto px-6 py-8">
     <!-- Gallery -->
     <div class="relative rounded-xl overflow-hidden mb-6 bg-slate-800">
-      <div id="detail-media-container" class="w-full bg-black flex items-center justify-center" style="aspect-ratio:16/9;">
-        <img id="detail-img" class="w-full h-full object-cover hidden" loading="lazy">
-        <video id="detail-video" class="w-full h-full object-cover hidden" controls></video>
+      <!-- ============================================================
+           PROPORCIÓN DE LA GALERÍA — 4/3 + object-contain
+           ------------------------------------------------------------
+           Antes: aspect-ratio 16/9 (proporción de VÍDEO) con
+           object-fit:cover. Medido en Chromium con fotos de proporción
+           conocida, eso amputaba de cada foto, idéntico de 320 px a
+           1280 px —no era un problema de móviles—:
+
+             foto 4:3 (la que produce por defecto la cámara de un móvil,
+             que es como se fotografían estos vehículos) → 25% perdido
+             arriba y abajo: justo el techo y las ruedas, la silueta que
+             hace reconocible un coche.
+             foto vertical 3:4 → 57,8% perdido.
+
+           Ahora la caja es 4/3, la misma proporción que esas fotos, y la
+           imagen se ajusta con `contain`: una foto 4:3 llena la caja
+           EXACTA, sin recorte y sin barras. Una 16:9 deja barras finas
+           arriba y abajo y una vertical barras laterales, siempre sobre
+           el fondo negro que ya tenía el contenedor — pero en ningún
+           caso se pierde parte del vehículo ni se deforma la foto.
+
+           La proporción sigue siendo FIJA a propósito: con altura
+           variable, pasar de una foto a otra en la galería haría saltar
+           todo lo que hay debajo.
+
+           El <video> pasa también a `contain`: en una caja 4/3, dejarlo
+           en `cover` habría recortado un 25% de los LADOS de cualquier
+           vídeo 16:9 — un recorte nuevo, peor que el de antes.
+
+           El lightbox (contain, sin proporción fija) y las tarjetas del
+           catálogo (cover, cajas uniformes) NO cambian.
+           ============================================================ -->
+      <div id="detail-media-container" class="w-full bg-black flex items-center justify-center" style="aspect-ratio:4/3;">
+        <img id="detail-img" class="w-full h-full object-contain hidden" loading="lazy">
+        <video id="detail-video" class="w-full h-full object-contain hidden" controls></video>
       </div>
       <button id="gallery-prev" aria-label="Imagen anterior" class="hidden absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white w-8 h-8 rounded-full flex items-center justify-center">
         <i data-lucide="chevron-left" class="w-5 h-5"></i>
@@ -583,9 +697,14 @@
     <div id="account-panel-login" class="p-5 hidden">
       <div id="auth-form-view">
         <div class="text-center mb-4">
-          <img src="https://res.cloudinary.com/dqayvw3zt/image/upload/f_auto,q_auto,w_120/labatalla/logo.png"
+          <!-- Mismo caso que la cabecera de la ficha: dependía de un
+               archivo de Cloudinary que ya no existe. Aquí el respaldo era
+               "hide", así que el panel de acceso simplemente aparecía sin
+               logo. Asset local y misma marca que el resto del sitio. -->
+          <img src="/logo-mark-96.png" srcset="/logo-mark-96.png 96w, /icon192.png 192w" sizes="48px"
+               width="48" height="48" loading="lazy" decoding="async"
                alt="La Batalla Auto Import" class="h-12 w-12 object-contain rounded-full mx-auto mb-2"
-               data-fallback="hide">
+               data-fallback="/favicon-48.png">
           <h3 id="auth-title" class="text-white font-black text-lg">Bienvenido nuevamente</h3>
           <p class="text-slate-400 text-xs leading-relaxed mt-1">Accede a tu cuenta para guardar favoritos, gestionar tu perfil y disfrutar de una mejor experiencia.</p>
         </div>
@@ -1081,13 +1200,17 @@
      incrementa ?v= en las 4 referencias para invalidar la caché del
      navegador de inmediato (evita ejecutar JS viejo con HTML nuevo). -->
 <script defer src="/hero-carousel.js?v=20260904b"></script>
-<script defer src="/media-upload.js?v=20260903"></script>
+<script defer src="/media-upload.js?v=20260910b"></script>
+<!-- Normalizador único del campo `media`. DEBE ir antes de app.js y
+     dashboard.js: los dos leen window.LBMediaModel al renderizar. Todos
+     los <script> son `defer`, así que se ejecutan en orden de documento. -->
+<script defer src="/media-model.js?v=20260910b"></script>
 <script defer src="/roles.js?v=20260728"></script>
-<script defer src="/app.js?v=20260910"></script>
+<script defer src="/app.js?v=20260910b"></script>
 <script defer src="/auth.js?v=20260910"></script>
 <script defer src="/auth-ui.js?v=20260728"></script>
 <script defer src="/invite-modal.js?v=20260811"></script>
 <script defer src="/calculadora.js?v=20260905"></script>
-<script defer src="/dashboard.js?v=20260910"></script>
+<script defer src="/dashboard.js?v=20260910b"></script>
 </body>
 </html>

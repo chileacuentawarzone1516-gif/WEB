@@ -205,6 +205,12 @@
   [headers.values]
     Cache-Control = "public, max-age=3600, must-revalidate"
 
+# Normalizador único del campo `media` (lo usan app.js y dashboard.js).
+[[headers]]
+  for = "/media-model.js"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
 [[headers]]
   for = "/calculadora.js"
   [headers.values]
@@ -269,6 +275,19 @@
   [headers.values]
     Cache-Control = "public, max-age=604800, must-revalidate"
 
+# Portada social canónica (og:image de index.html y de las páginas de
+# Empresa, y respaldo de la Edge Function de /vehiculos/*).
+[[headers]]
+  for = "/og-cover.jpg"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, must-revalidate"
+
+# /preview.jpg es la RUTA HEREDADA de la portada social. Ya no la declara
+# ninguna página, pero las tarjetas de WhatsApp/Facebook compartidas antes
+# del cambio siguen apuntando aquí, así que el archivo se mantiene
+# publicado (regenerado con la marca actual) en vez de devolver 404.
+# `must-revalidate` es justo lo que hace que esos rastreadores obtengan la
+# versión nueva en cuanto revaliden.
 [[headers]]
   for = "/preview.jpg"
   [headers.values]
@@ -383,6 +402,13 @@
 # de iconos de marca.
 [[headers]]
   for = "/logo-hero.png"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, must-revalidate"
+
+# Marca pequeña (96 px) de la cabecera de la ficha y del panel de cuenta.
+# Sustituye al logo que se pedía a Cloudinary y que ya no resolvía.
+[[headers]]
+  for = "/logo-mark-96.png"
   [headers.values]
     Cache-Control = "public, max-age=604800, must-revalidate"
 
