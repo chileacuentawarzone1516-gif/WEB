@@ -409,9 +409,41 @@
   <div class="max-w-3xl mx-auto px-6 py-8">
     <!-- Gallery -->
     <div class="relative rounded-xl overflow-hidden mb-6 bg-slate-800">
-      <div id="detail-media-container" class="w-full bg-black flex items-center justify-center" style="aspect-ratio:16/9;">
-        <img id="detail-img" class="w-full h-full object-cover hidden" loading="lazy">
-        <video id="detail-video" class="w-full h-full object-cover hidden" controls></video>
+      <!-- ============================================================
+           PROPORCIÓN DE LA GALERÍA — 4/3 + object-contain
+           ------------------------------------------------------------
+           Antes: aspect-ratio 16/9 (proporción de VÍDEO) con
+           object-fit:cover. Medido en Chromium con fotos de proporción
+           conocida, eso amputaba de cada foto, idéntico de 320 px a
+           1280 px —no era un problema de móviles—:
+
+             foto 4:3 (la que produce por defecto la cámara de un móvil,
+             que es como se fotografían estos vehículos) → 25% perdido
+             arriba y abajo: justo el techo y las ruedas, la silueta que
+             hace reconocible un coche.
+             foto vertical 3:4 → 57,8% perdido.
+
+           Ahora la caja es 4/3, la misma proporción que esas fotos, y la
+           imagen se ajusta con `contain`: una foto 4:3 llena la caja
+           EXACTA, sin recorte y sin barras. Una 16:9 deja barras finas
+           arriba y abajo y una vertical barras laterales, siempre sobre
+           el fondo negro que ya tenía el contenedor — pero en ningún
+           caso se pierde parte del vehículo ni se deforma la foto.
+
+           La proporción sigue siendo FIJA a propósito: con altura
+           variable, pasar de una foto a otra en la galería haría saltar
+           todo lo que hay debajo.
+
+           El <video> pasa también a `contain`: en una caja 4/3, dejarlo
+           en `cover` habría recortado un 25% de los LADOS de cualquier
+           vídeo 16:9 — un recorte nuevo, peor que el de antes.
+
+           El lightbox (contain, sin proporción fija) y las tarjetas del
+           catálogo (cover, cajas uniformes) NO cambian.
+           ============================================================ -->
+      <div id="detail-media-container" class="w-full bg-black flex items-center justify-center" style="aspect-ratio:4/3;">
+        <img id="detail-img" class="w-full h-full object-contain hidden" loading="lazy">
+        <video id="detail-video" class="w-full h-full object-contain hidden" controls></video>
       </div>
       <button id="gallery-prev" aria-label="Imagen anterior" class="hidden absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white w-8 h-8 rounded-full flex items-center justify-center">
         <i data-lucide="chevron-left" class="w-5 h-5"></i>
