@@ -131,6 +131,45 @@ Edge Function ahora inyecta las tres etiquetas juntas, y retira
 `og:image:type` cuando la imagen pasa por `f_auto` (ahí el formato lo
 negocia Cloudinary con cada rastreador y declararlo sería mentir).
 
+### 6. La conversión a RD$ de los vehículos en USD se retira
+
+**Causa raíz.** La tarjeta de un vehículo en USD mostraba
+`USD$ 32,900 (RD$ 1,941,100)`. Ese paréntesis NO era una conversión en
+vivo: `readPublishForm()` lo calculaba **una sola vez, al publicar**, y lo
+guardaba como texto en `priceDisplay`. A partir de ahí quedaba congelado.
+
+La tasa (`USD_TO_RD_RATE`) sale de `config/finanzas.tasaUsdRd` en
+Firestore, con 59 como respaldo en código. Auditada contra los criterios
+de una fuente fiable:
+
+| Criterio | Estado |
+|---|---|
+| Fuente de tipo de cambio | Documento de Firestore editable a mano |
+| Actualización automática | ❌ no existe (sin API, sin cron) |
+| Sello de tiempo | ❌ no se guarda |
+| Pantalla para editarla | ❌ no hay; se edita en la consola de Firebase |
+| Control de errores | ✔ `catch` → respaldo 59 |
+| **Refresco de fichas ya publicadas** | ❌ **ninguno: el texto está congelado** |
+
+La última fila es la decisiva: aunque se actualizara la tasa, un vehículo
+publicado hace meses seguiría enseñando la conversión de aquel día. El
+sitio afirmaba un importe en RD$ con apariencia de actual que podía llevar
+meses desfasado.
+
+**Solución.** Se muestra solo el precio en la moneda en que se publicó.
+`fmtPrice()` —punto único por el que pasan las 17 llamadas del proyecto
+(tarjetas, ficha, calculadora, PDF, WhatsApp, panel)— retira el paréntesis
+al pintar, así que **los vehículos ya publicados quedan corregidos sin
+tocar un solo dato de Firestore**; y `readPublishForm()` deja de generarlo
+para los nuevos. La Edge Function hace la misma retirada para que el
+título que se comparte tampoco lleve la tasa vieja.
+
+`price` (siempre en RD$) NO se toca: lo usan los filtros, el orden, la
+calculadora y la validación de `firestore.rules`.
+
+Si algún día se conecta una fuente de cambio real (API con caché, respaldo
+y sello de tiempo), `fmtPrice()` es el único punto a revertir.
+
 ### Archivos
 
 `media-model.js` (nuevo), `media-upload.js`, `app.js`, `dashboard.js`,
@@ -138,6 +177,9 @@ negocia Cloudinary con cada rastreador y declararlo sería mentir).
 `netlify/edge-functions/vehicle-og.js`, `empresa/*.html` (4),
 `README.md`, y los assets `og-cover.jpg` (nuevo), `logo-mark-96.png`
 (nuevo), `preview.jpg` y `favicon.png` (regenerados).
+
+No se tocaron `firestore.rules`, `firebase.json`, `auth.js` ni
+`cloudinary-sign-worker.js`.
 
 
 ## PRECIO CON SEPARADORES DE MILES Y PUBLICACIÓN QUE NO SE BLOQUEA

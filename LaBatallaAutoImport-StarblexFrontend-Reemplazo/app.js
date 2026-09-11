@@ -404,8 +404,42 @@ function initFirebase() {
 // ============================================================
 // HELPERS
 // ============================================================
+// ============================================================
+// PRECIO VISIBLE — punto ÚNICO por el que pasan las 17 llamadas del
+// proyecto (tarjetas, ficha, calculadora, PDF, WhatsApp, panel).
+// ------------------------------------------------------------
+// ⚠️ POR QUÉ YA NO SE MUESTRA LA CONVERSIÓN A RD$ EN LOS VEHÍCULOS EN USD
+//
+// La tasa vive en Firestore (`config/finanzas.tasaUsdRd`, respaldo 59 en
+// código) y es EDITABLE A MANO: no hay API de tipo de cambio, ni
+// actualización automática, ni sello de tiempo, ni pantalla en el panel
+// para cambiarla — hay que editar el documento desde la consola de
+// Firebase.
+//
+// Y lo decisivo: `priceDisplay` se CONGELA en el momento de publicar
+// (ver readPublishForm). Un vehículo publicado hace meses guarda para
+// siempre la conversión del día que se publicó. Aunque el admin
+// actualizara la tasa, esa ficha seguiría enseñando el número viejo.
+// Es decir, el sitio afirmaba un importe en RD$ con apariencia de actual
+// que en realidad podía llevar meses desfasado — justo lo que no puede
+// hacer una web que vende vehículos.
+//
+// Se muestra solo el precio en la moneda en que se publicó. `price`
+// (siempre en RD$) NO se toca: lo necesitan los filtros, el orden, la
+// calculadora y la validación de firestore.rules.
+//
+// Si algún día se conecta una fuente de cambio real (API con caché,
+// respaldo y sello de tiempo), este es el único punto a revertir.
+// ============================================================
+// Documentos publicados ANTES de este cambio guardan el paréntesis
+// dentro de `priceDisplay`. Se retira al pintar, no reescribiendo
+// Firestore: así los 37 vehículos del inventario real quedan corregidos
+// sin tocar un solo dato.
+function stripStaleRdConversion(display) {
+  return String(display).replace(/^(USD\$[^(]*?)\s*\(RD\$[^)]*\)\s*$/, '$1');
+}
 function fmtPrice(p, v) {
-  if (v && v.priceDisplay) return v.priceDisplay;
+  if (v && v.priceDisplay) return stripStaleRdConversion(v.priceDisplay);
   return 'RD$ ' + Number(p).toLocaleString('es-DO');
 }
 
@@ -2267,8 +2301,12 @@ function readPublishForm() {
   const currency = document.getElementById('pub-currency').value; // 'RD' o 'USD'
   const price = currency === 'USD' ? Math.round(priceRaw * USD_TO_RD_RATE) : Math.round(priceRaw);
   const priceUSD = currency === 'USD' ? priceRaw : null;
+  // Sin la conversión a RD$ entre paréntesis: se congelaba aquí para
+  // siempre y acababa mostrando una tasa vieja como si fuera actual
+  // (ver el bloque de fmtPrice). `price` sigue guardándose en RD$ porque
+  // lo usan los filtros, el orden y la validación de firestore.rules.
   const priceDisplay = currency === 'USD'
-    ? `USD$ ${priceRaw.toLocaleString('en-US')} (RD$ ${price.toLocaleString('es-DO')})`
+    ? `USD$ ${priceRaw.toLocaleString('en-US')}`
     : null;
   const featuresRaw = document.getElementById('pub-features').value.trim();
   const seoTagsRaw = document.getElementById('pub-seo-tags').value.trim();

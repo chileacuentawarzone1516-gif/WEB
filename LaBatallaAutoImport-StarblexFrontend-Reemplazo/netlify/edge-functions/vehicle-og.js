@@ -210,8 +210,17 @@ function pickImage(vehicle) {
   return { url: candidate, width: null, height: null, type: null };
 }
 
+// Misma retirada de la conversión RD$ congelada que hace fmtPrice() en
+// app.js — si no, el título que WhatsApp y Facebook muestran al compartir
+// una ficha en USD seguiría llevando una tasa vieja. Las dos copias
+// existen porque esta función corre en Deno y no comparte ámbito con el
+// navegador (igual que slugify, ya documentado en el README).
+function stripStaleRdConversion(display) {
+  return String(display).replace(/^(USD\$[^(]*?)\s*\(RD\$[^)]*\)\s*$/, '$1');
+}
+
 function formatPrice(vehicle) {
-  if (vehicle.priceDisplay) return vehicle.priceDisplay;
+  if (vehicle.priceDisplay) return stripStaleRdConversion(vehicle.priceDisplay);
   if (Number.isFinite(vehicle.price)) {
     return `RD$ ${vehicle.price.toLocaleString('es-DO')}`;
   }
