@@ -62,11 +62,42 @@ function firestoreFieldsToJs(fields) {
   return out;
 }
 
+// ============================================================
+// M-1 — El TIPO de cada medio debe sobrevivir a la normalización.
+// ------------------------------------------------------------
+// Antes este mapeo se quedaba solo con la URL y tiraba el campo `type`.
+// Como `pickImage` cogía media[0] sin poder distinguir, un vehículo cuya
+// PORTADA fuese un vídeo publicaba un `og:image` apuntando a un .mp4:
+// WhatsApp y Facebook no pueden renderizar eso, así que la tarjeta del
+// enlace salía rota. El formulario admite vídeos y la primera posición
+// es justamente la que se rotula "PORTADA", de modo que el caso es
+// alcanzable sin hacer nada raro.
+//
+// El criterio es el mismo que ya aplica media-model.js en el navegador
+// (`coverSrc` salta los vídeos): el tipo declarado manda y, a falta de
+// él, se deduce de la extensión. Las dos implementaciones siguen
+// separadas porque esta corre en Deno y no comparte ámbito, igual que
+// pasa con slugify y stripStaleRdConversion.
+// ============================================================
+const VIDEO_EXTENSIONS = /\.(mp4|webm|mov|m4v|avi|mkv|ogv|3gp)(\?|#|$)/i;
+
+function tipoDeMedio(item, url) {
+  const declarado = item && typeof item === 'object' ? item.type : null;
+  if (declarado === 'video' || declarado === 'image') return declarado;
+  if (typeof declarado === 'string' && declarado.startsWith('video')) return 'video';
+  return VIDEO_EXTENSIONS.test(url) ? 'video' : 'image';
+}
+
 function normalizeVehicle(raw, id) {
   if (!raw || typeof raw !== 'object' || !raw.name) return null;
   const media = Array.isArray(raw.media)
     ? raw.media
-        .map((item) => typeof item === 'string' ? item : item?.src)
+        .map((item) => {
+          const src = typeof item === 'string' ? item : item?.src;
+          if (typeof src !== 'string' || !src.trim()) return null;
+          const url = src.trim();
+          return { type: tipoDeMedio(item, url), src: url };
+        })
         .filter(Boolean)
     : [];
 
@@ -189,12 +220,17 @@ const FALLBACK_WIDTH = 1200;
 const FALLBACK_HEIGHT = 630;
 
 function pickImage(vehicle) {
-  // `normalizeVehicle` ya deja `media` como array de cadenas, pero el
-  // acceso directo a media[0] daba `undefined` en un vehículo sin fotos y
-  // dependía de que esa normalización nunca cambiara. Se comprueba aquí.
-  const first = Array.isArray(vehicle.media) && vehicle.media.length > 0 ? vehicle.media[0] : '';
-  const candidate = (typeof first === 'string' && first) ? first
-    : (typeof vehicle.img === 'string' && vehicle.img ? vehicle.img : FALLBACK_IMAGE);
+  // M-1: se toma la primera IMAGEN real, no el primer medio. Un vídeo
+  // en la portada ya no puede acabar en og:image.
+  const primeraImagen = Array.isArray(vehicle.media)
+    ? vehicle.media.find((m) => m && m.type === 'image' && typeof m.src === 'string' && m.src)
+    : null;
+  // `img` es el esquema antiguo. app.js lo deriva de coverSrc(), que ya
+  // salta los vídeos, pero aquí no se da por hecho: si lo que hay es un
+  // vídeo, se descarta igual que si viniera de `media`.
+  const legacy = (typeof vehicle.img === 'string' && vehicle.img.trim()) ? vehicle.img.trim() : '';
+  const legacyUtil = legacy && tipoDeMedio(null, legacy) === 'image' ? legacy : '';
+  const candidate = primeraImagen ? primeraImagen.src : (legacyUtil || FALLBACK_IMAGE);
   if (!/^https?:\/\//i.test(candidate)) {
     return { url: FALLBACK_IMAGE, width: FALLBACK_WIDTH, height: FALLBACK_HEIGHT, type: 'image/jpeg' };
   }
