@@ -99,6 +99,53 @@ async function fetchVehicles() {
   return vehicles;
 }
 
+// ============================================================
+// A-4 — VALIDACIÓN ANTES DE ESCRIBIR
+// ------------------------------------------------------------
+// El sitemap comprometido en el repositorio llegó a anunciar 44 URLs
+// cuando producción tenía 3 vehículos: 37 fichas borradas que la Edge
+// Function responde con 404. Estas comprobaciones no habrían evitado
+// aquello por sí solas (era un archivo viejo), pero sí garantizan que
+// lo que este script escriba sea siempre un documento válido y
+// coherente, y que un resultado absurdo falle en vez de publicarse.
+// ============================================================
+function validarSitemap(xml, totalUrls) {
+  const problemas = [];
+  if (!xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>')) problemas.push('falta la declaración XML');
+  if (!xml.includes('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">')) problemas.push('falta el urlset con su namespace');
+  if (!xml.trimEnd().endsWith('</urlset>')) problemas.push('el documento no cierra en </urlset>');
+
+  const aperturas = (xml.match(/<url>/g) || []).length;
+  const cierres = (xml.match(/<\/url>/g) || []).length;
+  if (aperturas !== cierres) problemas.push(`etiquetas <url> descompensadas (${aperturas} aperturas / ${cierres} cierres)`);
+  if (aperturas !== totalUrls) problemas.push(`se esperaban ${totalUrls} URLs y hay ${aperturas}`);
+
+  // Las páginas estáticas SIEMPRE deben estar, haya o no inventario. Si
+  // alguna desaparece es que se rompió la generación, no que el negocio
+  // se quedó sin vehículos.
+  const obligatorias = [
+    `${SITE_URL}/`,
+    `${SITE_URL}/politica-privacidad.html`,
+    `${SITE_URL}/terminos-y-condiciones.html`,
+    `${SITE_URL}/empresa/por-que-elegirnos`,
+    `${SITE_URL}/empresa/quienes-somos`,
+    `${SITE_URL}/empresa/mision-vision`,
+    `${SITE_URL}/empresa/nuestros-valores`,
+  ];
+  for (const u of obligatorias) {
+    if (!xml.includes(`<loc>${u}</loc>`)) problemas.push(`falta la ruta estática ${u}`);
+  }
+
+  // Un & sin escapar es el error clásico que rompe el XML entero.
+  const ampSueltos = (xml.match(/&(?!amp;|lt;|gt;|quot;|apos;|#)/g) || []).length;
+  if (ampSueltos > 0) problemas.push(`${ampSueltos} carácter(es) "&" sin escapar`);
+
+  // El protocolo admite 50.000 URLs por archivo.
+  if (aperturas > 50000) problemas.push(`${aperturas} URLs: por encima del límite de 50.000 del protocolo`);
+
+  return problemas;
+}
+
 function urlEntry(loc, lastmod, changefreq, priority) {
   return [
     '  <url>',
@@ -157,8 +204,29 @@ async function main() {
     '',
   ].join('\n');
 
+  // A-4: si el documento no es válido NO se escribe. Es preferible dejar
+  // el sitemap anterior —que al menos es XML correcto— que publicar uno
+  // roto, y el código de salida distinto de cero hace que el fallo se vea
+  // en los registros en vez de pasar en silencio.
+  const problemas = validarSitemap(xml, entries.length);
+  if (problemas.length > 0) {
+    console.error('[sitemap] XML inválido, no se escribe nada:');
+    problemas.forEach(p => console.error('  - ' + p));
+    process.exitCode = 1;
+    return;
+  }
+
   await fs.writeFile(OUTPUT, xml, 'utf8');
-  console.log(`[sitemap] Generado ${path.basename(OUTPUT)} con ${entries.length} URLs (${vehicles.length} vehículos leídos).`);
+  const vehiculosEnSitemap = entries.length - 7; // 7 rutas estáticas fijas
+  console.log(`[sitemap] Generado ${path.basename(OUTPUT)}: ${entries.length} URLs ` +
+    `(7 estáticas + ${vehiculosEnSitemap} vehículos, de ${vehicles.length} leídos de Firestore).`);
+  if (vehicles.length === 0) {
+    // No es un error: el inventario puede estar vacío entre importaciones.
+    // Se avisa porque un 0 inesperado suele significar que la consulta
+    // falló silenciosamente, y conviene verlo en el registro del build.
+    console.warn('[sitemap] Aviso: Firestore no devolvió ningún vehículo. ' +
+      'El sitemap queda solo con las páginas estáticas.');
+  }
 }
 
 main().catch((error) => {

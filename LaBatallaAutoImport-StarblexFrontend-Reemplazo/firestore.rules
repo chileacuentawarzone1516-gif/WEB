@@ -405,10 +405,23 @@ service cloud.firestore {
           // correo guardado sea el del token. Sin esta segunda condición,
           // cualquier documento con el email falsificado que ya existiera
           // de antes seguiría sirviendo para escalar.
+          // ⚠️ A-2 (auditoría de release): faltaba exigir el correo
+          // VERIFICADO. Firebase Auth NO comprueba la propiedad del buzón
+          // al registrarse con correo y contraseña, así que la whitelist
+          // por sí sola no demuestra nada: bastaba con crear una cuenta
+          // declarando una de las direcciones autorizadas para obtener el
+          // rol admin y, con él, el control del inventario y de todos los
+          // perfiles. Reproducido contra el emulador: con
+          // email_verified=false la promoción se ACEPTABA.
+          // `email_verified` lo emite Firebase Auth dentro del token y el
+          // cliente no puede falsificarlo. Ninguna otra condición se
+          // relaja: siguen exigiéndose la whitelist del servidor y que el
+          // correo guardado coincida con el del token.
           || (
             request.resource.data.role == 'admin'
             && isWhitelistedAdminEmail(resource.data.email)
             && resource.data.email == request.auth.token.email
+            && request.auth.token.email_verified == true
           )
         )
         && request.resource.data.status == resource.data.status

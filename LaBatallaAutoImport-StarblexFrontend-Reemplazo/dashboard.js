@@ -315,12 +315,21 @@ async function dbRenderCotizaciones() {
 
   wrap.innerHTML = result.items.map(q => {
     const institucion = q.institution ? ` · ${escapeHtml(q.institution)}` : '';
+    // A-1: la cuota guardada es un número sin moneda. Antes se pintaba
+    // siempre como "RD$", así que una cotización de un vehículo en
+    // dólares se listaba aquí en pesos. La moneda se reconstruye desde
+    // el vehículo; si ya no está publicado, se muestra el importe sin
+    // símbolo en vez de afirmar una moneda que no consta.
+    const veh = typeof vehicles !== 'undefined' ? vehicles.find(v => v.id === q.vehicleId) : null;
+    const cuotaTexto = veh
+      ? fmtMoney(q.monthlyPayment, vehicleCurrency(veh))
+      : Math.round(Number(q.monthlyPayment) || 0).toLocaleString('es-DO');
     return `
     <div class="db-hist-item" data-quote-id="${escapeAttr(q.id)}">
       <div class="db-quote-icon"><i data-lucide="calculator"></i></div>
       <div style="flex:1;min-width:0;">
         <p class="db-hist-item-name">${escapeHtml(q.vehicleName)}</p>
-        <p class="db-hist-item-meta">Cuota: ${escapeHtml(fmtPrice(q.monthlyPayment))} / mes · ${q.termMonths} meses${institucion} · ${escapeHtml(dbFormatRelative(dbToMillis(q.createdAt)))}</p>
+        <p class="db-hist-item-meta">Cuota: ${escapeHtml(cuotaTexto)} / mes · ${q.termMonths} meses${institucion} · ${escapeHtml(dbFormatRelative(dbToMillis(q.createdAt)))}</p>
       </div>
       <button type="button" class="db-pdf-btn" data-quote-pdf="${escapeAttr(q.id)}" title="Descargar en PDF" aria-label="Descargar la cotización de ${escapeAttr(q.vehicleName)} en PDF"><i data-lucide="file-down"></i></button>
       <button type="button" class="db-remove-btn" data-remove-quote="${escapeAttr(q.id)}" aria-label="Eliminar cotización"><i data-lucide="trash-2"></i></button>
@@ -738,6 +747,14 @@ function dbInit() {
   document.getElementById('db-change-password-btn')?.addEventListener('click', handleChangePassword);
   document.getElementById('db-pref-save-btn')?.addEventListener('click', handleSavePreferences);
   document.getElementById('db-profile-photo-file')?.addEventListener('change', handleProfilePhotoUpload);
+  // C-1: misma razón que en auth-ui.js. Sin auth.js no hay sesión que
+  // vigilar, y el panel personal es inalcanzable de todos modos
+  // (openDashboardPage exige waitForAuthReady); lo que no puede pasar es
+  // que la ausencia de un archivo lance un error no capturado.
+  if (typeof onUserChanged !== 'function') {
+    console.warn('auth.js no disponible: el panel personal queda deshabilitado.');
+    return;
+  }
   onUserChanged(({ user }) => {
     const dashboardVisible = !document.getElementById('dashboard-page').classList.contains('page-hidden');
     if (dashboardVisible && !user) { closeDashboardPage(); showToast('🔒 Tu sesión terminó'); }

@@ -1,0 +1,92 @@
+# ============================================================
+# actualizar-sitemap.yml
+# ------------------------------------------------------------
+# POR QUÉ EXISTE (defecto A-4 de la auditoría de release)
+#
+# El README documentaba este workflow, pero el archivo no existía. El
+# único momento en que se regeneraba el sitemap era el build de Netlify,
+# que solo se dispara al hacer push. Como el inventario se publica y se
+# retira desde el panel —sin tocar el repositorio—, el sitemap.xml
+# comprometido se quedaba congelado: llegó a anunciar 44 URLs cuando
+# producción tenía 3 vehículos, es decir 37 fichas que devuelven 404 a
+# Googlebot.
+#
+# Este workflow cierra esa brecha regenerando el archivo a diario.
+#
+# SEGURIDAD Y ALCANCE — lo que este workflow SÍ y NO hace:
+#   · Lee la colección `vehicles` de Firestore por REST. Es pública por
+#     diseño (el catálogo la necesita), así que NO usa credenciales,
+#     secretos ni cuentas de servicio.
+#   · Solo puede escribir UN archivo: sitemap.xml. Si el contenido no
+#     cambia, no crea ningún commit.
+#   · `permissions` está reducido al mínimo: contents: write, nada más.
+#   · No se ejecuta en forks.
+#   · No borra ni modifica datos: el script solo lee.
+#
+# No hay riesgo de bucle: el commit dispara un deploy de Netlify, cuyo
+# build vuelve a generar el mismo sitemap pero NO commitea nada.
+# ============================================================
+name: Actualizar sitemap
+
+on:
+  schedule:
+    # 06:15 UTC ≈ 02:15 en República Dominicana (UTC-4): fuera de horas
+    # de trabajo, para que un commit nunca coincida con una publicación.
+    - cron: '15 6 * * *'
+  workflow_dispatch: {}
+
+# Permiso mínimo imprescindible para poder commitear el sitemap.
+permissions:
+  contents: write
+
+concurrency:
+  group: actualizar-sitemap
+  cancel-in-progress: false
+
+jobs:
+  regenerar:
+    # Nunca en forks: no tendrían por qué escribir en su copia ni gastar minutos.
+    if: github.repository_owner == 'chileacuentawarzone1516-gif'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: LaBatallaAutoImport-StarblexFrontend-Reemplazo
+
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Preparar Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Regenerar el sitemap desde el inventario real
+        # Sin `|| true`: si el script falla (Firestore caído, XML
+        # inválido), el workflow debe ponerse en rojo y avisar. Aquí no
+        # hay ningún despliegue que proteger, así que el fallo silencioso
+        # —que es lo que produjo A-4— no tiene ninguna justificación.
+        run: node scripts/generar-sitemap.js
+
+      - name: Comprobar si el sitemap cambió
+        id: cambios
+        run: |
+          if git diff --quiet -- sitemap.xml; then
+            echo "hay_cambios=false" >> "$GITHUB_OUTPUT"
+            echo "El sitemap ya estaba al día: no se crea ningún commit."
+          else
+            echo "hay_cambios=true" >> "$GITHUB_OUTPUT"
+            echo "Cambios detectados:"
+            git diff --stat -- sitemap.xml
+          fi
+
+      - name: Commitear el sitemap actualizado
+        if: steps.cambios.outputs.hay_cambios == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # `git add` con ruta explícita: este workflow no puede arrastrar
+          # ningún otro archivo aunque el runner dejara restos.
+          git add sitemap.xml
+          git commit -m "chore(seo): actualiza sitemap.xml con el inventario actual"
+          git push

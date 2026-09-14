@@ -19,11 +19,15 @@
 #    porque Netlify invalida la caché automáticamente en cada deploy.
 
 [build]
-  # Respaldo: regenera el sitemap en cada deploy además del cron diario
-  # de GitHub Actions. El `|| true` evita que esto bloquee el deploy —
-  # el sitio sigue publicándose con el último sitemap.xml válido conocido
-  # si Firestore no responde en ese momento.
-  command = "node scripts/generar-sitemap.js || true"
+  # Regenera el sitemap en cada deploy, además del cron diario de
+  # .github/workflows/actualizar-sitemap.yml (que sí commitea el archivo).
+  #
+  # A-4: el `|| true` seguía siendo lo correcto —un Firestore caído no
+  # debe impedir desplegar una corrección de código— pero se tragaba el
+  # fallo sin dejar rastro. Ahora emite un aviso visible en el registro
+  # del build y en la interfaz de Netlify, de modo que "se publicó el
+  # sitemap anterior" es una decisión observable y no un silencio.
+  command = "node scripts/generar-sitemap.js || echo '::warning::[sitemap] No se pudo regenerar desde Firestore; se publica el sitemap.xml del repositorio. Revisa el cron actualizar-sitemap.yml si esto se repite.'"
   publish = "."
 
 [build.environment]
@@ -189,6 +193,13 @@
 
 [[headers]]
   for = "/app.js"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
+# Coordinador de dependencias del arranque (C-1). Es el primer script del
+# documento y el resto lo usa para anunciarse; mismo patrón de caché.
+[[headers]]
+  for = "/boot.js"
   [headers.values]
     Cache-Control = "public, max-age=3600, must-revalidate"
 

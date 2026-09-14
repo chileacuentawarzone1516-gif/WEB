@@ -54,8 +54,12 @@ const LB_CALC = {
     const factor = Math.pow(1 + i, plazoMeses);
     return montoFinanciado * (i * factor) / (factor - 1);
   },
-  fmt(n) {
-    return 'RD$ ' + Math.round(n).toLocaleString('es-DO');
+  // A-1: el formato ya NO asume pesos. Cada cotización se expresa en la
+  // moneda en la que el vehículo está publicado; no hay conversión en
+  // ningún punto de la cadena (pantalla, PDF, WhatsApp, correo).
+  // `fmtMoney` vive en app.js, que se carga antes que este archivo.
+  fmt(n, moneda) {
+    return fmtMoney(n, moneda);
   }
 };
 // ============================================================
@@ -83,13 +87,35 @@ function calcModalUpdateSliderFill() {
   }
 }
 
+// ============================================================
+// A-1 — PRECIO Y MONEDA DEL VEHÍCULO A FINANCIAR
+// ------------------------------------------------------------
+// Antes esto devolvía `vehicle.price`, que para un vehículo publicado en
+// dólares era una conversión a pesos congelada con una tasa fija de 59
+// que nadie podía actualizar. De ahí salían la inicial, el monto a
+// financiar, la cuota, el PDF, el mensaje de WhatsApp y el correo al
+// asesor: cifras en pesos presentadas como actuales con un tipo de
+// cambio indeterminado y sin fecha.
+//
+// Ahora se cotiza SIEMPRE en la moneda del vehículo. `vehicleAmount()`
+// devuelve null si no se puede conocer el importe real (por ejemplo, un
+// vehículo marcado USD al que le falte `priceUSD`); en ese caso la
+// calculadora se NIEGA a cotizar en vez de inventar una cifra.
+// ============================================================
 function calcModalGetPrecio() {
-  return calcModalState.vehicle ? (calcModalState.vehicle.price || 0) : 0;
+  const importe = vehicleAmount(calcModalState.vehicle);
+  return importe === null ? 0 : importe;
 }
 
-// ¿Hay un vehículo válido seleccionado? Gate central de la calculadora.
+/** Moneda en la que se expresa esta cotización. Sin conversión. */
+function calcModalGetMoneda() {
+  return vehicleCurrency(calcModalState.vehicle);
+}
+
+// ¿Hay un vehículo válido seleccionado Y con importe conocido?
+// Gate central de la calculadora.
 function calcModalHasVehicle() {
-  return !!(calcModalState.vehicle && calcModalState.vehicle.price > 0);
+  return !!calcModalState.vehicle && vehicleAmount(calcModalState.vehicle) !== null;
 }
 
 // Fuente ÚNICA de los números de la cotización. Antes cada consumidor
@@ -107,6 +133,10 @@ function calcModalGetCotizacion() {
     vehicle: calcModalState.vehicle,
     institucion: calcModalState.institucion,
     tipo: calcModalState.tipo,
+    // A-1: la moneda viaja con la cotización de extremo a extremo, para
+    // que ningún consumidor (render, WhatsApp, PDF, correo) tenga que
+    // suponerla — suponer pesos era exactamente el defecto.
+    moneda: calcModalGetMoneda(),
     precio, inicialPct, montoInicial, montoFinanciado, tasaAnual,
     plazo: calcModalState.plazo, cuota,
   };
@@ -122,22 +152,23 @@ function calcModalGetSolicitante() {
 
 // Construye el resumen textual de la cotización actual (WhatsApp / compartir)
 function calcModalBuildResumen() {
-  const { montoInicial, montoFinanciado, cuota } = calcModalGetCotizacion();
+  const { montoInicial, montoFinanciado, cuota, moneda } = calcModalGetCotizacion();
   const v = calcModalState.vehicle;
+  const f = n => LB_CALC.fmt(n, moneda);
   let msg = `*Cotización de Financiamiento — La Batalla Auto Import*\n\n`;
   msg += `🚗 *Vehículo:* ${v.name} — ${fmtPrice(v.price, v)}\n`;
   msg += `🔗 ${getVehicleUrl(v)}\n\n`;
   msg += `🏦 *Institución:* ${calcModalState.institucion}\n`;
-  msg += `💵 *Inicial:* ${calcModalState.inicialPct}% (${LB_CALC.fmt(montoInicial)})\n`;
+  msg += `💵 *Inicial:* ${calcModalState.inicialPct}% (${f(montoInicial)})\n`;
   msg += `📅 *Plazo:* ${calcModalState.plazo} meses\n`;
-  msg += `📊 *Monto a financiar:* ${LB_CALC.fmt(montoFinanciado)}\n`;
-  msg += `✅ *Cuota mensual estimada:* ${LB_CALC.fmt(cuota)}/mes`;
+  msg += `📊 *Monto a financiar:* ${f(montoFinanciado)}\n`;
+  msg += `✅ *Cuota mensual estimada:* ${f(cuota)}/mes`;
   return msg;
 }
 
 function calcModalRender() {
   const hasVehicle = calcModalHasVehicle();
-  const { montoInicial, montoFinanciado, tasaAnual, cuota } = calcModalGetCotizacion();
+  const { montoInicial, montoFinanciado, tasaAnual, cuota, moneda } = calcModalGetCotizacion();
 
   // Gate visual: sin vehículo no hay resultados ni CTA habilitado
   const results = document.querySelector('#calc-modal .lb-calc-results');
@@ -149,14 +180,31 @@ function calcModalRender() {
     submitBtn.classList.toggle('lb-calc-cta--disabled', !hasVehicle);
     submitBtn.setAttribute('aria-disabled', String(!hasVehicle));
   }
-  if (requiredHint) requiredHint.classList.toggle('hidden', hasVehicle || calcModalState.mode === 'vehicle');
+  // A-1: hay un caso en el que SÍ hay vehículo pero NO se puede cotizar —
+  // un vehículo publicado en USD cuyo `priceUSD` falta o es inválido, de
+  // modo que su importe real no consta. Antes de este cambio la
+  // calculadora habría usado el índice en pesos y habría cotizado una
+  // cifra inventada. Ahora no cotiza, pero no puede quedarse muda: en
+  // modo ficha el aviso normal está oculto, así que se reutiliza para
+  // explicar por qué no hay resultados.
+  const vehiculoSinImporte = !!calcModalState.vehicle && !hasVehicle;
+  if (requiredHint) requiredHint.classList.toggle('hidden', hasVehicle || vehiculoSinImporte || calcModalState.mode === 'vehicle');
+  // El subtítulo es el único texto visible en los DOS modos, así que es
+  // donde cabe la explicación sin des-ocultar controles que no tocan.
+  const subtitulo = document.getElementById('calc-modal-subtitle');
+  if (subtitulo && vehiculoSinImporte) {
+    subtitulo.textContent = 'El precio de este vehículo no está disponible, así que no podemos calcular la cuota. Escríbenos por WhatsApp y te la damos al momento.';
+    subtitulo.style.color = '#fbbf24';
+  } else if (subtitulo) {
+    subtitulo.style.color = '';
+  }
 
   document.getElementById('calc-modal-inicial-display').textContent = hasVehicle
-    ? `${calcModalState.inicialPct}% · ${LB_CALC.fmt(montoInicial)}`
+    ? `${calcModalState.inicialPct}% · ${LB_CALC.fmt(montoInicial, moneda)}`
     : `${calcModalState.inicialPct}%`;
   if (hasVehicle) {
-    document.getElementById('calc-modal-monto-financiado').textContent = LB_CALC.fmt(montoFinanciado);
-    document.getElementById('calc-modal-cuota-mensual').textContent = LB_CALC.fmt(cuota) + '/mes';
+    document.getElementById('calc-modal-monto-financiado').textContent = LB_CALC.fmt(montoFinanciado, moneda);
+    document.getElementById('calc-modal-cuota-mensual').textContent = LB_CALC.fmt(cuota, moneda) + '/mes';
     document.getElementById('calc-modal-tasa-info').textContent = `Tasa estimada ${tasaAnual.toFixed(1)}% anual — ${calcModalState.institucion}`;
   }
   calcModalUpdateSliderFill();
@@ -401,8 +449,15 @@ window.LB_COTIZACION = (() => {
   // se genera igual con lo que se guardó (ver cotizacion-pdf.js, que
   // omite las filas sin dato en vez de inventarlas).
   function desdeCotizacionGuardada(q, vehiculo) {
+    // A-1: las cotizaciones guardadas almacenan NÚMEROS sin moneda (el
+    // esquema cerrado de firestore.rules no admite un campo nuevo). La
+    // moneda se reconstruye desde el vehículo, que es su única fuente
+    // fiable. Si el vehículo ya no está publicado no se puede saber, y
+    // entonces `moneda` queda como null: el generador imprime el importe
+    // sin símbolo en vez de afirmar una moneda que no consta.
+    const moneda = vehiculo ? vehicleCurrency(vehiculo) : null;
     const precio = typeof q.vehiclePrice === 'number' ? q.vehiclePrice
-      : (vehiculo && typeof vehiculo.price === 'number' ? vehiculo.price : null);
+      : (vehiculo ? vehicleAmount(vehiculo) : null);
     const inicial = Number(q.downPayment) || 0;
     const pct = typeof q.downPaymentPct === 'number' ? q.downPaymentPct
       : (precio ? Math.round((inicial / precio) * 100) : null);
@@ -427,6 +482,7 @@ window.LB_COTIZACION = (() => {
         montoFinanciado: precio !== null ? Math.max(0, precio - inicial) : null,
         plazo: Number(q.termMonths) || 1,
         cuota: Number(q.monthlyPayment) || 0,
+        moneda,
       },
       solicitante: null,
     };
@@ -459,6 +515,7 @@ function calcModalBuildPdfData() {
       institucion: q.institucion, tipo: q.tipo, tasaAnual: q.tasaAnual,
       inicialPct: q.inicialPct, montoInicial: q.montoInicial,
       montoFinanciado: q.montoFinanciado, plazo: q.plazo, cuota: q.cuota,
+      moneda: q.moneda, // A-1: el PDF imprime en esta moneda, sin convertir
     },
     solicitante: (solicitante.nombre || solicitante.telefono) ? solicitante : null,
   };
@@ -585,7 +642,10 @@ async function calcModalEnviarAlAsesor(resumen) {
       nombre: s.nombre,
       telefono: s.telefono,
       institucion: q.institucion,
-      cuota: `${LB_CALC.fmt(q.cuota)} / mes`,
+      // A-1: el correo al asesor lleva la cuota en la moneda real del
+      // vehículo. Antes decía "RD$" siempre, incluso para un vehículo
+      // cotizado en dólares.
+      cuota: `${LB_CALC.fmt(q.cuota, q.moneda)} / mes`,
       plazo: `${q.plazo} meses`,
       url: typeof getVehicleUrl === 'function' && q.vehicle ? getVehicleUrl(q.vehicle) : '',
       resumen,
