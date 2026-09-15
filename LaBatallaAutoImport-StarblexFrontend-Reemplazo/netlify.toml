@@ -19,8 +19,10 @@
 #    porque Netlify invalida la caché automáticamente en cada deploy.
 
 [build]
-  # Regenera el sitemap en cada deploy, además del cron diario de
-  # .github/workflows/actualizar-sitemap.yml (que sí commitea el archivo).
+  # Regenera el sitemap en cada deploy. Este comando es el ÚNICO lugar
+  # donde se produce sitemap.xml para producción: el cron diario de
+  # .github/workflows/actualizar-sitemap.yml no lo genera ni lo commitea,
+  # solo dispara un Build Hook para que Netlify vuelva a ejecutar esto.
   #
   # A-4: el `|| true` seguía siendo lo correcto —un Firestore caído no
   # debe impedir desplegar una corrección de código— pero se tragaba el

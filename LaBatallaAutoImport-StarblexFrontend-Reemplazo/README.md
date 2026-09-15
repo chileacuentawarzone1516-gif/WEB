@@ -64,7 +64,9 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 ├── netlify/edge-functions/
 │   └── vehicle-og.js           Meta tags OG para bots sociales + 404 real por vehículo
 └── .github/workflows/
-    └── actualizar-sitemap.yml  Cron diario que regenera y commitea el sitemap
+    └── actualizar-sitemap.yml  Cron diario que dispara el Build Hook de Netlify
+                                (secret NETLIFY_SITEMAP_BUILD_HOOK). No escribe en el
+                                repositorio: el sitemap lo regenera el build de Netlify
 ```
 
 ## Reglas de sincronización crítica
@@ -188,6 +190,33 @@ firebase deploy --only firestore:rules # publicar reglas de Firestore
 ```
 
 El deploy a producción es automático: push a la rama principal → Netlify build.
+
+## Sitemap automático
+
+`sitemap.xml` se regenera en **cada build de Netlify** (`[build] command` en
+`netlify.toml` ejecuta `node scripts/generar-sitemap.js`, que lee el inventario
+vía la API REST de Firestore y escribe el archivo dentro del directorio
+publicado). Ese es el único punto donde se produce el sitemap de producción.
+
+Para que el sitemap se refresque aunque no haya pushes, el workflow
+`.github/workflows/actualizar-sitemap.yml` lanza un POST diario al **Build Hook
+de Netlify**. El workflow no hace checkout, no ejecuta el generador y no
+commitea nada: corre con `permissions: {}`, sin ningún permiso sobre el
+repositorio.
+
+Configuración (una sola vez):
+
+1. **Netlify** → Site configuration → Build & deploy → Continuous deployment →
+   Build hooks → *Add build hook*. Rama: `main`. Netlify devuelve una URL
+   `https://api.netlify.com/build_hooks/…`.
+2. **GitHub** → Settings → Secrets and variables → Actions → *New repository
+   secret*, con el nombre exacto **`NETLIFY_SITEMAP_BUILD_HOOK`** y esa URL
+   como valor.
+
+Esa URL es una credencial (quien la tenga puede disparar despliegues), por eso
+vive en un secret y el workflow nunca la imprime. Si falta el secret, el
+workflow falla de inmediato con un mensaje explicando qué crear. Si se filtra,
+se borra el hook en Netlify y se crea otro.
 
 ---
 

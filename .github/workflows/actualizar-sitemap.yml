@@ -1,92 +1,127 @@
 # ============================================================
 # actualizar-sitemap.yml
 # ------------------------------------------------------------
-# POR QUÉ EXISTE (defecto A-4 de la auditoría de release)
+# QUÉ HACE
 #
-# El README documentaba este workflow, pero el archivo no existía. El
-# único momento en que se regeneraba el sitemap era el build de Netlify,
-# que solo se dispara al hacer push. Como el inventario se publica y se
-# retira desde el panel —sin tocar el repositorio—, el sitemap.xml
-# comprometido se quedaba congelado: llegó a anunciar 44 URLs cuando
-# producción tenía 3 vehículos, es decir 37 fichas que devuelven 404 a
-# Googlebot.
+#   cron de GitHub  →  POST al Build Hook de Netlify  →  Netlify
+#   ejecuta el build  →  `node scripts/generar-sitemap.js` regenera
+#   sitemap.xml dentro del directorio publicado.
 #
-# Este workflow cierra esa brecha regenerando el archivo a diario.
+# Este workflow NO genera el sitemap, NO lo modifica y NO escribe nada
+# en el repositorio. Solo pide a Netlify que despliegue; el sitemap se
+# regenera como parte de ese build, que es donde ya estaba definido
+# (ver `[build] command` en netlify.toml).
 #
-# SEGURIDAD Y ALCANCE — lo que este workflow SÍ y NO hace:
-#   · Lee la colección `vehicles` de Firestore por REST. Es pública por
-#     diseño (el catálogo la necesita), así que NO usa credenciales,
-#     secretos ni cuentas de servicio.
-#   · Solo puede escribir UN archivo: sitemap.xml. Si el contenido no
-#     cambia, no crea ningún commit.
-#   · `permissions` está reducido al mínimo: contents: write, nada más.
-#   · No se ejecuta en forks.
-#   · No borra ni modifica datos: el script solo lee.
+# POR QUÉ ASÍ Y NO COMMITEANDO EL ARCHIVO
 #
-# No hay riesgo de bucle: el commit dispara un deploy de Netlify, cuyo
-# build vuelve a generar el mismo sitemap pero NO commitea nada.
+# La primera versión de este workflow hacía checkout, ejecutaba el
+# generador y commiteaba sitemap.xml en main. Funcionaba, pero para
+# lograr un resultado que el build de Netlify ya produce por su cuenta
+# pagaba un precio alto:
+#
+#   · necesitaba `contents: write`, el primer permiso de escritura
+#     sobre main de todo el repositorio;
+#   · si alguien empujaba a main entre el checkout y el push, el push
+#     fallaba por non-fast-forward y ese día no se actualizaba nada;
+#   · podía pisar una edición manual de sitemap.xml;
+#   · generaba un commit diario de ruido en el historial.
+#
+# Disparar el build elimina las cuatro cosas a la vez. El sitemap
+# publicado sale exactamente igual de fresco, porque lo produce el
+# mismo comando en ambos casos.
+#
+# QUÉ HAY QUE CONFIGURAR (una sola vez)
+#
+#   1. En Netlify: Site configuration → Build & deploy → Continuous
+#      deployment → Build hooks → "Add build hook".
+#      Nombre sugerido: "Sitemap diario".  Rama: main.
+#      Netlify devuelve una URL del tipo
+#      https://api.netlify.com/build_hooks/XXXXXXXXXXXXXXXXXXXXXXXX
+#
+#   2. En GitHub: Settings → Secrets and variables → Actions →
+#      "New repository secret".
+#      Nombre EXACTO:  NETLIFY_SITEMAP_BUILD_HOOK
+#      Valor: la URL completa del paso 1.
+#
+# Esa URL es una credencial: quien la tenga puede lanzar despliegues.
+# Por eso vive en un secret y este archivo nunca la imprime. Si se
+# filtra, se borra el hook en Netlify y se crea otro.
+#
+# SEGURIDAD
+#
+#   · `permissions: {}` deja el GITHUB_TOKEN sin NINGÚN permiso: este
+#     workflow no puede leer ni escribir código, issues, releases ni
+#     nada del repositorio. Solo hace una petición de red saliente.
+#   · No hay checkout: no se descarga ni se ejecuta código del repo.
+#   · No corre en forks.
 # ============================================================
 name: Actualizar sitemap
 
 on:
   schedule:
     # 06:15 UTC ≈ 02:15 en República Dominicana (UTC-4): fuera de horas
-    # de trabajo, para que un commit nunca coincida con una publicación.
+    # de trabajo, para que el redespliegue no coincida con una
+    # publicación en curso desde el panel.
+    #
+    # Aviso de GitHub: los cron programados se desactivan solos tras 60
+    # días sin actividad en el repositorio. Si el proyecto se queda
+    # quieto mucho tiempo, hay que reactivarlo desde la pestaña Actions.
     - cron: '15 6 * * *'
   workflow_dispatch: {}
 
-# Permiso mínimo imprescindible para poder commitear el sitemap.
-permissions:
-  contents: write
+# Sin ningún permiso. No hace falta ninguno para un POST saliente.
+permissions: {}
 
 concurrency:
   group: actualizar-sitemap
   cancel-in-progress: false
 
 jobs:
-  regenerar:
-    # Nunca en forks: no tendrían por qué escribir en su copia ni gastar minutos.
+  pedir-despliegue:
     if: github.repository_owner == 'chileacuentawarzone1516-gif'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: LaBatallaAutoImport-StarblexFrontend-Reemplazo
+    # Un POST tarda menos de un segundo. Cinco minutos es margen de
+    # sobra y evita que un cuelgue de red consuma minutos de Actions.
+    timeout-minutes: 5
 
     steps:
-      - name: Descargar el repositorio
-        uses: actions/checkout@v4
-
-      - name: Preparar Node 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Regenerar el sitemap desde el inventario real
-        # Sin `|| true`: si el script falla (Firestore caído, XML
-        # inválido), el workflow debe ponerse en rojo y avisar. Aquí no
-        # hay ningún despliegue que proteger, así que el fallo silencioso
-        # —que es lo que produjo A-4— no tiene ninguna justificación.
-        run: node scripts/generar-sitemap.js
-
-      - name: Comprobar si el sitemap cambió
-        id: cambios
+      - name: Comprobar que el secret está configurado
+        env:
+          HOOK: ${{ secrets.NETLIFY_SITEMAP_BUILD_HOOK }}
         run: |
-          if git diff --quiet -- sitemap.xml; then
-            echo "hay_cambios=false" >> "$GITHUB_OUTPUT"
-            echo "El sitemap ya estaba al día: no se crea ningún commit."
-          else
-            echo "hay_cambios=true" >> "$GITHUB_OUTPUT"
-            echo "Cambios detectados:"
-            git diff --stat -- sitemap.xml
+          if [ -z "$HOOK" ]; then
+            echo "::error::Falta el secret NETLIFY_SITEMAP_BUILD_HOOK. Créalo en Settings → Secrets and variables → Actions con la URL del Build Hook de Netlify (Site configuration → Build & deploy → Build hooks)."
+            exit 1
+          fi
+          echo "Secret presente."
+
+      - name: Pedir a Netlify que despliegue (regenera el sitemap)
+        env:
+          HOOK: ${{ secrets.NETLIFY_SITEMAP_BUILD_HOOK }}
+        run: |
+          set -u
+          # La URL va en una variable y nunca se imprime. GitHub además
+          # enmascara el valor de los secrets en el registro.
+          estado=$(curl -sS -o respuesta.txt -w '%{http_code}' \
+            --max-time 30 --retry 3 --retry-delay 5 --retry-all-errors \
+            -X POST -H 'Content-Type: application/json' -d '{}' \
+            "$HOOK" 2>error.txt) || estado="000"
+
+          if [ "$estado" = "000" ]; then
+            echo "::error::No se pudo contactar con el Build Hook de Netlify."
+            # Se muestra el mensaje de curl, no la URL.
+            sed -e 's#https://[^ ]*#<url oculta>#g' error.txt || true
+            exit 1
           fi
 
-      - name: Commitear el sitemap actualizado
-        if: steps.cambios.outputs.hay_cambios == 'true'
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # `git add` con ruta explícita: este workflow no puede arrastrar
-          # ningún otro archivo aunque el runner dejara restos.
-          git add sitemap.xml
-          git commit -m "chore(seo): actualiza sitemap.xml con el inventario actual"
-          git push
+          echo "Netlify respondió HTTP $estado"
+          case "$estado" in
+            2*)
+              echo "Despliegue solicitado. El build ejecutará 'node scripts/generar-sitemap.js' y publicará el sitemap regenerado."
+              ;;
+            *)
+              echo "::error::El Build Hook devolvió HTTP $estado. Si es 404, el hook fue borrado o la URL del secret ya no es válida; vuelve a crearlo en Netlify y actualiza NETLIFY_SITEMAP_BUILD_HOOK."
+              head -c 500 respuesta.txt || true
+              exit 1
+              ;;
+          esac
