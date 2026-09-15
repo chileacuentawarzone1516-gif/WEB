@@ -352,6 +352,15 @@ function initAuthUi() {
     showAuthView('form');
   });
 
+  // C-1: `onUserChanged` vive en auth.js. Si ese archivo no llegó a
+  // ejecutarse (respuesta 500, bloqueador, red), llamarlo aquí lanzaba un
+  // ReferenceError no capturado. No impedía ver el catálogo, pero es
+  // exactamente la misma clase de acoplamiento implícito entre scripts
+  // que causó C-1, así que se declara la dependencia en vez de asumirla.
+  if (typeof onUserChanged !== 'function') {
+    console.warn('auth.js no disponible: la interfaz de sesión queda inactiva.');
+    return;
+  }
   onUserChanged(() => {
     if (authSubmitBusy || googleBusy) return; // evita parpadeos durante login en curso
     if (!document.getElementById('account-modal').classList.contains('hidden')) {

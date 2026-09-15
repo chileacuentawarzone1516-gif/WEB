@@ -1199,6 +1199,10 @@
 <!-- Versionado de caché: al modificar app.js, calculadora.js o los CSS,
      incrementa ?v= en las 4 referencias para invalidar la caché del
      navegador de inmediato (evita ejecutar JS viejo con HTML nuevo). -->
+<!-- Coordinador de dependencias del arranque. DEBE ir el PRIMERO: el resto
+     de scripts anuncian su disponibilidad a través de él en vez de confiar
+     en el orden en que termine de descargarse cada archivo (defecto C-1). -->
+<script defer src="/boot.js?v=20260914"></script>
 <script defer src="/hero-carousel.js?v=20260904b"></script>
 <script defer src="/media-upload.js?v=20260910b"></script>
 <!-- Normalizador único del campo `media`. DEBE ir antes de app.js y

@@ -64,11 +64,39 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
 ├── netlify/edge-functions/
 │   └── vehicle-og.js           Meta tags OG para bots sociales + 404 real por vehículo
 └── .github/workflows/
-    └── actualizar-sitemap.yml  Cron diario que regenera y commitea el sitemap
+    └── actualizar-sitemap.yml  Cron diario que dispara el Build Hook de Netlify
+                                (secret NETLIFY_SITEMAP_BUILD_HOOK). No escribe en el
+                                repositorio: el sitemap lo regenera el build de Netlify
 ```
 
 ## Reglas de sincronización crítica
 
+- **Moneda: no se convierte NADA.** Cada vehículo se muestra y se cotiza en
+  la moneda en que se publicó. `vehicleCurrency()`, `vehicleAmount()` y
+  `fmtMoney()` (app.js) son el único camino por el que la calculadora, el
+  PDF, el mensaje de WhatsApp, el correo al asesor y el JSON-LD obtienen un
+  importe. `vehicleAmount()` devuelve `null` cuando el importe real no se
+  puede conocer, y quien llama debe **negarse a cotizar** en vez de caer a
+  otro campo.
+  `price` sigue existiendo porque el esquema cerrado de `firestore.rules` lo
+  exige y es el único eje numérico común entre monedas, pero para un
+  vehículo en USD es un **índice interno** derivado de `USD_INDEX_FACTOR`,
+  no un precio: solo lo usan la validación de las Rules y el score de
+  "vehículos similares". No lo muestres, no lo imprimas y no lo envíes.
+  Antes de esta regla el sitio cotizaba en pesos con una tasa fija de 59
+  congelada al publicar, mientras el documento `config/finanzas` que
+  supuestamente la configuraba nunca llegó a existir (HTTP 404). Si algún
+  día se necesita una conversión real, debe llegar con **valor, fecha y
+  fuente**, y mostrarse como referencial — nunca reutilizando este índice.
+- **Dependencias del arranque:** `boot.js` (primer `<script>` del
+  documento) coordina quién está listo. `app.js` señala `firebase-sdk` y
+  `vehicles`; `auth.js` señala `auth-api` y `auth-state`. El catálogo se
+  pinta en cuanto hay datos y **no espera a la sesión**; lo que sí necesita
+  la sesión se declara con `LBBoot.once([...])`. Ninguna compuerta rechaza
+  nunca: un fallo la resuelve con `{ok:false}` para que quien espera se
+  desbloquee. No vuelvas a llamar desde un callback asíncrono de `app.js` a
+  una función definida en `auth.js` sin declarar la dependencia: esa
+  carrera dejaba la web en "Cargando…" de forma permanente.
 - El `slug` se genera UNA vez al crear el vehículo y es inmutable. `slugify()` existe en **app.js**, **scripts/generar-sitemap.js** y **netlify/edge-functions/vehicle-og.js**. Si cambias uno, cambia los tres.
 - La autorización ya no usa un UID fijo: `canManageVehicles()`/`canManageUsers()` en firestore.rules deben coincidir con `ROLE_PERMISSIONS` en roles.js — mismos roles (`customer`/`sales`/`editor`/`admin`) y mismos campos (`role`, `status`) en ambos lados.
 - Si agregas un dominio externo nuevo (CDN, API), añádelo a la CSP en `netlify.toml` o el navegador lo bloqueará.
@@ -162,6 +190,33 @@ firebase deploy --only firestore:rules # publicar reglas de Firestore
 ```
 
 El deploy a producción es automático: push a la rama principal → Netlify build.
+
+## Sitemap automático
+
+`sitemap.xml` se regenera en **cada build de Netlify** (`[build] command` en
+`netlify.toml` ejecuta `node scripts/generar-sitemap.js`, que lee el inventario
+vía la API REST de Firestore y escribe el archivo dentro del directorio
+publicado). Ese es el único punto donde se produce el sitemap de producción.
+
+Para que el sitemap se refresque aunque no haya pushes, el workflow
+`.github/workflows/actualizar-sitemap.yml` lanza un POST diario al **Build Hook
+de Netlify**. El workflow no hace checkout, no ejecuta el generador y no
+commitea nada: corre con `permissions: {}`, sin ningún permiso sobre el
+repositorio.
+
+Configuración (una sola vez):
+
+1. **Netlify** → Site configuration → Build & deploy → Continuous deployment →
+   Build hooks → *Add build hook*. Rama: `main`. Netlify devuelve una URL
+   `https://api.netlify.com/build_hooks/…`.
+2. **GitHub** → Settings → Secrets and variables → Actions → *New repository
+   secret*, con el nombre exacto **`NETLIFY_SITEMAP_BUILD_HOOK`** y esa URL
+   como valor.
+
+Esa URL es una credencial (quien la tenga puede disparar despliegues), por eso
+vive en un secret y el workflow nunca la imprime. Si falta el secret, el
+workflow falla de inmediato con un mensaje explicando qué crear. Si se filtra,
+se borra el hook en Netlify y se crea otro.
 
 ---
 

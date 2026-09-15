@@ -72,7 +72,26 @@ function cargarLogo() {
   return _logoPromise;
 }
 
-const fmtRD = n => 'RD$ ' + Math.round(Number(n) || 0).toLocaleString('es-DO');
+// ============================================================
+// A-1 — El documento se imprime en la MONEDA DEL VEHÍCULO.
+// ------------------------------------------------------------
+// Antes todo el PDF usaba `fmtRD`, que anteponía "RD$" a cualquier
+// importe. Para un vehículo publicado en dólares eso significaba
+// imprimir, en un documento con membrete de la empresa que el cliente
+// puede llevar a un banco, una inicial y una cuota en pesos derivadas de
+// una tasa de cambio congelada, indeterminada y sin fecha.
+//
+// `moneda` llega dentro de `financiamiento`. Si es null (cotización
+// guardada cuyo vehículo ya no está publicado, de modo que su moneda no
+// consta), se imprime el número SIN símbolo: preferimos un importe sin
+// moneda a un importe con la moneda equivocada.
+// ============================================================
+function crearFormateador(moneda) {
+  const n = v => Math.round(Number(v) || 0);
+  if (moneda === 'USD') return v => 'USD$ ' + n(v).toLocaleString('en-US');
+  if (moneda === 'RD') return v => 'RD$ ' + n(v).toLocaleString('es-DO');
+  return v => n(v).toLocaleString('es-DO');
+}
 // ¿Hay un número utilizable? Distingue "0" (válido) de ausente.
 const hayNumero = n => typeof n === 'number' && isFinite(n) && n >= 0;
 const fmtFechaLarga = d => `${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`;
@@ -125,7 +144,7 @@ function dibujarCabecera(doc, { logo, folio, fecha }) {
 }
 
 // Tarjeta del vehículo: nombre, condición y precio de lista.
-function dibujarVehiculo(doc, y, v) {
+function dibujarVehiculo(doc, y, v, fmt) {
   const meta = [v.condicionTexto, v.marca, v.anio].filter(Boolean).join('  ·  ');
   // Altura según lo que realmente haya: una cotización guardada de un
   // vehículo ya despublicado solo conserva el nombre, y una tarjeta con
@@ -139,7 +158,7 @@ function dibujarVehiculo(doc, y, v) {
   // El precio se maqueta primero para reservarle ancho al nombre. Puede
   // faltar al regenerar una cotización guardada de un vehículo que ya
   // no está publicado: en ese caso el bloque simplemente no se dibuja.
-  const precioTexto = v.precioTexto || (hayNumero(v.precio) ? fmtRD(v.precio) : '');
+  const precioTexto = v.precioTexto || (hayNumero(v.precio) ? fmt(v.precio) : '');
   let precioW = 0;
   if (precioTexto) {
     precioW = Math.max(doc.measure(precioTexto, 15, true), doc.measure('PRECIO', 7.5, true)) + 24;
@@ -156,7 +175,7 @@ function dibujarVehiculo(doc, y, v) {
 }
 
 // Banda destacada con la cuota mensual — el dato que el cliente busca.
-function dibujarCuota(doc, y, f) {
+function dibujarCuota(doc, y, f, fmt) {
   const alto = 84;
   doc.roundedRect(M.left, y, CONTENT_W, alto, 12, { fill: BRAND.navy });
   // Filete lateral de acento, coherente con las tarjetas del sitio.
@@ -164,8 +183,8 @@ function dibujarCuota(doc, y, f) {
 
   const px = M.left + 22;
   doc.text('CUOTA MENSUAL ESTIMADA', px, y + 24, { size: 8, bold: true, color: '#7DD3FC', charSpacing: 0.8 });
-  doc.text(fmtRD(f.cuota), px, y + 56, { size: 26, bold: true, color: BRAND.white });
-  doc.text('/ mes', px + doc.measure(fmtRD(f.cuota), 26, true) + 8, y + 56, { size: 11, color: '#9FB4CC' });
+  doc.text(fmt(f.cuota), px, y + 56, { size: 26, bold: true, color: BRAND.white });
+  doc.text('/ mes', px + doc.measure(fmt(f.cuota), 26, true) + 8, y + 56, { size: 11, color: '#9FB4CC' });
   doc.text(`Institución: ${f.institucion || 'Por confirmar con el asesor'}`, px, y + 72,
     { size: 8.5, color: '#9FB4CC', maxWidth: CONTENT_W * 0.55 });
 
@@ -282,6 +301,9 @@ export async function generarCotizacionPDF(datos) {
   const v = datos.vehiculo || {};
   const f = datos.financiamiento || {};
   const s = datos.solicitante;
+  // A-1: un único formateador para todo el documento, atado a la moneda
+  // real de la cotización. Nada aquí convierte importes.
+  const fmt = crearFormateador(f.moneda);
 
   // Totales derivados: aportan el valor real de una cotización formal
   // (cuánto se paga de más y cuánto cuesta el vehículo al final). Solo
@@ -305,8 +327,8 @@ export async function generarCotizacionPDF(datos) {
   dibujarCabecera(doc, { logo, folio, fecha });
 
   let y = 146;
-  y += dibujarVehiculo(doc, y, v) + 14;
-  y += dibujarCuota(doc, y, f) + 22;
+  y += dibujarVehiculo(doc, y, v, fmt) + 14;
+  y += dibujarCuota(doc, y, f, fmt) + 22;
   y += dibujarTituloSeccion(doc, y, 'Detalle del financiamiento') + 6;
 
   // Una fila por dato disponible: las que no se conocen no se inventan
@@ -315,15 +337,15 @@ export async function generarCotizacionPDF(datos) {
   const fila = (label, valor, destacada) => { if (valor !== null && valor !== undefined && valor !== '') filas.push({ label, valor, destacada }); };
   fila('Institución financiera', f.institucion);
   fila('Tipo de vehículo', f.tipo ? (f.tipo === 'usado' ? 'Usado / Seminuevo' : 'Nuevo / 0 km') : '');
-  fila('Precio del vehículo', v.precioTexto || (hayNumero(v.precio) ? fmtRD(v.precio) : ''));
+  fila('Precio del vehículo', v.precioTexto || (hayNumero(v.precio) ? fmt(v.precio) : ''));
   fila(hayNumero(f.inicialPct) ? `Inicial (${f.inicialPct}%)` : 'Inicial',
-       hayNumero(f.montoInicial) ? fmtRD(f.montoInicial) : '');
-  fila('Monto a financiar', hayFinanciado ? fmtRD(f.montoFinanciado) : '');
+       hayNumero(f.montoInicial) ? fmt(f.montoInicial) : '');
+  fila('Monto a financiar', hayFinanciado ? fmt(f.montoFinanciado) : '');
   fila('Plazo del financiamiento', `${f.plazo} meses`);
   fila('Tasa anual estimada', hayNumero(f.tasaAnual) ? `${f.tasaAnual.toFixed(2)} %` : '');
-  fila('Cuota mensual estimada', `${fmtRD(f.cuota)} / mes`, true);
-  fila('Total de intereses estimados', totalIntereses === null ? '' : fmtRD(totalIntereses));
-  fila('Total a pagar (inicial + cuotas)', totalPagar === null ? '' : fmtRD(totalPagar), true);
+  fila('Cuota mensual estimada', `${fmt(f.cuota)} / mes`, true);
+  fila('Total de intereses estimados', totalIntereses === null ? '' : fmt(totalIntereses));
+  fila('Total a pagar (inicial + cuotas)', totalPagar === null ? '' : fmt(totalPagar), true);
   y += dibujarTabla(doc, y, filas) + 16;
 
   if (s && (s.nombre || s.telefono)) {

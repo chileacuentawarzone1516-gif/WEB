@@ -461,10 +461,23 @@ const ADMIN_EMAIL_WHITELIST = Object.freeze([
 // Falla en silencio y de forma segura (fail-closed): si Firestore
 // rechaza el intento (por ejemplo, si la whitelist del servidor no
 // coincide con esta), el usuario simplemente sigue como estaba.
-async function maybePromoteToAdmin(profile, uid) {
+async function maybePromoteToAdmin(profile, user) {
   if (!profile || !profile.email || profile.role === ROLES.ADMIN) return profile;
+  const uid = user && user.uid;
+  if (!uid) return profile;
   const email = profile.email.toLowerCase().trim();
   if (!ADMIN_EMAIL_WHITELIST.includes(email)) return profile;
+  // A-2: el correo debe estar VERIFICADO. Firebase Auth no comprueba la
+  // propiedad del buzón al registrarse con correo y contraseña, así que
+  // sin esta condición bastaba con crear una cuenta usando una de las
+  // direcciones de la whitelist para quedarse con el rol admin.
+  // firestore.rules impone lo mismo del lado del servidor (que es donde
+  // de verdad se decide); esta comprobación evita además una escritura
+  // condenada al rechazo y el error de consola que la acompañaba.
+  if (!user.emailVerified) {
+    console.warn('Promoción a admin no solicitada: el correo de la whitelist aún no está verificado.');
+    return profile;
+  }
   try {
     await db.collection('users').doc(uid).update({ role: ROLES.ADMIN });
     countFirestoreOp('write');
@@ -479,6 +492,17 @@ async function maybePromoteToAdmin(profile, uid) {
 function initAuth() {
   if (authState.initialized) return;
   authState.initialized = true;
+
+  // C-1: sin SDK no hay sesión posible. Se resuelve la compuerta como
+  // fallida —no se deja pendiente— para que quien la espera (app.js)
+  // se desbloquee y siga su camino en vez de quedarse colgado.
+  if (typeof firebase === 'undefined' || typeof firebase.auth !== 'function') {
+    console.error('Firebase Auth no está disponible: la sesión queda deshabilitada.');
+    authState.ready = true;
+    if (window.LBBoot) window.LBBoot.fail('auth-state', new Error('SDK de Firebase Auth no disponible'));
+    notifyAuthListeners();
+    return;
+  }
 
   _authUnsubscribe = firebase.auth().onAuthStateChanged(async (user) => {
     // Evita una lectura redundante a Firestore: si registerUser()/
@@ -499,12 +523,16 @@ function initAuth() {
       // correo, login con Google, y sesión persistente al recargar,
       // sin duplicar esta lógica en cada función de login por separado.
       if (authState.profile) {
-        authState.profile = await maybePromoteToAdmin(authState.profile, user.uid);
+        authState.profile = await maybePromoteToAdmin(authState.profile, user);
       }
     } else {
       authState.profile = null;
     }
     authState.ready = true;
+    // C-1: primera resolución real de la sesión (con o sin usuario).
+    // LBBoot ignora las siguientes, así que esto marca exactamente el
+    // momento en que la API de auth deja de ser una incógnita.
+    if (window.LBBoot) window.LBBoot.signal('auth-state', { autenticado: !!user });
     notifyAuthListeners();
   });
 }
@@ -746,4 +774,26 @@ async function getPreferences() {
   }
 }
 
-initAuth();
+// ============================================================
+// C-1 — ANUNCIO DE DEPENDENCIAS
+// ------------------------------------------------------------
+// `auth-api` se señala AQUÍ, después de que todas las funciones
+// públicas de este archivo estén declaradas y ANTES de arrancar la
+// sesión: quien solo necesite saber que getCurrentUser() ya existe no
+// tiene por qué esperar a que Firebase resuelva la sesión.
+//
+// initAuth() va dentro de try/catch porque si el SDK falló al
+// inicializarse (App Check, red, bloqueador de anuncios) lanzaba una
+// excepción no capturada al evaluar este archivo. Eso no debe dejar
+// ninguna compuerta pendiente.
+// ============================================================
+if (window.LBBoot) window.LBBoot.signal('auth-api');
+
+try {
+  initAuth();
+} catch (e) {
+  console.error('No se pudo inicializar Firebase Auth:', e);
+  authState.ready = true;
+  if (window.LBBoot) window.LBBoot.fail('auth-state', e);
+  notifyAuthListeners();
+}

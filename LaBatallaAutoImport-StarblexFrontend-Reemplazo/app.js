@@ -19,7 +19,38 @@ let vehicles = [];
 let db = null;
 let fbReady = false;
 const STORAGE_KEY = 'labatalla_vehicles_v3';
-let USD_TO_RD_RATE = 59; // valor de respaldo si Firestore no responde
+// ============================================================
+// A-1 — ÍNDICE DE COMPARACIÓN, NO TASA DE CAMBIO
+// ------------------------------------------------------------
+// Aquí vivía `USD_TO_RD_RATE = 59`, presentado como "tasa de cambio
+// configurable". No lo era: el documento `config/finanzas` que debía
+// sobrescribirla NUNCA existió en producción (comprobado: HTTP 404), así
+// que el 59 se aplicaba siempre, se congelaba en el documento al publicar
+// y de ahí salían la cuota, el PDF, el mensaje de WhatsApp y el correo al
+// asesor. El sitio afirmaba importes en pesos con una tasa indeterminada
+// y sin fecha.
+//
+// Ese uso se ha ELIMINADO: ningún importe que ve una persona se deriva ya
+// de una conversión. Cada vehículo se muestra y se cotiza en SU moneda.
+//
+// Este factor sobrevive con un propósito distinto y mucho más pequeño:
+// `price` es un campo OBLIGATORIO del esquema cerrado de firestore.rules
+// (`d.price is number && d.price > 0`) y es el único eje numérico común
+// para comparar vehículos publicados en monedas distintas. Se usa en
+// exactamente dos sitios, ninguno visible:
+//   1. la validación de las Rules;
+//   2. el score de proximidad de "vehículos similares".
+// No se muestra, no se imprime, no se envía y no se cotiza.
+//
+// Por eso es una constante y no un valor configurable: cambiarlo no
+// debe poder alterar ningún importe: solo reordenaría "similares".
+// Si algún día hace falta convertir de verdad, la conversión debe
+// llegar con valor + fecha + fuente y mostrarse como tal — no
+// reutilizando esta constante.
+const USD_INDEX_FACTOR = 59;
+// Monedas admitidas por el formulario de publicación.
+const CURRENCY_RD = 'RD';
+const CURRENCY_USD = 'USD';
 // El estado de admin depende del usuario autenticado en Firebase Auth Y de que
 // su UID coincida exactamente con el admin autorizado (debe ser igual al UID
 // usado en las Firestore Security Rules). Así, aunque alguien más se registre
@@ -29,7 +60,14 @@ let USD_TO_RD_RATE = 59; // valor de respaldo si Firestore no responde
 // PERMISSIONS/STATUS están definidos en roles.js, cargado antes que este
 // archivo; getCurrentUser() vive en auth.js y solo se invoca dentro de
 // callbacks que corren tras la carga completa de todos los scripts.
+// C-1: última línea de defensa. `getCurrentUser` vive en auth.js, que se
+// carga DESPUÉS de este archivo; si alguien vuelve a llamar aquí desde un
+// callback asíncrono que gane la carrera, la respuesta correcta es "no
+// puede gestionar" (fail-closed), nunca una excepción que tumbe a quien
+// llamó. La dependencia ordenada se declara con LBBoot; esto solo evita
+// que un descuido futuro vuelva a ser un fallo total.
 function canManageVehicles() {
+  if (typeof getCurrentUser !== 'function') return false;
   const { profile } = getCurrentUser();
   return !!profile && profile.status === STATUS.ACTIVE && hasPermission(profile.role, PERMISSIONS.MANAGE_VEHICLES);
 }
@@ -74,27 +112,34 @@ function initLocalMode() {
   }
   if (Array.isArray(cached) && cached.length > 0) {
     vehicles = cached;
-    const overlay = document.getElementById('loading-overlay');
-    if (overlay) overlay.style.display = 'none';
-    renderSections();
-    if (window.lucide) lucide.createIcons();
+    LBBoot.signal('vehicles', { origen: 'cache', total: vehicles.length });
+    paintInventory();
     return;
   }
 
-  if (!isDevEnvironment()) { showDataLoadError(); return; }
+  if (!isDevEnvironment()) {
+    LBBoot.fail('vehicles', new Error('Sin datos: ni Firestore ni caché local'));
+    showDataLoadError();
+    return;
+  }
 
   const script = document.createElement('script');
   script.src = '/vehicles-demo.js';
   script.onload = () => {
     vehicles = JSON.parse(JSON.stringify(window.DEFAULT_VEHICLES || []));
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles)); } catch(e) {}
-    if (vehicles.length === 0) { showDataLoadError(); return; }
-    const overlay = document.getElementById('loading-overlay');
-    if (overlay) overlay.style.display = 'none';
-    renderSections();
-    if (window.lucide) lucide.createIcons();
+    if (vehicles.length === 0) {
+      LBBoot.fail('vehicles', new Error('vehicles-demo.js no aportó datos'));
+      showDataLoadError();
+      return;
+    }
+    LBBoot.signal('vehicles', { origen: 'demo', total: vehicles.length });
+    paintInventory();
   };
-  script.onerror = () => showDataLoadError();
+  script.onerror = () => {
+    LBBoot.fail('vehicles', new Error('No se pudo cargar vehicles-demo.js'));
+    showDataLoadError();
+  };
   document.head.appendChild(script);
 }
 // ————— Estado vacío explícito (reemplaza el auto-seed) —————
@@ -321,10 +366,41 @@ async function deleteVehicleDB(id) {
     return { success: false, error: e };
   }
 }
+// ============================================================
+// PINTADO DEL INVENTARIO — punto ÚNICO por el que pasa todo render
+// del catálogo, venga de Firestore o del respaldo local.
+// ------------------------------------------------------------
+// C-1: la capa de carga se retira en `finally`, SIEMPRE, aunque el
+// render lance. Antes, cualquier excepción anterior a esa línea dejaba
+// al visitante mirando "Cargando…" sin salida. Ahora el peor caso es
+// una página vacía con el error en consola, nunca una pantalla
+// bloqueada. `paintInventory` no depende de auth: el catálogo es
+// contenido público y no puede quedar condicionado a que la sesión se
+// haya resuelto.
+// ============================================================
+function hideLoadingOverlay() {
+  const overlay = document.getElementById('loading-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+function paintInventory() {
+  try {
+    if (vehicles.length === 0) {
+      renderEmptyInventoryState();
+    } else {
+      renderSections();
+    }
+    if (window.lucide) lucide.createIcons();
+  } catch (e) {
+    console.error('Error pintando el inventario:', e);
+  } finally {
+    hideLoadingOverlay();
+  }
+}
 // ————— Inicializar Firebase —————
 function initFirebase() {
   try {
     if (typeof firebase === 'undefined') {
+      LBBoot.fail('firebase-sdk', new Error('El SDK de Firebase no se pudo cargar'));
       initLocalMode();
       return;
     }
@@ -340,16 +416,14 @@ function initFirebase() {
     }
     db = firebase.firestore();
     fbReady = true;
-    // Tasa de cambio USD→RD$ configurable — editable por el admin sin
-    // tocar código. Requiere la regla `match /config/{docId}` de
-    // firestore.rules (lectura pública, escritura solo admin): sin ella
-    // esta lectura devuelve permission-denied, el catch la silencia y la
-    // tasa se queda en el valor de respaldo de arriba para siempre.
-    db.collection('config').doc('finanzas').get().then(doc => {
-      if (doc.exists && typeof doc.data().tasaUsdRd === 'number') {
-        USD_TO_RD_RATE = doc.data().tasaUsdRd;
-      }
-    }).catch(() => { /* se mantiene el valor de respaldo */ });
+    LBBoot.signal('firebase-sdk');
+    // A-1: aquí se leía `config/finanzas` para sobrescribir una tasa
+    // USD→RD$ con la que se calculaban cuotas, PDF y mensajes. Esa
+    // lectura se ha eliminado junto con la conversión: ver el bloque
+    // PRECIO Y MONEDA más arriba. Comprobado contra el proyecto real:
+    // el documento nunca existió (HTTP 404), así que la lectura solo
+    // gastaba una petición por visita y sostenía la ilusión de que la
+    // tasa era configurable.
     // Vigilante de carga: si Firestore no entrega el primer snapshot (canal
     // bloqueado, App Check sin resolver, red caída), sin esto el visitante se
     // queda mirando "Cargando La Batalla Auto Import…" indefinidamente —
@@ -363,23 +437,29 @@ function initFirebase() {
         initLocalMode();
       }
     }, 12000);
+    // C-1: el callback ya NO llama a nada definido en auth.js. Solo hace
+    // dos cosas —leer los datos y pintarlos— y ambas dependen únicamente
+    // de este archivo. El trabajo que sí necesita la sesión (backfill de
+    // slugs) se declara como dependencia explícita más abajo, con
+    // LBBoot.once(['auth-state','vehicles']).
     db.collection('vehicles').onSnapshot((snap) => {
+      let fromDB;
+      try {
+        fromDB = snap.docs.map(d => {
+          const { _deleted, ...rest } = d.data();
+          return { ...rest, id: d.id };
+        });
+      } catch (e) {
+        // Snapshot ilegible: NO se marca como recibido ni se desarma el
+        // vigilante, para que el respaldo local siga pudiendo actuar.
+        console.error('No se pudo leer el snapshot de Firestore:', e);
+        return;
+      }
       firstSnapshotArrived = true;
       clearTimeout(loadWatchdog);
-      const fromDB = snap.docs.map(d => {
-        const { _deleted, ...rest } = d.data();
-        return { ...rest, id: d.id };
-      });
       vehicles = fromDB;
-      if (canManageVehicles()) backfillSlugs(); // segundo disparador: cubre el caso en que el inventario llega antes de que se resuelva la sesión
-      const overlay = document.getElementById('loading-overlay');
-      if (overlay) overlay.style.display = 'none';
-      if (vehicles.length === 0) {
-        renderEmptyInventoryState();
-      } else {
-        renderSections();
-      }
-      if (window.lucide) lucide.createIcons();
+      LBBoot.signal('vehicles', { origen: 'firestore', total: vehicles.length });
+      paintInventory();
     }, (err) => {
       firstSnapshotArrived = true;
       clearTimeout(loadWatchdog);
@@ -388,9 +468,24 @@ function initFirebase() {
     });
   } catch(e) {
     console.error('Firebase init error:', e);
+    LBBoot.fail('firebase-sdk', e);
     try { initLocalMode(); } catch(e2) { showDataLoadError(); }
   }
 }
+
+// ============================================================
+// C-1 — DEPENDENCIAS EXPLÍCITAS DEL ARRANQUE
+// ------------------------------------------------------------
+// Lo que necesita la sesión espera a la sesión; lo que no, no espera.
+// `auth-state` la resuelve auth.js en su primer onAuthStateChanged, y
+// la resuelve como FALLIDA si Firebase Auth no está disponible — así
+// este consumidor siempre se desbloquea y nunca queda pendiente.
+// Si auth.js no llegara a ejecutarse nunca, esta rama simplemente no
+// corre: el catálogo ya se pintó por su cuenta, que es lo que importa.
+// ============================================================
+LBBoot.once(['auth-state', 'vehicles'], () => {
+  if (typeof canManageVehicles === 'function' && canManageVehicles()) backfillSlugs();
+});
 // El arranque (initFirebase) NO se invoca aquí: vive al FINAL de este
 // archivo. Motivo (defecto real corregido en esta auditoría): app.js se
 // carga con `defer`, así que al llegar a esta línea document.readyState ya
@@ -440,7 +535,56 @@ function stripStaleRdConversion(display) {
 }
 function fmtPrice(p, v) {
   if (v && v.priceDisplay) return stripStaleRdConversion(v.priceDisplay);
+  // A-1: un vehículo marcado USD sin `priceDisplay` caía aquí y se
+  // pintaba como "RD$ <price>", es decir, el índice interno presentado
+  // como precio — exactamente lo que este cambio elimina. Ahora se
+  // muestra en su moneda real y, si el importe no consta, se dice.
+  if (v && vehicleCurrency(v) === CURRENCY_USD) {
+    const usd = vehicleAmount(v);
+    return usd === null ? 'Precio a consultar' : fmtMoney(usd, CURRENCY_USD);
+  }
   return 'RD$ ' + Number(p).toLocaleString('es-DO');
+}
+
+// ============================================================
+// A-1 — MONEDA REAL DE UN VEHÍCULO
+// ------------------------------------------------------------
+// Estas tres funciones son el ÚNICO camino por el que la calculadora, el
+// PDF, WhatsApp, el correo al asesor y los datos estructurados obtienen
+// un importe. Todas devuelven la moneda en la que el vehículo se publicó
+// de verdad; ninguna convierte nada.
+// ============================================================
+
+/** 'USD' | 'RD'. Un vehículo sin `currency` es de antes del selector: RD$. */
+function vehicleCurrency(v) {
+  return (v && v.currency === CURRENCY_USD) ? CURRENCY_USD : CURRENCY_RD;
+}
+
+/**
+ * Importe del vehículo EN SU PROPIA MONEDA, o null si no se puede saber.
+ *
+ * El null es deliberado y no debe "arreglarse" con un respaldo: un
+ * vehículo marcado como USD cuyo `priceUSD` falte o sea inválido no
+ * tiene precio conocido en dólares, y `price` es un índice interno, no
+ * su precio. Devolver `price` ahí sería justamente inventar la cifra
+ * que este cambio elimina. Quien llama debe negarse a cotizar.
+ */
+function vehicleAmount(v) {
+  if (!v) return null;
+  if (vehicleCurrency(v) === CURRENCY_USD) {
+    const usd = Number(v.priceUSD);
+    return Number.isFinite(usd) && usd > 0 ? usd : null;
+  }
+  const rd = Number(v.price);
+  return Number.isFinite(rd) && rd > 0 ? rd : null;
+}
+
+/** Formatea un importe en la moneda indicada. Sin conversiones. */
+function fmtMoney(amount, currency) {
+  const n = Math.round(Number(amount) || 0);
+  return currency === CURRENCY_USD
+    ? 'USD$ ' + n.toLocaleString('en-US')
+    : 'RD$ ' + n.toLocaleString('es-DO');
 }
 
 // ============================================================
@@ -667,17 +811,42 @@ function injectVehicleJsonLd(v) {
   document.getElementById('vehicle-jsonld')?.remove();
   const img = getVehicleCover(v, '');
   const keywords = Array.isArray(v.seoTags) ? v.seoTags : [];
+  // ============================================================
+  // A-5 — El precio estructurado debe ser EL MISMO que el visible.
+  // ------------------------------------------------------------
+  // Antes se declaraba siempre `price: v.price` con `priceCurrency: "DOP"`,
+  // incluso en las fichas que muestran "USD$ 32,900": Google recibía
+  // 1941100 DOP (el índice interno derivado de la tasa congelada) para una
+  // página que anuncia dólares. Eso contradice el contenido visible y pone
+  // en riesgo los resultados enriquecidos.
+  //
+  // Ahora la moneda y el importe salen del mismo sitio que la interfaz.
+  // Si el importe no se puede determinar, se OMITE la oferta entera: es
+  // preferible un Vehicle sin precio a un precio que no es el real.
+  // ============================================================
+  const amount = vehicleAmount(v);
+  const currency = vehicleCurrency(v);
+  const offers = amount === null ? undefined : {
+    "@type": "Offer",
+    "price": amount,
+    "priceCurrency": currency === CURRENCY_USD ? 'USD' : 'DOP',
+    "availability": "https://schema.org/InStock",
+    "url": getVehicleUrl(v),
+    "itemCondition": v.condition === 'nuevo' ? "https://schema.org/NewCondition" : "https://schema.org/UsedCondition",
+    "seller": { "@type": "AutoDealer", "name": "La Batalla Auto Import" }
+  };
+  // `mileage` se guarda como texto ("90,000"); schema.org espera un número
+  // en QuantitativeValue.value, así que se normaliza en vez de emitir la
+  // cadena con separadores, que Google descarta.
+  const kms = Number(String(v.mileage == null ? '' : v.mileage).replace(/[^\d.]/g, ''));
   const data = {
     "@context": "https://schema.org", "@type": "Vehicle", "name": v.name,
     "url": getVehicleUrl(v),
     "brand": v.brand || undefined, "vehicleModelDate": v.year || undefined,
-    "mileageFromOdometer": v.mileage ? { "@type": "QuantitativeValue", "value": v.mileage, "unitCode": "KMT" } : undefined,
+    "mileageFromOdometer": Number.isFinite(kms) && kms > 0 ? { "@type": "QuantitativeValue", "value": kms, "unitCode": "KMT" } : undefined,
     "color": v.color || undefined, "vehicleTransmission": v.transmission || undefined,
     "image": img || undefined, "keywords": keywords.length ? keywords.join(', ') : undefined,
-    "offers": { "@type": "Offer", "price": v.price, "priceCurrency": "DOP", "availability": "https://schema.org/InStock",
-      "url": getVehicleUrl(v),
-      "itemCondition": v.condition === 'nuevo' ? "https://schema.org/NewCondition" : "https://schema.org/UsedCondition",
-      "seller": { "@type": "AutoDealer", "name": "La Batalla Auto Import" } }
+    "offers": offers
   };
   const script = document.createElement('script');
   script.type = 'application/ld+json'; script.id = 'vehicle-jsonld'; script.textContent = JSON.stringify(data);
@@ -1214,7 +1383,7 @@ function unlockBodyScroll() {
 window.LB_SCROLL_LOCK = { lock: lockBodyScroll, unlock: unlockBodyScroll };
 
 function updateAdminUI() {
-  const { profile } = getCurrentUser();
+  const { profile } = typeof getCurrentUser === 'function' ? getCurrentUser() : {};
   const canManage = canManageVehicles();
   const badge = document.getElementById('admin-badge');
   const badgeLabel = document.getElementById('admin-badge-label');
@@ -1920,8 +2089,6 @@ function openPublishModal(vehicle) {
     LBMediaModel.galleryList(vehicle).forEach(m => {
       pendingFiles.push({ file: null, localUrl: m.src, type: m.type, cloudUrl: m.src, error: null });
     });
-    renderImgPreview();
-    updateImgLabel();
   } else {
     title.textContent = 'Publicar Vehículo';
     document.getElementById('pub-edit-id').value = '';
@@ -1942,6 +2109,26 @@ function openPublishModal(vehicle) {
     document.getElementById('pub-tag-unicodueno').checked = false;
     document.getElementById('pub-tag-importado').checked = false;
   }
+  // ============================================================
+  // A-3 — El estado de las fotos se reconstruye SIEMPRE, en los dos
+  // caminos, desde `pendingFiles` (que se acaba de vaciar arriba).
+  // ------------------------------------------------------------
+  // Antes estas dos llamadas vivían solo dentro de la rama de EDICIÓN.
+  // updateImgLabel() pone `input.disabled = true` y
+  // `pointer-events:none` al llegar a MAX_IMAGES, y nadie deshacía eso
+  // al abrir el modal para un vehículo nuevo: tras editar uno con 10
+  // fotos, el formulario de publicación quedaba sin poder adjuntar
+  // ninguna, diciendo además que se había alcanzado un límite que no se
+  // había alcanzado. Solo se recuperaba recargando la página.
+  //
+  // Sacarlas del if/else es la corrección: el estado visible del
+  // selector de fotos pasa a derivarse siempre de los datos, nunca de
+  // lo que quedó de la vez anterior. renderImgPreview() ya llama a
+  // updateImgLabel() al terminar, pero se deja explícito porque es
+  // justamente la llamada cuya ausencia causaba el defecto.
+  // ============================================================
+  renderImgPreview();
+  updateImgLabel();
   // Solo bloquea si venía cerrado: openPublishModal() puede llamarse
   // sobre un modal ya abierto (editar otro vehículo) y el contador no
   // debe descuadrarse.
@@ -2299,7 +2486,13 @@ document.getElementById('media-fail-copy').addEventListener('click', async () =>
 function readPublishForm() {
   const priceRaw = parseAmount(document.getElementById('pub-price').value);
   const currency = document.getElementById('pub-currency').value; // 'RD' o 'USD'
-  const price = currency === 'USD' ? Math.round(priceRaw * USD_TO_RD_RATE) : Math.round(priceRaw);
+  // A-1: `price` sigue escribiéndose porque el esquema cerrado de
+  // firestore.rules lo exige y es el único eje común para comparar
+  // vehículos de distinta moneda. Ya NO es un precio mostrable: para un
+  // vehículo en USD es un índice derivado de USD_INDEX_FACTOR, y ninguna
+  // vista, documento ni mensaje lo presenta como dinero (ver
+  // vehicleAmount / fmtMoney).
+  const price = currency === 'USD' ? Math.round(priceRaw * USD_INDEX_FACTOR) : Math.round(priceRaw);
   const priceUSD = currency === 'USD' ? priceRaw : null;
   // Sin la conversión a RD$ entre paréntesis: se congelaba aquí para
   // siempre y acababa mostrando una tasa vieja como si fuera actual
@@ -3104,6 +3297,13 @@ window.addEventListener('DOMContentLoaded', () => {
   // Única fuente de reactividad para permisos de gestión: se actualiza
   // sola si el role/status cambia o la sesión termina.
   let _lastFavSyncUid = null;
+  // C-1: si auth.js no llegó a ejecutarse (SDK bloqueado), `onUserChanged`
+  // no existe. El resto del arranque no puede caerse por eso: sin sesión
+  // simplemente no hay UI de administración que actualizar.
+  if (typeof onUserChanged !== 'function') {
+    console.warn('auth.js no está disponible: la web funciona en modo solo lectura.');
+    return;
+  }
   onUserChanged(({ user } = {}) => {
     updateAdminUI();
     if (canManageVehicles()) backfillSlugs();

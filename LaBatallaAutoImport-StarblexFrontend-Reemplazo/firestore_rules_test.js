@@ -27,7 +27,13 @@ async function run(name, fn) {
 // Las reglas exigen que users/{uid}.email == request.auth.token.email, así
 // que todo contexto autenticado debe declarar el correo de su token — es lo
 // que hace Firebase Auth de verdad.
-const como = (uid, email) => testEnv.authenticatedContext(uid, email ? { email } : undefined).firestore();
+// `email_verified: true` por defecto porque es lo que trae el token de una
+// cuenta normal en uso. A-2 añadió esa condición a la promoción a admin, así
+// que la distinción ahora importa: `comoSinVerificar()` modela el caso
+// contrario —cuenta recién creada cuyo buzón nadie ha confirmado— que es
+// exactamente el vector que la auditoría encontró abierto.
+const como = (uid, email) => testEnv.authenticatedContext(uid, email ? { email, email_verified: true } : undefined).firestore();
+const comoSinVerificar = (uid, email) => testEnv.authenticatedContext(uid, { email, email_verified: false }).firestore();
 const anon = () => testEnv.unauthenticatedContext().firestore();
 
 const perfil = (email, name, role, status) => ({
@@ -106,6 +112,50 @@ async function main() {
     await seedWithoutRules(db => setDoc(doc(db, 'users', 'customer10'), perfil('atacante@test.com', 'Atacante', 'customer', 'active')));
     const db = como('customer10', 'atacante@test.com');
     await assertFails(updateDoc(doc(db, 'users', 'customer10'), { role: 'admin' }));
+  });
+
+  // ============================================================
+  // A-2 — El correo de la whitelist debe estar VERIFICADO.
+  // ------------------------------------------------------------
+  // Firebase Auth deja registrar cualquier dirección con correo y
+  // contraseña sin comprobar que el buzón sea tuyo. Sin la condición
+  // `email_verified`, la whitelist solo probaba que alguien había
+  // ESCRITO esa dirección, no que la controlara.
+  // ============================================================
+  await run('[A-2] Whitelist con email_verified=false → DENEGADO', async () => {
+    await seedWithoutRules(db => setDoc(doc(db, 'users', 'wlNoVerif'),
+      perfil('manuel15160410@gmail.com', 'Suplantador', 'customer', 'active')));
+    const db = comoSinVerificar('wlNoVerif', 'manuel15160410@gmail.com');
+    await assertFails(updateDoc(doc(db, 'users', 'wlNoVerif'), { role: 'admin' }));
+  });
+
+  await run('[A-2] Whitelist con email_verified=true → permitido (comportamiento esperado)', async () => {
+    await seedWithoutRules(db => setDoc(doc(db, 'users', 'wlVerif'),
+      perfil('jose.10.manuel@hotmail.com', 'Jose', 'customer', 'active')));
+    const db = como('wlVerif', 'jose.10.manuel@hotmail.com');
+    await assertSucceeds(updateDoc(doc(db, 'users', 'wlVerif'), { role: 'admin' }));
+  });
+
+  await run('[A-2] Sin verificar tampoco puede promoverse a editor ni sales → denegado', async () => {
+    await seedWithoutRules(db => setDoc(doc(db, 'users', 'wlNoVerif2'),
+      perfil('manuel15160410@gmail.com', 'Suplantador2', 'customer', 'active')));
+    const db = comoSinVerificar('wlNoVerif2', 'manuel15160410@gmail.com');
+    await assertFails(updateDoc(doc(db, 'users', 'wlNoVerif2'), { role: 'editor' }));
+    await assertFails(updateDoc(doc(db, 'users', 'wlNoVerif2'), { role: 'sales' }));
+  });
+
+  await run('[A-2] Sin verificar, el resto del perfil se sigue pudiendo editar → permitido', async () => {
+    await seedWithoutRules(db => setDoc(doc(db, 'users', 'wlNoVerif3'),
+      perfil('manuel15160410@gmail.com', 'Sin Verificar', 'customer', 'active')));
+    const db = comoSinVerificar('wlNoVerif3', 'manuel15160410@gmail.com');
+    await assertSucceeds(updateDoc(doc(db, 'users', 'wlNoVerif3'), { city: 'Nagua' }));
+  });
+
+  await run('[A-2] Un admin YA promovido conserva su rol aunque edite su perfil → permitido', async () => {
+    await seedWithoutRules(db => setDoc(doc(db, 'users', 'adminYa'),
+      perfil('manuel15160410@gmail.com', 'Manuel', 'admin', 'active')));
+    const db = como('adminYa', 'manuel15160410@gmail.com');
+    await assertSucceeds(updateDoc(doc(db, 'users', 'adminYa'), { city: 'Santo Domingo' }));
   });
 
   await run('Cliente intenta modificar schemaVersion → denegado', async () => {
