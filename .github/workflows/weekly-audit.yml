@@ -1,0 +1,290 @@
+# .github/workflows/weekly-audit.yml
+# Auditoría semanal automática + auto-fix crítico + PR de mejoras
+# Se ejecuta cada lunes 03:00 UTC (domingo 23:00 en República Dominicana)
+# Modelo: qwen2.5-coder:7b-q4_K_M (especialista en código, cabe en 7GB RAM)
+
+name: Weekly Code Audit & Auto-Fix
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'  # Cada lunes 03:00 UTC
+  workflow_dispatch:     # Botón "Run workflow" en Actions
+
+permissions:
+  contents: write        # Para commit/push directo
+  pull-requests: write   # Para crear PR de mejoras
+
+concurrency:
+  group: weekly-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit-and-fix:
+    name: Audit, Fix & Create PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    
+    steps:
+      # ── Checkout ──────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      # ── Start Ollama + pull model ────────────────────────────
+      - name: Start Ollama & pull qwen2.5-coder:7b
+        run: |
+          docker run -d --name ollama -p 11434:11434 ollama/ollama:latest
+          echo "⏳ Esperando a que Ollama inicie..."
+          for i in {1..30}; do
+            curl -sf http://localhost:11434/api/version && break
+            sleep 2
+          done
+          echo "📥 Descargando modelo (≈4.2 GB)..."
+          docker exec ollama ollama pull qwen2.5-coder:7b-q4_K_M
+          echo "✅ Modelo listo"
+
+      # ── Gather all source files ──────────────────────────────
+      - name: Collect source files for audit
+        id: collect
+        run: |
+          # Archivos a auditar (excluye node_modules, dist, .git, images, docs grandes)
+          FILES=$(find . -type f \
+            \( -name "*.js" -o -name "*.html" -o -name "*.css" -o -name "*.toml" -o -name "*.json" -o -name "*.rules" -o -name "*.md" \) \
+            ! -path "./node_modules/*" \
+            ! -path "./.git/*" \
+            ! -path "./dist/*" \
+            ! -path "./build/*" \
+            ! -name "*.png" ! -name "*.jpg" ! -name "*.jpeg" ! -name "*.webp" ! -name "*.ico" ! -name "*.svg" \
+            ! -name "RELEASE_NOTES.md" \
+            | head -80)
+          
+          # Construir contexto
+          CONTEXT=""
+          for f in $FILES; do
+            SIZE=$(wc -c < "$f")
+            if [ "$SIZE" -lt 150000 ]; then  # Salta archivos >150KB (ej: app.js 170KB → se trunca)
+              CONTEXT+="\n=== FILE: $f ===\n$(cat "$f")\n"
+            else
+              CONTEXT+="\n=== FILE: $f (TRUNCADO - ${SIZE} bytes) ===\n$(head -c 100000 "$f")\n... [archivo truncado para caber en contexto] ...\n"
+            fi
+          done
+          
+          # Guardar para siguiente step
+          echo "$CONTEXT" > audit_context.txt
+          echo "context<<EOF" >> $GITHUB_OUTPUT
+          echo "$CONTEXT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "📊 Archivos incluidos: $(echo "$FILES" | wc -l)"
+          echo "📏 Tamaño contexto: $(wc -c < audit_context.txt) bytes"
+
+      # ── Run AI Audit ─────────────────────────────────────────
+      - name: Run AI code audit
+        id: audit
+        env:
+          OLLAMA_HOST: http://localhost:11434
+        run: |
+          # Prompt especializado para TU stack: vanilla JS + Firebase + Netlify + CSS moderno
+          cat > audit_prompt.txt << 'PROMPT_EOF'
+Eres un AUDITOR SENIOR DE CÓDIGO WEB especializado en:
+- JavaScript vanilla (ES2024) sin build tools
+- Firebase Auth/Firestore/App Check (reglas de seguridad críticas)
+- Netlify (redirects, headers, functions, edge)
+- CSS moderno (custom properties, container queries, cascade layers)
+- Accesibilidad WCAG 2.1 AA, SEO técnico, Core Web Vitals
+- Seguridad: XSS, CSRF, inyección, CSP, reglas Firestore
+
+REPO: La Batalla Auto Import — sitio de vehículos en República Dominicana
+STACK: HTML/CSS/JS estático + Firebase + Netlify (sin package.json, sin bundler)
+
+TAREA: Analiza TODO el código provisto. Devuelve SOLO JSON válido (sin markdown, sin texto extra).
+
+FORMATO DE SALIDA EXACTO:
+{
+  "critical": [
+    {"file": "ruta/archivo.js", "line": 42, "issue": "Descripción clara del bug/vulnerabilidad", "fix": "Código corregido COMPLETO del archivo o bloque afectado"}
+  ],
+  "improvements": [
+    {"file": "ruta/archivo.js", "priority": "high|medium|low", "category": "performance|security|a11y|seo|maintainability|modern-js", "suggestion": "Qué mejorar", "code": "Código sugerido (opcional)"}
+  ],
+  "summary": "Resumen ejecutivo en 3 líneas: estado general, hallazgos clave, acción recomendada."
+}
+
+CRITERIOS CRÍTICOS (auto-fix directo al repo):
+- Bugs que rompen funcionalidad (TypeError, ReferenceError, lógica rota)
+- Vulnerabilidades: XSS (innerHTML sin sanitizar), reglas Firestore abiertas, secrets expuestos
+- Errores de sintaxis, imports rotos, CSP violado
+- Accesibilidad bloqueante (falta alt, labels, contraste, focus visible)
+
+MEJORAS (van a PR para revisión humana):
+- Performance: lazy loading, preconnect, bundle size, caching
+- SEO: meta tags, structured data, headings, sitemap
+- Modern JS: optional chaining, nullish coalescing, top-level await
+- CSS: container queries, cascade layers, custom properties, fluid typography
+- Maintainability: DRY, separación de concerns, comentarios JSDoc
+- Seguridad: CSP headers, App Check, reglas Firestore least-privilege
+
+ARCHIVOS CLAVE A REVISAR CON LUPA:
+- app.js (170KB — lógica principal, rendering, estado)
+- auth.js / auth-ui.js (Auth Firebase, manejo de tokens)
+- firestore.rules (¡SEGURIDAD CRÍTICA! — revisa cada regla)
+- netlify.toml (headers, redirects, functions)
+- calculadora.js / cotizacion-pdf.js (lógica financiera, validación)
+- dashboard.js (panel usuario, operaciones sensibles)
+- index.html (SEO, meta, CSP, preloads, structured data)
+- styles.css / tailwind.css / dashboard.css (CSS moderno, a11y)
+- boot.js (coordinador de dependencias)
+- media-model.js / media-upload.js (subida Cloudinary)
+- firebase.json / firestore.rules (config + seguridad)
+
+NO INVENTES ARCHIVOS. Si no ves el archivo en el contexto, no lo menciones.
+PROMPT_EOF
+
+          # Llamada a Ollama con formato JSON forzado
+          RESPONSE=$(curl -s -X POST http://localhost:11434/api/generate \
+            -H "Content-Type: application/json" \
+            -d @- <<EOF
+{
+  "model": "qwen2.5-coder:7b-q4_K_M",
+  "prompt": "$(cat audit_prompt.txt)\n\n=== CONTEXTO COMPLETO DEL REPO ===\n${{ steps.collect.outputs.context }}",
+  "stream": false,
+  "format": "json",
+  "options": {
+    "temperature": 0.1,
+    "top_p": 0.9,
+    "num_ctx": 32768,
+    "num_predict": 8192
+  }
+}
+EOF
+          )
+
+          echo "$RESPONSE" | jq -r '.response' > audit_result.json
+          
+          # Validar JSON
+          if ! jq empty audit_result.json 2>/dev/null; then
+            echo "❌ Respuesta no es JSON válido"
+            echo "--- Primeros 500 chars ---"
+            head -c 500 audit_result.json
+            echo ""
+            exit 1
+          fi
+          
+          # Extraer resumen para PR
+          SUMMARY=$(jq -r '.summary' audit_result.json)
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Contar críticos
+          CRIT_COUNT=$(jq '.critical | length' audit_result.json)
+          IMP_COUNT=$(jq '.improvements | length' audit_result.json)
+          echo "🔴 Críticos: $CRIT_COUNT | 🟡 Mejoras: $IMP_COUNT"
+          echo "📋 Resumen: $SUMMARY"
+
+      # ── Apply Critical Fixes (direct commit) ─────────────────
+      - name: Apply critical fixes
+        if: always()
+        run: |
+          if [ ! -f audit_result.json ]; then
+            echo "⚠️ No hay audit_result.json"
+            exit 0
+          fi
+          
+          CRITICAL=$(jq -c '.critical[]' audit_result.json)
+          if [ -z "$CRITICAL" ]; then
+            echo "✅ No hay fixes críticos que aplicar"
+            exit 0
+          fi
+          
+          echo "$CRITICAL" | while IFS= read -r issue; do
+            FILE=$(echo "$issue" | jq -r '.file')
+            FIX=$(echo "$issue" | jq -r '.fix')
+            ISSUE_DESC=$(echo "$issue" | jq -r '.issue')
+            
+            if [ ! -f "$FILE" ]; then
+              echo "⚠️ Archivo no existe: $FILE (saltando)"
+              continue
+            fi
+            
+            echo "🔧 Aplicando fix crítico en $FILE: $ISSUE_DESC"
+            
+            # Backup
+            cp "$FILE" "$FILE.bak"
+            
+            # Aplicar fix (el modelo debe devolver el archivo COMPLETO o bloque exacto)
+            echo "$FIX" > "$FILE"
+            
+            # Verificar que no rompimos sintaxis básica (para .js)
+            if [[ "$FILE" == *.js ]]; then
+              if ! node --check "$FILE" 2>/dev/null; then
+                echo "❌ Fix rompió sintaxis JS — restaurando backup"
+                mv "$FILE.bak" "$FILE"
+              else
+                rm "$FILE.bak"
+                echo "✅ Fix aplicado y verificado"
+              fi
+            else
+              rm "$FILE.bak"
+              echo "✅ Fix aplicado"
+            fi
+          done
+
+      # ── Commit & Push Critical Fixes ─────────────────────────
+      - name: Commit & push critical fixes
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          if ! git diff --quiet; then
+            git add -A
+            git commit -m "🤖 Auto-fix: critical issues from weekly audit $(date +%Y-%m-%d)
+            
+            Fixes aplicados automáticamente por qwen2.5-coder:7b-q4_K_M.
+            Revisar cambios antes de deploy a producción."
+            git push
+            echo "✅ Fixes críticos committed & pushed"
+          else
+            echo "ℹ️ No hay cambios críticos para commitear"
+          fi
+
+      # ── Create Improvement PR ────────────────────────────────
+      - name: Create Pull Request with improvements
+        if: always()
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: audit/improvements-${{ github.run_id }}
+          title: "📈 Weekly Audit Improvements — $(date +%Y-%m-%d)"
+          body: |
+            ## 📋 Mejoras sugeridas por auditoría automática semanal
+            
+            **Modelo:** qwen2.5-coder:7b-q4_K_M  
+            **Fecha:** $(date -u +"%Y-%m-%d %H:%M UTC")  
+            **Commit:** ${{ github.sha }}
+            
+            ### Resumen ejecutivo
+            ${{ steps.audit.outputs.summary }}
+            
+            ### Cambios propuestos
+            Los commits en esta PR contienen mejoras no críticas (performance, SEO, a11y, modern JS, CSS, maintainabilidad, seguridad defensiva).
+            
+            **⚠️ Revisa cada commit antes de mergear.** Las mejoras son sugerencias; valida que no rompan tu UX ni lógica de negocio.
+            
+            ### Cómo revisar
+            1. Revisa la pestaña "Files changed"
+            2. Ejecuta localmente: `git fetch origin audit/improvements-${{ github.run_id }} && git checkout FETCH_HEAD`
+            3. Abre `index.html` en navegador o `npx serve .` para test visual
+            4. Aprueba y mergea los commits que quieras
+          labels: audit, improvements, automated
+          commit-message: "📋 Audit suggestions: ${{ github.run_id }}"
+          add-paths: .
+          delete-branch: true
+
+      # ── Cleanup ──────────────────────────────────────────────
+      - name: Cleanup Ollama container
+        if: always()
+        run: docker rm -f ollama 2>/dev/null || true
