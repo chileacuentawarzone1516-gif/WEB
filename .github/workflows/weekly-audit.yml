@@ -86,8 +86,8 @@ jobs:
         env:
           OLLAMA_HOST: http://localhost:11434
         run: |
-          # Prompt especializado para TU stack: vanilla JS + Firebase + Netlify + CSS moderno
-          cat > audit_prompt.txt << 'PROMPT_EOF'
+          # Escribir prompt en archivo (evita problemas de heredoc en YAML)
+          cat > audit_prompt.txt << 'AUDIT_PROMPT_EOF'
 Eres un AUDITOR SENIOR DE CÓDIGO WEB especializado en:
 - JavaScript vanilla (ES2024) sin build tools
 - Firebase Auth/Firestore/App Check (reglas de seguridad críticas)
@@ -140,12 +140,12 @@ ARCHIVOS CLAVE A REVISAR CON LUPA:
 - firebase.json / firestore.rules (config + seguridad)
 
 NO INVENTES ARCHIVOS. Si no ves el archivo en el contexto, no lo menciones.
-PROMPT_EOF
+AUDIT_PROMPT_EOF
 
           # Llamada a Ollama con formato JSON forzado
           RESPONSE=$(curl -s -X POST http://localhost:11434/api/generate \
             -H "Content-Type: application/json" \
-            -d @- <<EOF
+            -d @- <<'CURL_EOF'
 {
   "model": "qwen2.5-coder:7b-q4_K_M",
   "prompt": "$(cat audit_prompt.txt)\n\n=== CONTEXTO COMPLETO DEL REPO ===\n${{ steps.collect.outputs.context }}",
@@ -158,7 +158,7 @@ PROMPT_EOF
     "num_predict": 8192
   }
 }
-EOF
+CURL_EOF
           )
 
           echo "$RESPONSE" | jq -r '.response' > audit_result.json
