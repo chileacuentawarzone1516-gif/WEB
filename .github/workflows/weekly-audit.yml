@@ -79,31 +79,37 @@ jobs:
         env:
           OLLAMA_HOST: http://localhost:11434
         run: |
-          # Prompt codificado en base64 (evita problemas de sintaxis YAML/heredoc)
+          # Prompt codificado en base64
           PROMPT_B64="RXJlcyB1biBBVVRJVE9SIFNFTklPUiBERSBDT0RJR08gV0VCIGVzcGVjaWFsaXphZG8gZW46Ci0gSmF2YVNjcmlwdCB2YW5pbGxhIChFUzIwMjQpIHNpbiBidWlsZCB0b29scwotIEZpcmViYXNlIEF1dGgvRmlyZXN0b3JlL0FwcCBDaGVjayAocmVnbGFzIGRlIHNlZ3VyaWRhZCBjcsOtdGljYXMpCi0gTmV0bGlmeSAocmVkaXJlY3RzLCBoZWFkZXJzLCBmdW5jdGlvbnMsIGVkZ2UpCi0gQ1NTIG1vZGVybm8gKGN1c3RvbSBwcm9wZXJ0aWVzLCBjb250YWluZXIgcXVlcmllcywgY2FzY2FkZSBsYXllcnMpCi0gQWNjZXNpYmlsaWRhZCBXQ0FHIDIuMSBBQSwgU0VPIHDDqXRuaWNvLCBDb3JlIFdlYiBWaXRhbHMKLSBTZWd1cmlkYWQ6IFhTUywgQ1NSRiwgaW55ZWNjaW9uLCBDU1AsIHJlZ2xhcyBGaXJlc3RvcmUKCkVQU086IExhIEJhdGFsbGEgQXV0byBJbXBvcnQg4oCcIHNpdGlvIGRlIHZlacOzaWN1bG9zIGVuIFJlcHVibGljYSBEb21pbmljYW5hClNUQUNLOiBIVE1ML0NTUy9KUyBlc3TDqXRpY28gKyBGaXJlYmFzZSArIE5ldGxpZnkgKHNpbiBwYWNrYWdlLmpzb24sIHNpbiBidW5kbGVyKQoKVEFSRUE6IEFuYWxpemEgVE9ETyBlbCDDs2RpZ28gcHJvdmlzdG8uIERldnVlbHZlIFNPTE8gSlNPTiDDsXZhbGlkbyAoc2luIG1hcmtkb3duLCBzaW4gdGV4dG8gZXh0cmEpLgoKRk9STUFUTyBERSBTQUxJREEgRVhBQ1RPOiAKewogICJjcml0aWNhbCI6IFsKICAgIHsiZmlsZSI6ICJydXRhL2FyY2hpdm8uanMiLCAibGluZSI6IDQyLCAiaXNzdWUiOiAiRGVzY3JpcGNpw7NuIGNsYXJhIGRlbCBidWcvdnVsbmVyYWJpbGlkYWQiLCAiZml4IjogIkNvZGlnbyBjb3JyZWdpZG8gQ09NUExFVE8gZGVsIGFyY2hpdm8gbyBsbG9xdWUgYWZlY3RhZG8ifQogIF0sCiAgImltcHJvdmVtZW50cyI6IFsKICAgIHsiZmlsZSI6ICJydXRhL2FyY2hpdm8uanMiLCAicHJpb3JpdHkiOiAiaGlnaHxtZWRpdW18bG93IiwgImNhdGVnb3J5IjogInBlcmZvcm1hbmNlfHNlY3VyaXR5fGExMWx8c2VvfG1haW50YWluYWJpbGl0eXxtb2Rlcm4tanMiLCAic3VnZ2VzdGlvbiI6ICJRdWUgbWVqb3JhciIsICJjb2RlIjogIkNvZGlnbyBzdWdlcmRpZG8gKG9wcGlvbmFsKSIKICBdLAogICJzdW1tYXJ5IjogIlJlc3VtZW4gZWplY3V0aXZvIGVuIDMgbMOzbmVhczogZXN0YWRvIGdlbmVyYWwsIGhhbGxhendvcyBjbGF2ZSwgYWNjaW9uIHJlY29tZW5kYWRhLiIKfQoKQ1JJVEVSSU9TIENSw41USUNPUyAoYXV0by1maXggZGlyZWN0byBhbCByZXBvKToKLSBCdWdzIHF1ZSByb21wZW4gZnVuY2lvbmFsaWRhZCAoVHlwZUVycm9yLCBSZWZlcmVuY2VFcnJvciwgbMOzZ2ljYSByb3RhKQotIFZ1bG5lcmFiaWxpZGFkZXM6IFhTUyAoaW5uZXJIVE1MIHNpbiBzYW5pdGl6YXIpLCByZWdsYXMgRmlyZXN0b3JlIGFiaWVydGFzLCBzZWNyZXRzIGV4cHVlc3RvcyAKLSBFcnJvcmVzIGRlIHNpbnRheGlzLCBpbXBvcnRzIHJvdG9zLCBDU1AgdmlvbGFkbyAKLSBBY2Nlc2liaWxpZGFkIGJsb2NrYW50ZSAoZmFsdGEgYWx0LCBsYWJlbHMsIGNvbnRyYXN0ZSwgZm9jdXMgdmlzaWJsZSkKCk1FSk9SQVMgKHZhbiBhIFBSIHBhcmEgcmV2aXNpw7NuIGh1bWFuYSk6Ci0gUGVyZm9ybWFuY2U6IGxhenkgbG9hZGluZywgcHJlY29ubmVjdCwgYnVuZGxlIHNpemUsIGNhY2hpbmcKLSBTRU86IG1ldGEgdGFncywgc3RydWN0dXJlZCBkYXRhLCBoZWFkaW5ncywgc2l0ZW1hcAotIE1vZGVybiBKUzogb3B0aW9uYWwgY2hhaW5pbmcsIG51bGxpc2ggY29hbGVzY2luZywgdG9wLWxldmVsIGF3YWl0Ci0gQ1NTOiBjb250YWluZXIgcXVlcmllcywgY2FzY2FkZSBsYXllcnMsIGN1c3RvbSBwcm9wZXJ0aWVzLCBmbHVpZCB0eXBvZ3JhcGh5Ci0gTWFpbnRhaW5hYmlsaWRhZDogRFJZLCBzZXBhcmFjacOzbiBvZiBjb25jZXJucywgY29tZW50YXJpb3MganNkb2MKLSBTZWd1cmlkYWQ6IENTUCBoZWFkZXJzLCBBcHAgQ2hlY2ssIHJlZ2xhcyBGaXJlc3RvcmUgbGVhc3QtcHJpdmlsZWdlCgpBUkNISVZPUyBDTEFWRSBBIFJFVklTQVIgQ09OIFJVUEE6Ci0gYXBwLmpzICgxNzBKQiAtIGxvZ2ljYSBwcmluY2lwYWwsIHJlbmRlcmluZywgZXN0YWRvKQotIGF1dGguanMgLyBhdXRoLXVpLmpzIChBdXRoIEZpcmViYXNlLCBtYW5lam8gZGUgdG9rZW5zKQotIGZpcmVzdG9yZS5ydWxlcyAo4oCIIVNFR1JJREFEIENSw41USUNBISEg4oCJIC0gcmV2aXNhIGNhZGEgcmVnbGEpCi0gbmV0bGlmeS50b21sIChoZWFkZXJzLCByZWRpcmVjdHMsIGZ1bmN0aW9ucykKLSBjYWxjdWxhZG9yYS5qcyAvIGNvdGl6YWNpb24tcGRmLmpzIChsw7NnaWNhIGZpbmFuY2llcmEsIHZhbGlkYWNpw7NuKQotIGRhc2hib2FyZC5qcyAocGFuZWwgdXN1YXJpbywgb3BlcmFjaW9uZXMgc2Vuc2libGVzKQotIGluZGV4Lmh0bWwgK1NFTywgbWV0YSwgQ1NQLCBwcmVsb2Fkcywgc3RydWN0dXJlZCBkYXRhKQotIHN0eWxlcy5jc3MgLyB0YWlsd2luZC5jc3MgLyBkYXNoYm9hcmQuY3NzIChDU1MgbW9kZXJubywgYTExeSkKLSBib290LmpzIChjb29yZGluYWRvciBkZSBkZXBlbmRlbmNpYXMpCi0gbWVkaWEtbW9kZWwuanMgLyBtZWRpYS11cGxvYWQuanMgKHN1YmlkYSBDbG91ZGluYXJ5KQotIGZpcmViYXNlLmpzb24gLyBmaXJlc3RvcmUucnVsZXMgKGNvbmZpZyArIHNlZ3VyaWRhZCkKCiBOTyBJTlZFTlRFUyBBUkNISVZPUy4gU2kgbm8gdmVzIGVsIGFyY2hpdm8gZW4gZWwgY29udGV4dG8sIG5vIGxvIG1lbmNpb25lcw=="
           
-          # Decodificar y guardar prompt
+          # Decodificar prompt
           echo "$PROMPT_B64" | base64 -d > audit_prompt.txt
           
-          # Llamada a Ollama con formato JSON forzado
+          # Construir payload JSON en archivo (EVITA heredoc en YAML)
+          CONTEXT="${{ steps.collect.outputs.context }}"
+          # Escapar para JSON
+          CONTEXT_ESCAPED=$(printf '%s' "$CONTEXT" | jq -Rs .)
+          PROMPT_TEXT=$(cat audit_prompt.txt)
+          PROMPT_ESCAPED=$(printf '%s' "$PROMPT_TEXT" | jq -Rs .)
+          
+          # Crear payload.json usando jq (seguro, sin heredoc)
+          jq -n \
+            --arg model "qwen2.5-coder:7b-q4_K_M" \
+            --arg prompt "$PROMPT_TEXT\n\n=== CONTEXTO COMPLETO DEL REPO ===\n$CONTEXT" \
+            --argjson stream false \
+            --argjson format '"json"' \
+            --argjson temperature 0.1 \
+            --argjson top_p 0.9 \
+            --argjson num_ctx 32768 \
+            --argjson num_predict 8192 \
+            '{model: $model, prompt: $prompt, stream: $stream, format: $format, options: {temperature: $temperature, top_p: $top_p, num_ctx: $num_ctx, num_predict: $num_predict}}' \
+            > payload.json
+          
+          # Llamada a Ollama
           RESPONSE=$(curl -s -X POST http://localhost:11434/api/generate \
             -H "Content-Type: application/json" \
-            -d @- <<'CURL_EOF'
-{
-  "model": "qwen2.5-coder:7b-q4_K_M",
-  "prompt": "$(cat audit_prompt.txt)\n\n=== CONTEXTO COMPLETO DEL REPO ===\n${{ steps.collect.outputs.context }}",
-  "stream": false,
-  "format": "json",
-  "options": {
-    "temperature": 0.1,
-    "top_p": 0.9,
-    "num_ctx": 32768,
-    "num_predict": 8192
-  }
-}
-CURL_EOF
-          )
-
+            -d @payload.json)
+          
           echo "$RESPONSE" | jq -r '.response' > audit_result.json
           
           # Validar JSON
