@@ -7,12 +7,12 @@ name: Weekly Code Audit & Auto-Fix
 
 on:
   schedule:
-    - cron: '0 3 * * 1'  # Cada lunes 03:00 UTC
-  workflow_dispatch:     # Botón "Run workflow" en Actions
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
 
 permissions:
-  contents: write        # Para commit/push directo
-  pull-requests: write   # Para crear PR de mejoras
+  contents: write
+  pull-requests: write
 
 concurrency:
   group: weekly-audit-${{ github.ref }}
@@ -25,14 +25,12 @@ jobs:
     timeout-minutes: 35
     
     steps:
-      # ── Checkout ──────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      # ── Start Ollama + pull model ────────────────────────────
       - name: Start Ollama & pull qwen2.5-coder:7b
         run: |
           docker run -d --name ollama -p 11434:11434 ollama/ollama:latest
@@ -45,11 +43,9 @@ jobs:
           docker exec ollama ollama pull qwen2.5-coder:7b-q4_K_M
           echo "✅ Modelo listo"
 
-      # ── Gather all source files ──────────────────────────────
       - name: Collect source files for audit
         id: collect
         run: |
-          # Archivos a auditar (excluye node_modules, dist, .git, images, docs grandes)
           FILES=$(find . -type f \
             \( -name "*.js" -o -name "*.html" -o -name "*.css" -o -name "*.toml" -o -name "*.json" -o -name "*.rules" -o -name "*.md" \) \
             ! -path "./node_modules/*" \
@@ -60,18 +56,16 @@ jobs:
             ! -name "RELEASE_NOTES.md" \
             | head -80)
           
-          # Construir contexto
           CONTEXT=""
           for f in $FILES; do
             SIZE=$(wc -c < "$f")
-            if [ "$SIZE" -lt 150000 ]; then  # Salta archivos >150KB (ej: app.js 170KB → se trunca)
+            if [ "$SIZE" -lt 150000 ]; then
               CONTEXT+="\n=== FILE: $f ===\n$(cat "$f")\n"
             else
               CONTEXT+="\n=== FILE: $f (TRUNCADO - ${SIZE} bytes) ===\n$(head -c 100000 "$f")\n... [archivo truncado para caber en contexto] ...\n"
             fi
           done
           
-          # Guardar para siguiente step
           echo "$CONTEXT" > audit_context.txt
           echo "context<<EOF" >> $GITHUB_OUTPUT
           echo "$CONTEXT" >> $GITHUB_OUTPUT
@@ -80,68 +74,17 @@ jobs:
           echo "📊 Archivos incluidos: $(echo "$FILES" | wc -l)"
           echo "📏 Tamaño contexto: $(wc -c < audit_context.txt) bytes"
 
-      # ── Run AI Audit ─────────────────────────────────────────
       - name: Run AI code audit
         id: audit
         env:
           OLLAMA_HOST: http://localhost:11434
         run: |
-          # Escribir prompt en archivo (evita problemas de heredoc en YAML)
-          cat > audit_prompt.txt << 'AUDIT_PROMPT_EOF'
-Eres un AUDITOR SENIOR DE CÓDIGO WEB especializado en:
-- JavaScript vanilla (ES2024) sin build tools
-- Firebase Auth/Firestore/App Check (reglas de seguridad críticas)
-- Netlify (redirects, headers, functions, edge)
-- CSS moderno (custom properties, container queries, cascade layers)
-- Accesibilidad WCAG 2.1 AA, SEO técnico, Core Web Vitals
-- Seguridad: XSS, CSRF, inyección, CSP, reglas Firestore
-
-REPO: La Batalla Auto Import — sitio de vehículos en República Dominicana
-STACK: HTML/CSS/JS estático + Firebase + Netlify (sin package.json, sin bundler)
-
-TAREA: Analiza TODO el código provisto. Devuelve SOLO JSON válido (sin markdown, sin texto extra).
-
-FORMATO DE SALIDA EXACTO:
-{
-  "critical": [
-    {"file": "ruta/archivo.js", "line": 42, "issue": "Descripción clara del bug/vulnerabilidad", "fix": "Código corregido COMPLETO del archivo o bloque afectado"}
-  ],
-  "improvements": [
-    {"file": "ruta/archivo.js", "priority": "high|medium|low", "category": "performance|security|a11y|seo|maintainability|modern-js", "suggestion": "Qué mejorar", "code": "Código sugerido (opcional)"}
-  ],
-  "summary": "Resumen ejecutivo en 3 líneas: estado general, hallazgos clave, acción recomendada."
-}
-
-CRITERIOS CRÍTICOS (auto-fix directo al repo):
-- Bugs que rompen funcionalidad (TypeError, ReferenceError, lógica rota)
-- Vulnerabilidades: XSS (innerHTML sin sanitizar), reglas Firestore abiertas, secrets expuestos
-- Errores de sintaxis, imports rotos, CSP violado
-- Accesibilidad bloqueante (falta alt, labels, contraste, focus visible)
-
-MEJORAS (van a PR para revisión humana):
-- Performance: lazy loading, preconnect, bundle size, caching
-- SEO: meta tags, structured data, headings, sitemap
-- Modern JS: optional chaining, nullish coalescing, top-level await
-- CSS: container queries, cascade layers, custom properties, fluid typography
-- Maintainability: DRY, separación de concerns, comentarios JSDoc
-- Seguridad: CSP headers, App Check, reglas Firestore least-privilege
-
-ARCHIVOS CLAVE A REVISAR CON LUPA:
-- app.js (170KB — lógica principal, rendering, estado)
-- auth.js / auth-ui.js (Auth Firebase, manejo de tokens)
-- firestore.rules (¡SEGURIDAD CRÍTICA! — revisa cada regla)
-- netlify.toml (headers, redirects, functions)
-- calculadora.js / cotizacion-pdf.js (lógica financiera, validación)
-- dashboard.js (panel usuario, operaciones sensibles)
-- index.html (SEO, meta, CSP, preloads, structured data)
-- styles.css / tailwind.css / dashboard.css (CSS moderno, a11y)
-- boot.js (coordinador de dependencias)
-- media-model.js / media-upload.js (subida Cloudinary)
-- firebase.json / firestore.rules (config + seguridad)
-
-NO INVENTES ARCHIVOS. Si no ves el archivo en el contexto, no lo menciones.
-AUDIT_PROMPT_EOF
-
+          # Prompt codificado en base64 (evita problemas de sintaxis YAML/heredoc)
+          PROMPT_B64="RXJlcyB1biBBVVRJVE9SIFNFTklPUiBERSBDT0RJR08gV0VCIGVzcGVjaWFsaXphZG8gZW46Ci0gSmF2YVNjcmlwdCB2YW5pbGxhIChFUzIwMjQpIHNpbiBidWlsZCB0b29scwotIEZpcmViYXNlIEF1dGgvRmlyZXN0b3JlL0FwcCBDaGVjayAocmVnbGFzIGRlIHNlZ3VyaWRhZCBjcsOtdGljYXMpCi0gTmV0bGlmeSAocmVkaXJlY3RzLCBoZWFkZXJzLCBmdW5jdGlvbnMsIGVkZ2UpCi0gQ1NTIG1vZGVybm8gKGN1c3RvbSBwcm9wZXJ0aWVzLCBjb250YWluZXIgcXVlcmllcywgY2FzY2FkZSBsYXllcnMpCi0gQWNjZXNpYmlsaWRhZCBXQ0FHIDIuMSBBQSwgU0VPIHDDqXRuaWNvLCBDb3JlIFdlYiBWaXRhbHMKLSBTZWd1cmlkYWQ6IFhTUywgQ1NSRiwgaW55ZWNjaW9uLCBDU1AsIHJlZ2xhcyBGaXJlc3RvcmUKCkVQU086IExhIEJhdGFsbGEgQXV0byBJbXBvcnQg4oCcIHNpdGlvIGRlIHZlacOzaWN1bG9zIGVuIFJlcHVibGljYSBEb21pbmljYW5hClNUQUNLOiBIVE1ML0NTUy9KUyBlc3TDqXRpY28gKyBGaXJlYmFzZSArIE5ldGxpZnkgKHNpbiBwYWNrYWdlLmpzb24sIHNpbiBidW5kbGVyKQoKVEFSRUE6IEFuYWxpemEgVE9ETyBlbCDDs2RpZ28gcHJvdmlzdG8uIERldnVlbHZlIFNPTE8gSlNPTiDDsXZhbGlkbyAoc2luIG1hcmtkb3duLCBzaW4gdGV4dG8gZXh0cmEpLgoKRk9STUFUTyBERSBTQUxJREEgRVhBQ1RPOiAKewogICJjcml0aWNhbCI6IFsKICAgIHsiZmlsZSI6ICJydXRhL2FyY2hpdm8uanMiLCAibGluZSI6IDQyLCAiaXNzdWUiOiAiRGVzY3JpcGNpw7NuIGNsYXJhIGRlbCBidWcvdnVsbmVyYWJpbGlkYWQiLCAiZml4IjogIkNvZGlnbyBjb3JyZWdpZG8gQ09NUExFVE8gZGVsIGFyY2hpdm8gbyBsbG9xdWUgYWZlY3RhZG8ifQogIF0sCiAgImltcHJvdmVtZW50cyI6IFsKICAgIHsiZmlsZSI6ICJydXRhL2FyY2hpdm8uanMiLCAicHJpb3JpdHkiOiAiaGlnaHxtZWRpdW18bG93IiwgImNhdGVnb3J5IjogInBlcmZvcm1hbmNlfHNlY3VyaXR5fGExMWx8c2VvfG1haW50YWluYWJpbGl0eXxtb2Rlcm4tanMiLCAic3VnZ2VzdGlvbiI6ICJRdWUgbWVqb3JhciIsICJjb2RlIjogIkNvZGlnbyBzdWdlcmRpZG8gKG9wcGlvbmFsKSIKICBdLAogICJzdW1tYXJ5IjogIlJlc3VtZW4gZWplY3V0aXZvIGVuIDMgbMOzbmVhczogZXN0YWRvIGdlbmVyYWwsIGhhbGxhendvcyBjbGF2ZSwgYWNjaW9uIHJlY29tZW5kYWRhLiIKfQoKQ1JJVEVSSU9TIENSw41USUNPUyAoYXV0by1maXggZGlyZWN0byBhbCByZXBvKToKLSBCdWdzIHF1ZSByb21wZW4gZnVuY2lvbmFsaWRhZCAoVHlwZUVycm9yLCBSZWZlcmVuY2VFcnJvciwgbMOzZ2ljYSByb3RhKQotIFZ1bG5lcmFiaWxpZGFkZXM6IFhTUyAoaW5uZXJIVE1MIHNpbiBzYW5pdGl6YXIpLCByZWdsYXMgRmlyZXN0b3JlIGFiaWVydGFzLCBzZWNyZXRzIGV4cHVlc3RvcyAKLSBFcnJvcmVzIGRlIHNpbnRheGlzLCBpbXBvcnRzIHJvdG9zLCBDU1AgdmlvbGFkbyAKLSBBY2Nlc2liaWxpZGFkIGJsb2NrYW50ZSAoZmFsdGEgYWx0LCBsYWJlbHMsIGNvbnRyYXN0ZSwgZm9jdXMgdmlzaWJsZSkKCk1FSk9SQVMgKHZhbiBhIFBSIHBhcmEgcmV2aXNpw7NuIGh1bWFuYSk6Ci0gUGVyZm9ybWFuY2U6IGxhenkgbG9hZGluZywgcHJlY29ubmVjdCwgYnVuZGxlIHNpemUsIGNhY2hpbmcKLSBTRU86IG1ldGEgdGFncywgc3RydWN0dXJlZCBkYXRhLCBoZWFkaW5ncywgc2l0ZW1hcAotIE1vZGVybiBKUzogb3B0aW9uYWwgY2hhaW5pbmcsIG51bGxpc2ggY29hbGVzY2luZywgdG9wLWxldmVsIGF3YWl0Ci0gQ1NTOiBjb250YWluZXIgcXVlcmllcywgY2FzY2FkZSBsYXllcnMsIGN1c3RvbSBwcm9wZXJ0aWVzLCBmbHVpZCB0eXBvZ3JhcGh5Ci0gTWFpbnRhaW5hYmlsaWRhZDogRFJZLCBzZXBhcmFjacOzbiBvZiBjb25jZXJucywgY29tZW50YXJpb3MganNkb2MKLSBTZWd1cmlkYWQ6IENTUCBoZWFkZXJzLCBBcHAgQ2hlY2ssIHJlZ2xhcyBGaXJlc3RvcmUgbGVhc3QtcHJpdmlsZWdlCgpBUkNISVZPUyBDTEFWRSBBIFJFVklTQVIgQ09OIFJVUEE6Ci0gYXBwLmpzICgxNzBKQiAtIGxvZ2ljYSBwcmluY2lwYWwsIHJlbmRlcmluZywgZXN0YWRvKQotIGF1dGguanMgLyBhdXRoLXVpLmpzIChBdXRoIEZpcmViYXNlLCBtYW5lam8gZGUgdG9rZW5zKQotIGZpcmVzdG9yZS5ydWxlcyAo4oCIIVNFR1JJREFEIENSw41USUNBISEg4oCJIC0gcmV2aXNhIGNhZGEgcmVnbGEpCi0gbmV0bGlmeS50b21sIChoZWFkZXJzLCByZWRpcmVjdHMsIGZ1bmN0aW9ucykKLSBjYWxjdWxhZG9yYS5qcyAvIGNvdGl6YWNpb24tcGRmLmpzIChsw7NnaWNhIGZpbmFuY2llcmEsIHZhbGlkYWNpw7NuKQotIGRhc2hib2FyZC5qcyAocGFuZWwgdXN1YXJpbywgb3BlcmFjaW9uZXMgc2Vuc2libGVzKQotIGluZGV4Lmh0bWwgK1NFTywgbWV0YSwgQ1NQLCBwcmVsb2Fkcywgc3RydWN0dXJlZCBkYXRhKQotIHN0eWxlcy5jc3MgLyB0YWlsd2luZC5jc3MgLyBkYXNoYm9hcmQuY3NzIChDU1MgbW9kZXJubywgYTExeSkKLSBib290LmpzIChjb29yZGluYWRvciBkZSBkZXBlbmRlbmNpYXMpCi0gbWVkaWEtbW9kZWwuanMgLyBtZWRpYS11cGxvYWQuanMgKHN1YmlkYSBDbG91ZGluYXJ5KQotIGZpcmViYXNlLmpzb24gLyBmaXJlc3RvcmUucnVsZXMgKGNvbmZpZyArIHNlZ3VyaWRhZCkKCiBOTyBJTlZFTlRFUyBBUkNISVZPUy4gU2kgbm8gdmVzIGVsIGFyY2hpdm8gZW4gZWwgY29udGV4dG8sIG5vIGxvIG1lbmNpb25lcw=="
+          
+          # Decodificar y guardar prompt
+          echo "$PROMPT_B64" | base64 -d > audit_prompt.txt
+          
           # Llamada a Ollama con formato JSON forzado
           RESPONSE=$(curl -s -X POST http://localhost:11434/api/generate \
             -H "Content-Type: application/json" \
@@ -184,7 +127,6 @@ CURL_EOF
           echo "🔴 Críticos: $CRIT_COUNT | 🟡 Mejoras: $IMP_COUNT"
           echo "📋 Resumen: $SUMMARY"
 
-      # ── Apply Critical Fixes (direct commit) ─────────────────
       - name: Apply critical fixes
         if: always()
         run: |
@@ -211,13 +153,9 @@ CURL_EOF
             
             echo "🔧 Aplicando fix crítico en $FILE: $ISSUE_DESC"
             
-            # Backup
             cp "$FILE" "$FILE.bak"
-            
-            # Aplicar fix (el modelo debe devolver el archivo COMPLETO o bloque exacto)
             echo "$FIX" > "$FILE"
             
-            # Verificar que no rompimos sintaxis básica (para .js)
             if [[ "$FILE" == *.js ]]; then
               if ! node --check "$FILE" 2>/dev/null; then
                 echo "❌ Fix rompió sintaxis JS — restaurando backup"
@@ -232,7 +170,6 @@ CURL_EOF
             fi
           done
 
-      # ── Commit & Push Critical Fixes ─────────────────────────
       - name: Commit & push critical fixes
         if: always()
         run: |
@@ -251,7 +188,6 @@ CURL_EOF
             echo "ℹ️ No hay cambios críticos para commitear"
           fi
 
-      # ── Create Improvement PR ────────────────────────────────
       - name: Create Pull Request with improvements
         if: always()
         uses: peter-evans/create-pull-request@v6
@@ -284,7 +220,6 @@ CURL_EOF
           add-paths: .
           delete-branch: true
 
-      # ── Cleanup ──────────────────────────────────────────────
       - name: Cleanup Ollama container
         if: always()
         run: docker rm -f ollama 2>/dev/null || true
