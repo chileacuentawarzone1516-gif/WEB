@@ -1,0 +1,3 @@
+# Paquetes de contexto generados por tools/paquete-auditoria.sh.
+# Son material desechable para una conversación: no se versionan.
+auditoria-*.txt
