@@ -380,14 +380,36 @@ Auth, Dashboard, favoritos, cotizaciones, calculadora, Empresa, legales y
 horizontal. Las 114 pruebas de `firestore.rules` pasan contra el emulador
 real de Firestore. Sin bugs críticos conocidos.
 
-⚠️ Las **4 pruebas nuevas de S-3** (la rama de admin ancla
-`email`/`createdAt`/`schemaVersion`) están escritas pero **NO ejecutadas**:
-el emulador necesita Java y `firebase-tools`, que el entorno donde se
-auditó no tiene. Hay que correrlas antes de desplegar las reglas:
+Incluidas las **4 pruebas de S-3** (la rama de admin ancla
+`email`/`createdAt`/`schemaVersion`): **125 en verde, 0 en rojo** contra el
+emulador real (Firestore 12.19.0, JDK 21).
 
 ```bash
 firebase emulators:exec --only firestore "node firestore_rules_test.js"
 ```
+
+Dos cosas que ahorran tiempo la próxima vez:
+
+- **El comando necesita `firebase.json`**, que vive en esta carpeta, no en la
+  raíz del repositorio. Ejecutarlo desde otro sitio da
+  `Could not find config (firebase.json) so using defaults` y no prueba nada.
+  Lo mismo aplica a `firebase deploy --only firestore:rules`.
+- **El emulador de Firestore corre sobre JVM**: sin un JDK 11+ en el PATH
+  falla con `Could not spawn java -version`. En Windows:
+  `winget install Microsoft.OpenJDK.21`, y reabrir la terminal para que tome
+  el PATH.
+
+Sobre los `evaluation error at L…` que el emulador imprime en las pruebas
+negativas: son **esperados y preexistentes**. Firestore evalúa todas las
+reglas `allow` que coinciden con la ruta y la operación, así que una rama
+cuya expresión no aplica en ese contexto (p. ej. `validUserProfile(
+request.resource.data)` durante un `delete`, donde `request.resource` es
+`null`) reporta error en lugar de `false`. El resultado global sigue siendo
+la disyunción de las ramas que sí evaluaron, y por eso `allow delete` está
+separado a propósito. Medido A/B contra las reglas anteriores: la rama de
+admin ya reportaba 20 de esos errores antes de S-3 y ahora reporta 23,
+exactamente las 3 evaluaciones extra que añaden las 3 pruebas negativas
+nuevas.
 
 Pendiente de verificación manual en producción (bloqueado por la red del
 entorno de desarrollo, que no alcanza gstatic/jsDelivr/Cloudinary):

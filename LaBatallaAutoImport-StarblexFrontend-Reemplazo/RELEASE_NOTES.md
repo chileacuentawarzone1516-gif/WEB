@@ -54,9 +54,17 @@ negativas —admin cambia `email`, reescribe `createdAt`, cambia
 `schemaVersion`— y una positiva que comprueba que el anclaje no le quitó al
 admin lo que sí debe poder hacer (cambiar `role` y `status`).
 
-⚠️ Esas 4 pruebas están **escritas pero no ejecutadas**. Correr
-`firebase emulators:exec --only firestore "node firestore_rules_test.js"`
-antes de `firebase deploy --only firestore:rules`.
+**Ejecutadas contra el emulador real** (Firestore 12.19.0, JDK 21):
+**125 en verde, 0 en rojo** — las 121 previas más las 4 de S-3, incluida la
+positiva que comprueba que el admin no perdió la capacidad de cambiar `role`
+y `status`.
+
+Los `evaluation error at L…` que el emulador imprime en las pruebas negativas
+son esperados y preexistentes: Firestore evalúa todas las reglas `allow` que
+coinciden con la ruta y la operación, y una rama cuya expresión no aplica en
+ese contexto reporta error en vez de `false`. Medido A/B contra las reglas
+anteriores, la rama de admin ya reportaba 20 y ahora reporta 23 — las 3
+evaluaciones extra de las 3 pruebas negativas nuevas, ni una más.
 
 ### 2. Comentarios de seguridad que describían código inexistente (S-5)
 
