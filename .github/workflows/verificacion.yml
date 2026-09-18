@@ -1,0 +1,69 @@
+# ============================================================
+# verificacion.yml — Capa 1 de la rutina de calidad
+# ------------------------------------------------------------
+# QUÉ HACE
+#
+#   Ejecuta tools/verificar.sh en cada push y en cada pull request.
+#   Ese script comprueba invariantes objetivas del sitio (sintaxis de
+#   todo el JS, referencias locales rotas, ?v= de caché, sitemap,
+#   archivos internos que no deben servirse, coherencia de roles entre
+#   roles.js y firestore.rules, las tres copias de slugify(), la CSP,
+#   handlers inline y credenciales filtradas).
+#
+# POR QUÉ ASÍ
+#
+#   · La lógica vive en un script del repositorio, NO incrustada en
+#     este YAML. Así se ejecuta idéntica en local (`bash
+#     tools/verificar.sh`) y en CI, se puede depurar sin hacer push, y
+#     el workflow no acumula heredocs ni escapes frágiles.
+#   · `permissions: contents: read` es el mínimo: este workflow no
+#     escribe en el repositorio, no comenta, no despliega y no puede
+#     hacerlo aunque su código cambiara.
+#   · No necesita secrets, ni red saliente, ni npm install: son
+#     comprobaciones locales sobre archivos. Termina en segundos.
+#
+# QUÉ NO HACE
+#
+#   No juzga calidad, arquitectura, redacción SEO ni UX: eso es la
+#   capa 2, la auditoría semanal con Claude
+#   (.claude/skills/auditoria-semanal/). Este workflow solo impide que
+#   una regresión objetiva llegue a producción entre auditorías.
+#
+#   Tampoco modifica código automáticamente. La versión anterior de
+#   este archivo (weekly-audit.yml, retirada) sobrescribía archivos
+#   completos con fragmentos generados por un modelo y los empujaba a
+#   main sin revisión; los cambios ahora pasan siempre por una persona.
+# ============================================================
+name: Verificación
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch: {}
+
+# Solo lectura del repositorio. Nada más.
+permissions:
+  contents: read
+
+concurrency:
+  group: verificacion-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    name: Invariantes del sitio
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Node 20 (la misma versión que usa el build de Netlify)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Ejecutar tools/verificar.sh
+        run: bash tools/verificar.sh

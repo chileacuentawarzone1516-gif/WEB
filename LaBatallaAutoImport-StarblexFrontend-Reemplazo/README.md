@@ -271,16 +271,84 @@ ruta `/empresa/*` que no exista devuelve un 404 real.
 
 # Seguridad — deuda conocida
 
-- **`script-src 'unsafe-inline'` en el CSP** (`KNOWN SECURITY DEBT`):
-  necesario hoy porque el proyecto usa handlers inline (`onclick`, `onerror`)
-  en muchos lugares. Eliminarlo exige migrar todos a `addEventListener` —
-  pendiente, no crítico por sí solo.
+- ~~**`script-src 'unsafe-inline'` en el CSP**~~ — **deuda pagada.** El CSP
+  vigente en `netlify.toml` declara
+  `script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net
+  https://www.google.com https://www.googletagmanager.com
+  https://apis.google.com`, sin `'unsafe-inline'` ni `'unsafe-eval'`, y no
+  queda ni un handler inline en los 8 documentos HTML del sitio: el JS que
+  estaba embebido se extrajo a `iconos.js` y `analytics.js`. `unsafe-inline`
+  sigue en `style-src` (estilos, no scripts), que es otra cosa y de riesgo
+  mucho menor.
+  `tools/verificar.sh` vigila las dos mitades de esta migración —que
+  `script-src` no recupere `'unsafe-inline'` y que ningún HTML vuelva a usar
+  `onclick=`/`onerror=`— porque un handler inline reintroducido no da error:
+  el navegador lo bloquea y el botón queda muerto en silencio.
 - **`allowed_formats` no restringido en la firma de Cloudinary**
   (`KNOWN LOW-RISK HARDENING ITEM`): un admin/editor autorizado podría subir
   SVG. Mitigado en la práctica porque el sitio solo renderiza imágenes vía
   `<img>` (SVG no ejecuta scripts ahí) y el CSP tiene `object-src 'none'`. El
   fix vive en `cloudinary-sign-worker.js`, que corre en Cloudflare Workers —
   fuera de este repositorio, pendiente de despliegue manual.
+
+# Auditoría y verificación automáticas
+
+El proyecto se mantiene con dos capas que no se solapan: una barata y
+objetiva que corre siempre, y una con criterio que corre cada semana.
+
+## Capa 1 — Verificación determinista (cada push)
+
+```bash
+bash tools/verificar.sh
+```
+
+Diez comprobaciones que se deciden con certeza leyendo el repositorio, sin
+red y sin criterio: sintaxis de los 21 archivos JS, referencias locales
+rotas en el HTML, el `?v=` de todos los recursos propios, validez del
+sitemap, archivos internos que quedarían servidos sin su 404, coherencia de
+roles entre `roles.js` y `firestore.rules`, las tres copias de `slugify()`,
+que el CSP no recupere `'unsafe-inline'`, handlers inline en el HTML y
+credenciales filtradas.
+
+Si falla, algo está roto: estos checks no tienen falsos positivos. La
+lógica vive en el script (no incrustada en el YAML), así que se ejecuta
+idéntica en local y en CI: `.github/workflows/verificacion.yml` solo lo
+invoca, con `permissions: contents: read` y sin ningún secret.
+
+La apiKey de Firebase Web (`AIza…`) está excluida del check de secretos a
+propósito: el cliente la necesita y su seguridad recae en
+`firestore.rules` y App Check, no en ocultarla.
+
+## Capa 2 — Auditoría semanal con criterio
+
+El protocolo vive en `.claude/skills/auditoria-semanal/` (`SKILL.md` es el
+método, `checklist.md` el qué mirar por área). Se invoca con
+`/auditoria-semanal` en una sesión de Claude Code sobre el repositorio.
+
+No intenta abarcar los ~800 KB de código cada semana —eso produce una
+lectura superficial de todo—. Cada semana hace el barrido completo de la
+capa 1 más **el diff de los últimos 8 días** (donde está el código nuevo, y
+por tanto los bugs nuevos), y entra en profundidad en un área que rota:
+seguridad → rendimiento → SEO y accesibilidad → código y UX.
+
+Entrega una rama con las correcciones aplicadas y verificadas más un
+informe con la causa raíz de cada una; nunca un push directo a `main`,
+porque eso despliega a producción sin revisión. La regla que la gobierna:
+cada hallazgo se demuestra (archivo, línea, cómo se dispara) antes de
+reportarse. *"0 hallazgos nuevos, verificado"* es un resultado válido.
+
+Para auditar desde el chat de Claude en vez de Claude Code (por ejemplo
+desde el móvil), `bash tools/paquete-auditoria.sh <área>` genera el archivo
+de contexto de esa área —entre 10 y 360 KB según el área, en vez de los 800
+KB del proyecto entero— para subirlo como adjunto.
+
+> **Nota histórica.** Hubo un `weekly-audit.yml` que corría un modelo local
+> (Ollama, qwen2.5-coder:7b) cada lunes, aplicaba "fixes" automáticos y los
+> empujaba a `main`. Se retiró: aplicaba el fix sobrescribiendo el archivo
+> completo con el fragmento devuelto por el modelo, de modo que una
+> corrección de tres líneas en `app.js` borraba sus 3.395 líneas restantes,
+> y el resultado iba a `main` —es decir, a producción— sin que nadie lo
+> viera. Las correcciones ahora pasan siempre por una persona.
 
 # Estado del proyecto
 
