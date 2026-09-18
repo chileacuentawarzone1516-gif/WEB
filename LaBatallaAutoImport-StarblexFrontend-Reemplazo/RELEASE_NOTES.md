@@ -1,5 +1,115 @@
 # RELEASE NOTES — La Batalla Auto Import
 
+## RUTINA DE AUDITORÍA AUTOMÁTICA, VERIFICACIÓN EN CADA PUSH Y RETIRADA DEL AUTO-FIX POR MODELO LOCAL
+
+El mantenimiento del sitio pasa a tener dos capas: una verificación
+objetiva que corre en cada push y una auditoría con criterio que corre
+cada semana. En el camino se retiró un workflow que podía destruir código
+en producción sin que nadie lo viera.
+
+### 1. `weekly-audit.yml` se retira (podía borrar `app.js` en producción)
+
+**Causa raíz.** El workflow pedía a un modelo local (Ollama,
+`qwen2.5-coder:7b`) un JSON con `{file, fix}` por cada hallazgo, y aplicaba
+cada fix así:
+
+```bash
+echo "$FIX" > "$FILE"       # sobrescribe el ARCHIVO COMPLETO
+```
+
+`$FIX` era el fragmento corregido, no el archivo entero. Una corrección de
+tres líneas en `app.js` dejaba el archivo con esas tres líneas y borraba
+las 3.392 restantes. El `node --check` posterior no protegía de nada: tres
+líneas de JavaScript válido pasan el check, y para `.html`, `.css` o
+`.rules` no había ninguna comprobación. El paso siguiente commiteaba y
+hacía `git push` a `main`, y un push a `main` es un deploy automático a
+producción: la destrucción llegaba al sitio público sin revisión humana.
+
+Otros tres defectos del mismo archivo, ya secundarios:
+
+- `echo "${{ steps.collect.outputs.context }}" > audit_context.txt`
+  interpolaba **el código fuente del repositorio dentro de un comando de
+  shell**. Cualquier backtick o `$(…)` presente en el código se habría
+  ejecutado como orden del runner.
+- El `title:` del PR contenía `$(date +%Y-%m-%d)`, que en un parámetro de
+  action no se expande: el título habría salido literal.
+- Los fixes se commiteaban y empujaban *antes* del paso
+  `create-pull-request`, así que el PR de "mejoras" nacía vacío.
+- Todos los pasos llevaban `if: always()`, de modo que los fixes se
+  aplicaban incluso cuando la auditoría había fallado.
+
+Un modelo de 7B en un runner sin GPU tampoco podía con 150 KB de contexto
+en los 600 s de timeout, que era el síntoma por el que se empezó a mirar
+el archivo. El problema de fondo era el otro.
+
+### 2. Capa 1 — `tools/verificar.sh` (nuevo) en cada push
+
+Diez comprobaciones deterministas, sin red y sin criterio, cada una
+vigilando una regla que el proyecto **ya declaraba** en `README.md` o un
+defecto que ya ocurrió y está en este archivo: sintaxis de los 21 JS,
+referencias locales rotas, el `?v=` de los 16 recursos propios, validez del
+sitemap, archivos internos sin su 404, coherencia de roles entre `roles.js`
+y `firestore.rules`, las tres copias de `slugify()`, `script-src` sin
+`'unsafe-inline'`, handlers inline en el HTML y credenciales filtradas.
+
+No se inventaron reglas nuevas: se automatizó la vigilancia de las que
+dependían de que alguien se acordara de revisarlas.
+
+Los checks se probaron en negativo sobre una copia desechable del
+repositorio —sintaxis rota, referencia inexistente, `onload=` añadido,
+archivo interno nuevo sin 404 y `'unsafe-inline'` reintroducido— y los seis
+errores salieron. Un verificador que nunca falla no verifica nada.
+
+La lógica vive en el script, no en el YAML: se ejecuta idéntica en local y
+en CI, se depura sin hacer push y el workflow
+(`.github/workflows/verificacion.yml`, nuevo) se queda en
+`permissions: contents: read`, sin secrets y sin poder escribir en el
+repositorio.
+
+### 3. Capa 2 — protocolo de auditoría semanal (nuevo)
+
+`.claude/skills/auditoria-semanal/` (`SKILL.md` + `checklist.md`) y
+`CLAUDE.md` en la raíz. La auditoría no intenta abarcar los ~800 KB de
+código cada semana: hace el barrido de la capa 1 más el diff de los
+últimos 8 días, y entra a fondo en un área que rota (seguridad →
+rendimiento → SEO/accesibilidad → código/UX). Entrega rama + PR con causa
+raíz por hallazgo; nunca un push a `main`.
+
+`tools/paquete-auditoria.sh` (nuevo) genera el contexto de un área
+(10–360 KB según el área) para auditar desde el chat en vez de Claude Code.
+
+### 4. Dos correcciones que salieron al montar esto
+
+**`/analytics.js` se servía sin `?v=` (`index.html`).** Era el único de los
+16 recursos propios fuera del mecanismo de versionado que documenta
+`README.md`. Con `max-age=3600, must-revalidate` el desfase máximo era de
+una hora, no indefinido, pero la convención existe para no tener que
+razonar eso en cada deploy. Ahora lleva `?v=20260918`.
+
+**`README.md` declaraba como pendiente una deuda ya pagada.** La sección
+"Seguridad — deuda conocida" seguía diciendo que el CSP necesitaba
+`script-src 'unsafe-inline'` "porque el proyecto usa handlers inline en
+muchos lugares". Verificado: el `script-src` vigente no lo incluye y los 8
+documentos HTML tienen **cero** handlers inline. La deuda se cerró cuando
+el JS embebido se extrajo a `iconos.js` y `analytics.js`, pero el README no
+se actualizó. Documentación obsoleta de este tipo cuesta tiempo en cada
+auditoría siguiente y puede llevar a "arreglar" algo que ya está bien.
+
+### Archivos
+
+`CLAUDE.md` (nuevo), `tools/verificar.sh` (nuevo),
+`tools/paquete-auditoria.sh` (nuevo),
+`.claude/skills/auditoria-semanal/SKILL.md` (nuevo),
+`.claude/skills/auditoria-semanal/checklist.md` (nuevo),
+`.github/workflows/verificacion.yml` (nuevo),
+`.github/workflows/weekly-audit.yml` (**eliminado**), `.gitignore` (nuevo),
+`index.html`, `README.md`.
+
+No se tocó ninguna lógica del sitio: ni `app.js`, ni `firestore.rules`, ni
+`auth.js`, ni `netlify.toml`, ni las funciones de servidor. El único cambio
+en un archivo servido es el `?v=` de `analytics.js` en `index.html`.
+
+
 ## SUBIDA DE FOTOS DIAGNOSTICABLE, LOGO OFICIAL Y PREVIEW SOCIAL SIN EL LOGO ANTIGUO
 
 Tres problemas reportados con capturas de producción: la publicación de un
