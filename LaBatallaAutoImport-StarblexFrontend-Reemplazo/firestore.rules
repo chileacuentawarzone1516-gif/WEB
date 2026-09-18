@@ -87,10 +87,18 @@ service cloud.firestore {
         && d.price is number
         && d.price > 0
         // Tope subido de 20.000.000 a 2.000.000.000 RD$. El anterior era
-        // un límite real de publicación, no una defensa: `price` SIEMPRE
-        // se almacena en pesos (un importe en USD se convierte con
-        // USD_TO_RD_RATE antes de guardarse), así que a la tasa vigente
-        // rechazaba cualquier vehículo por encima de unos USD 339.000.
+        // un límite real de publicación, no una defensa.
+        //
+        // ⚠️ Este comentario describía una conversión que YA NO EXISTE. Decía
+        // que `price` se obtiene convirtiendo el importe en USD con
+        // `USD_TO_RD_RATE`; esa constante se retiró junto con la conversión a
+        // pesos (ver "Moneda: no se convierte NADA" en README.md). Hoy
+        // app.js calcula `price` multiplicando por `USD_INDEX_FACTOR`, y el
+        // resultado NO es un precio: es un índice interno que existe solo
+        // porque este esquema cerrado exige el campo y porque es el único eje
+        // numérico común entre monedas. No se muestra, no se imprime y no se
+        // envía a nadie. El tope sigue teniendo sentido como descarte de
+        // valores absurdos o corruptos, que es lo único que hace.
         // Se mantiene un techo para seguir descartando valores absurdos o
         // corruptos; el resto de restricciones no cambia. El formulario
         // valida el mismo tope (MAX_PRICE_RD en app.js) para que el
@@ -443,9 +451,39 @@ service cloud.firestore {
       // cerrada de campos, así que permitía inyectar claves arbitrarias en
       // el perfil de cualquier usuario. Es la misma lista que ya usan las
       // ramas de creación y de auto-edición.
+      //
+      // ⚠️ S-3: email, createdAt y schemaVersion quedan ANCLADOS también
+      // aquí. Las otras dos ramas (creación y auto-edición) ya los fijaban;
+      // esta era la única que permitía reescribirlos. No es una escalada
+      // —un admin ya gobierna roles y estados— pero sí la última vía por la
+      // que la identidad del perfil podía cambiar en silencio: `email` es lo
+      // que consulta isWhitelistedAdminEmail(), y `createdAt` es la fecha de
+      // alta que el resto del archivo defiende como inmutable. Un fallo del
+      // panel que enviara el documento entero los habría sobrescrito sin que
+      // nada lo impidiera.
+      //
+      // Se usa el MISMO patrón defensivo que createdAtInmutable(): se
+      // compara solo si el campo ya existe en el documento. Anclarlo a secas
+      // repetiría el defecto C-1 —leer una clave ausente no devuelve null en
+      // Rules, lanza un error de evaluación y la regla entera pasa a
+      // denegar—, lo que dejaría a un admin sin poder tocar jamás un perfil
+      // heredado al que le faltara alguno de los tres. Así, el campo puede
+      // fijarse una vez si nunca existió, y nunca reescribirse después.
+      //
+      // Verificado contra las 114 pruebas existentes: ninguna hace que un
+      // admin modifique estos tres campos, y las que lo editan por otros
+      // motivos usan updateDoc() parcial, donde request.resource.data es el
+      // documento resultante y los valores no tocados coinciden consigo
+      // mismos.
       allow update: if isAdmin()
         && request.resource.data.keys().hasOnly(['email','name','role','status','createdAt','schemaVersion','provider','photoURL','lastLogin','lastName','username','city','phone','address','country'])
         && validUserProfile(request.resource.data)
+        && (('email' in resource.data)
+              ? request.resource.data.email == resource.data.email : true)
+        && (('createdAt' in resource.data)
+              ? request.resource.data.createdAt == resource.data.createdAt : true)
+        && (('schemaVersion' in resource.data)
+              ? request.resource.data.schemaVersion == resource.data.schemaVersion : true)
         && (!('role' in request.resource.data) || request.resource.data.role in ['customer','sales','editor','admin'])
         && (!('status' in request.resource.data) || request.resource.data.status in ['active','disabled','pending']);
 
@@ -563,14 +601,27 @@ service cloud.firestore {
     // ==========================================================
     // CONFIGURACIÓN PÚBLICA — config/finanzas
     // ----------------------------------------------------------
-    // Faltaba por completo: app.js lee config/finanzas al arrancar para
-    // obtener la tasa USD->RD$ ("editable por el admin sin tocar código"),
-    // pero sin regla propia caía en el deny por defecto. En producción esa
-    // lectura devolvía permission-denied (HTTP 403 comprobado contra el
-    // proyecto real), el .catch() la silenciaba y USD_TO_RD_RATE se quedaba
-    // SIEMPRE en el valor de respaldo del código (59): la tasa configurable
-    // nunca llegó a funcionar y los precios en USD se convertían con un
-    // valor fijo.
+    // ⚠️ ESTA REGLA YA NO TIENE CONSUMIDOR (verificado). Se añadió porque
+    // app.js leía config/finanzas al arrancar para obtener la tasa USD->RD$
+    // y, sin regla propia, esa lectura caía en el deny por defecto
+    // (permission-denied, HTTP 403 comprobado contra el proyecto real).
+    // Después, A-1 eliminó la lectura junto con la conversión de moneda: hoy
+    // `grep tasaUsdRd` no encuentra ningún uso en código vivo, y el
+    // documento nunca llegó a existir en producción.
+    //
+    // SE CONSERVA a propósito, no por olvido:
+    //   - No amplía la superficie de ataque de forma significativa. La
+    //     lectura anónima solo alcanza a `config/finanzas`, y las reglas de
+    //     escritura de abajo acotan ese documento a UN campo numérico entre
+    //     0 y 1000 escribible solo por un admin: es imposible colocar ahí
+    //     datos sensibles. Cualquier otro documento de /config queda
+    //     denegado incluso en lectura (hay prueba de ello).
+    //   - Retirarla costaría las ~20 pruebas de config de
+    //     firestore_rules_test.js, una de las cuales es la regresión
+    //     explícita de A-1, y habría que rehacerlo todo el día que se quiera
+    //     una tasa configurable de verdad (con valor, fecha y fuente, como
+    //     exige el README).
+    // Si se decide retirarla, hay que borrar también esas pruebas.
     //
     // Decisiones de esta regla:
     //   - Acotada a docId == 'finanzas', también en LECTURA. Es el único

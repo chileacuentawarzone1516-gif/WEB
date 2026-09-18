@@ -1,5 +1,152 @@
 # RELEASE NOTES — La Batalla Auto Import
 
+## AUDITORÍA DE SEGURIDAD DE FIRESTORE.RULES — ANCLAJE DE IDENTIDAD EN LA RAMA DE ADMIN
+
+Primera auditoría de seguridad con las reglas ya desplegadas en producción.
+Se revisaron las 607 líneas de `firestore.rules`: los 9 bloques `match`, las
+13 funciones de validación y las tres ramas de escritura de `/users`.
+Verificación estática (trazado sobre el código); el emulador necesita Java y
+`firebase-tools`, que el entorno de auditoría no tiene.
+
+**No se encontró ninguna vulnerabilidad crítica ni alta.** Lo que sigue son
+dos correcciones de severidad media-baja y el registro de una propuesta
+retirada.
+
+### 1. La rama de admin de `/users` no anclaba la identidad del perfil (S-3)
+
+**Causa raíz.** El bloque `match /users/{uid}` tiene tres ramas de escritura.
+La de creación y la de auto-edición anclan `email`, `createdAt` y
+`schemaVersion` explícitamente. La de admin —`allow update: if isAdmin()`—
+solo validaba `hasOnly()`, `validUserProfile()` y las listas cerradas de
+`role` y `status`, así que era la única vía por la que esos tres campos
+podían reescribirse.
+
+No es una escalada de privilegios: un admin ya gobierna roles y estados, y
+no gana nada cambiando un correo. Lo que estaba abierto era la **corrupción
+silenciosa de identidad**: `email` es el valor que consulta
+`isWhitelistedAdminEmail()`, y `createdAt` es la fecha de alta que el resto
+del archivo defiende como inmutable. Un fallo del panel que enviara el
+documento completo en vez de un parche parcial los habría sobrescrito sin
+que ninguna regla lo impidiera.
+
+**Corrección.** Los tres campos quedan anclados, con el MISMO patrón
+defensivo que ya usa `createdAtInmutable()`:
+
+```javascript
+&& (('email' in resource.data)
+      ? request.resource.data.email == resource.data.email : true)
+```
+
+El ternario no es adorno. Anclar a secas (`request.resource.data.createdAt
+== resource.data.createdAt`) repetiría el defecto **C-1** de este mismo
+archivo: leer una clave ausente no devuelve `null` en Rules, lanza un error
+de evaluación y la regla entera pasa a denegar. Un perfil heredado al que le
+faltara alguno de los tres habría quedado imposible de editar para siempre.
+Así, el campo puede fijarse una vez si nunca existió, y nunca reescribirse
+después.
+
+**Verificación.** Ninguna de las 114 pruebas existentes hace que un admin
+modifique esos campos, y las que editan perfiles por otros motivos usan
+`updateDoc()` parcial, donde `request.resource.data` es el documento
+resultante y los valores no tocados coinciden consigo mismos. Se añadieron
+**4 pruebas de regresión** (`[S-3]` en `firestore_rules_test.js`): tres
+negativas —admin cambia `email`, reescribe `createdAt`, cambia
+`schemaVersion`— y una positiva que comprueba que el anclaje no le quitó al
+admin lo que sí debe poder hacer (cambiar `role` y `status`).
+
+**Ejecutadas contra el emulador real** (Firestore 12.19.0, JDK 21):
+**125 en verde, 0 en rojo** — las 121 previas más las 4 de S-3, incluida la
+positiva que comprueba que el admin no perdió la capacidad de cambiar `role`
+y `status`.
+
+Los `evaluation error at L…` que el emulador imprime en las pruebas negativas
+son esperados y preexistentes: Firestore evalúa todas las reglas `allow` que
+coinciden con la ruta y la operación, y una rama cuya expresión no aplica en
+ese contexto reporta error en vez de `false`. Medido A/B contra las reglas
+anteriores, la rama de admin ya reportaba 20 y ahora reporta 23 — las 3
+evaluaciones extra de las 3 pruebas negativas nuevas, ni una más.
+
+### 2. Comentarios de seguridad que describían código inexistente (S-5)
+
+Cuatro afirmaciones falsas, todas verificadas contra el código:
+
+1. **`firestore.rules`, comentario de `datosValidos()`:** decía que `price`
+   se obtiene convirtiendo el importe en USD con `USD_TO_RD_RATE`. Esa
+   constante se retiró junto con la conversión a pesos. Hoy `app.js:2495`
+   multiplica por `USD_INDEX_FACTOR` y el resultado es un **índice interno**,
+   no un precio.
+2. **`firestore.rules`, comentario de `config/{docId}`:** decía que app.js
+   lee `config/finanzas` al arrancar. Ya no: A-1 eliminó esa lectura.
+   `grep tasaUsdRd` no encuentra ningún uso en código vivo.
+3. **`README.md`:** afirmaba que `canManageUsers()` está en
+   `firestore.rules` y debe coincidir con `ROLE_PERMISSIONS`. **No existe**:
+   solo aparece en un comentario. Los perfiles los autoriza `isAdmin()`
+   directamente. Se documenta además que de los seis permisos de la matriz
+   **solo `manageVehicles` se usa**, y que por tanto el rol `sales` hoy no
+   concede nada —es funcionalmente idéntico a `customer`—, dato que conviene
+   saber antes de asignárselo a un empleado esperando que le dé analíticas.
+4. **`README.md`:** hablaba de "las 15 pruebas" de las reglas. Son 114 (118
+   con las nuevas).
+
+Un comentario obsoleto en el archivo de seguridad es peor que en cualquier
+otro sitio: hace que la auditoría siguiente dé por buena una premisa falsa.
+
+### 3. Propuesta RETIRADA: eliminar el bloque `config/{docId}` (S-1)
+
+Queda registrado porque la propuesta llegó a formularse y **era incorrecta**.
+
+El razonamiento inicial: app.js ya no lee `config/finanzas`, la regla permite
+lectura **anónima**, luego es superficie muerta que conviene cerrar.
+
+Lo que faltó comprobar antes de proponerlo —y que el propio protocolo de
+auditoría exige: *"por qué la corrección no rompe otra cosa"*—:
+
+- `firestore_rules_test.js` dedica **~20 pruebas** a `config/finanzas`, y una
+  de ellas es la **regresión explícita de A-1**: *"sin la regla
+  `match /config/{docId}` esta lectura caía en el deny por defecto y la tasa
+  configurable nunca funcionaba en producción"*. Existe precisamente para que
+  nadie quite esa regla.
+- El riesgo descrito no se sostiene: las reglas de escritura acotan
+  `config/finanzas` a **un único campo numérico entre 0 y 1000, escribible
+  solo por un admin**. Es imposible colocar ahí datos sensibles. Y cualquier
+  otro documento de `/config` queda denegado incluso en lectura, con prueba
+  propia.
+
+Eliminar la regla habría costado 20 pruebas, incluida una barrera
+anti-regresión, para cerrar una lectura pública de un documento inexistente
+cuyo contenido posible es un número. Se conserva, y el comentario del bloque
+ahora explica que no tiene consumidor, por qué se mantiene y qué borrar el
+día que se decida retirarla.
+
+### 4. Hallazgos que NO se tocan desde el repositorio
+
+- **S-2 (medio) — apropiación de la cuenta admin por registro previo.** La
+  whitelist vive en `auth.js`, servido públicamente, y `allow create` no
+  exige `email_verified`. Un atacante puede registrar una de esas
+  direcciones con contraseña; no logra promoverse (le falta
+  `email_verified`), pero ocupa la identidad, y con *"one account per email
+  address"* el propietario acabaría entrando en un UID cuya contraseña
+  conoce el atacante. **Solo explotable si esas cuentas no existen ya** —no
+  verificable desde el repositorio—. Mitigación inmediata: confirmar en
+  Firebase Console que ambas existen, son del propietario y tienen el correo
+  verificado. Mitigación de fondo: mover la autoridad de admin a **custom
+  claims**, que solo el Admin SDK puede escribir.
+- **S-6 (bajo, aceptado) — catálogo público sin límite.** `allow read: if
+  true` en `/vehicles` + `onSnapshot()` sin `limit()` permite descargar el
+  inventario completo. Es el diseño correcto de un catálogo público; el
+  riesgo es de coste de lecturas, y la mitigación es App Check en
+  *Enforcement*, no tocar las Rules.
+
+### Archivos
+
+`firestore.rules`, `firestore_rules_test.js`, `README.md`.
+
+No se tocó `app.js`, `auth.js`, `roles.js`, `dashboard.js`, `netlify.toml`
+ni ningún archivo que Netlify sirva: este cambio no afecta al sitio
+publicado. Las reglas **no surten efecto hasta**
+`firebase deploy --only firestore:rules`.
+
+
 ## RUTINA DE AUDITORÍA AUTOMÁTICA, VERIFICACIÓN EN CADA PUSH Y RETIRADA DEL AUTO-FIX POR MODELO LOCAL
 
 El mantenimiento del sitio pasa a tener dos capas: una verificación

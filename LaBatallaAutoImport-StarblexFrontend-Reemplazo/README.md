@@ -98,7 +98,23 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
   una función definida en `auth.js` sin declarar la dependencia: esa
   carrera dejaba la web en "Cargando…" de forma permanente.
 - El `slug` se genera UNA vez al crear el vehículo y es inmutable. `slugify()` existe en **app.js**, **scripts/generar-sitemap.js** y **netlify/edge-functions/vehicle-og.js**. Si cambias uno, cambia los tres.
-- La autorización ya no usa un UID fijo: `canManageVehicles()`/`canManageUsers()` en firestore.rules deben coincidir con `ROLE_PERMISSIONS` en roles.js — mismos roles (`customer`/`sales`/`editor`/`admin`) y mismos campos (`role`, `status`) en ambos lados.
+- La autorización ya no usa un UID fijo. Los dos lados deben hablar de los
+  mismos roles (`customer`/`sales`/`editor`/`admin`) y de los mismos campos
+  (`role`, `status`), pero **no tienen la misma forma**:
+  - `firestore.rules` decide de verdad. Para vehículos usa
+    `canManageVehicles()` (= `isAdmin() || isEditor()`); para perfiles usa
+    `isAdmin()` **directamente**. No existe ninguna función
+    `canManageUsers()` en las Rules: solo se la menciona en un comentario.
+  - `roles.js` gobierna únicamente la UI (qué botones mostrar), a través de
+    `ROLE_PERMISSIONS`.
+  - De los seis permisos de esa matriz, **solo `manageVehicles` se usa**
+    (`app.js` → `canManageVehicles()`). `manageUsers`, `managePromotions`,
+    `manageCampaigns`, `manageLeads` y `viewAnalytics` no se consultan en
+    ningún sitio y no tienen colección en las Rules, así que el rol `sales`
+    hoy no concede nada: es funcionalmente idéntico a `customer`. Tenerlo
+    presente antes de asignárselo a alguien esperando que le dé acceso.
+  `tools/verificar.sh` comprueba la parte automatizable: que todo rol de
+  `roles.js` aparezca en `firestore.rules`.
 - Si agregas un dominio externo nuevo (CDN, API), añádelo a la CSP en `netlify.toml` o el navegador lo bloqueará.
 - **Barra de navegación en modo administración:** `updateAdminUI()` (app.js)
   pone/quita la clase `.nav--admin` en el `<nav>` del catálogo según
@@ -361,8 +377,39 @@ aplicada): catálogo, ficha, publicación/edición/borrado con imágenes,
 Auth, Dashboard, favoritos, cotizaciones, calculadora, Empresa, legales y
 404 — 78 aserciones funcionales en verde, 0 violaciones de axe-core
 (WCAG 2.1 A/AA), 0 violaciones de CSP y 48/48 viewports sin desbordamiento
-horizontal. Las 15 pruebas de `firestore.rules` pasan contra el emulador
+horizontal. Las 114 pruebas de `firestore.rules` pasan contra el emulador
 real de Firestore. Sin bugs críticos conocidos.
+
+Incluidas las **4 pruebas de S-3** (la rama de admin ancla
+`email`/`createdAt`/`schemaVersion`): **125 en verde, 0 en rojo** contra el
+emulador real (Firestore 12.19.0, JDK 21).
+
+```bash
+firebase emulators:exec --only firestore "node firestore_rules_test.js"
+```
+
+Dos cosas que ahorran tiempo la próxima vez:
+
+- **El comando necesita `firebase.json`**, que vive en esta carpeta, no en la
+  raíz del repositorio. Ejecutarlo desde otro sitio da
+  `Could not find config (firebase.json) so using defaults` y no prueba nada.
+  Lo mismo aplica a `firebase deploy --only firestore:rules`.
+- **El emulador de Firestore corre sobre JVM**: sin un JDK 11+ en el PATH
+  falla con `Could not spawn java -version`. En Windows:
+  `winget install Microsoft.OpenJDK.21`, y reabrir la terminal para que tome
+  el PATH.
+
+Sobre los `evaluation error at L…` que el emulador imprime en las pruebas
+negativas: son **esperados y preexistentes**. Firestore evalúa todas las
+reglas `allow` que coinciden con la ruta y la operación, así que una rama
+cuya expresión no aplica en ese contexto (p. ej. `validUserProfile(
+request.resource.data)` durante un `delete`, donde `request.resource` es
+`null`) reporta error en lugar de `false`. El resultado global sigue siendo
+la disyunción de las ramas que sí evaluaron, y por eso `allow delete` está
+separado a propósito. Medido A/B contra las reglas anteriores: la rama de
+admin ya reportaba 20 de esos errores antes de S-3 y ahora reporta 23,
+exactamente las 3 evaluaciones extra que añaden las 3 pruebas negativas
+nuevas.
 
 Pendiente de verificación manual en producción (bloqueado por la red del
 entorno de desarrollo, que no alcanza gstatic/jsDelivr/Cloudinary):
