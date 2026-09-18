@@ -1,7 +1,7 @@
 # .github/workflows/weekly-audit.yml
 # Auditoría semanal automática + auto-fix crítico + PR de mejoras
 # Se ejecuta cada lunes 03:00 UTC (domingo 23:00 en República Dominicana)
-# Modelo: qwen2.5-coder:7b-q4_k_m (especialista en código, cabe en 7GB RAM)
+# Modelo: qwen2.5-coder:7b (default q4_k_m, ~4.2 GB, especialista en código)
 
 name: Weekly Code Audit & Auto-Fix
 
@@ -40,7 +40,7 @@ jobs:
             sleep 2
           done
           echo "📥 Descargando modelo (≈4.2 GB)..."
-          docker exec ollama ollama pull qwen2.5-coder:7b-q4_k_m
+          docker exec ollama ollama pull qwen2.5-coder:7b
           echo "✅ Modelo listo"
 
       - name: Collect source files for audit
@@ -91,7 +91,7 @@ jobs:
           
           # Crear payload.json usando jq (seguro, sin heredoc)
           jq -n \
-            --arg model "qwen2.5-coder:7b-q4_k_m" \
+            --arg model "qwen2.5-coder:7b" \
             --arg prompt "$PROMPT_TEXT\n\n=== CONTEXTO COMPLETO DEL REPO ===\n$CONTEXT" \
             --argjson stream false \
             --argjson format '"json"' \
@@ -183,7 +183,7 @@ jobs:
             git add -A
             git commit -m "🤖 Auto-fix: critical issues from weekly audit $(date +%Y-%m-%d)
             
-            Fixes aplicados automáticamente por qwen2.5-coder:7b-q4_k_m.
+            Fixes aplicados automáticamente por qwen2.5-coder:7b.
             Revisar cambios antes de deploy a producción."
             git push
             echo "✅ Fixes críticos committed & pushed"
@@ -201,7 +201,7 @@ jobs:
           body: |
             ## 📋 Mejoras sugeridas por auditoría automática semanal
             
-            **Modelo:** qwen2.5-coder:7b-q4_k_m  
+            **Modelo:** qwen2.5-coder:7b  
             **Fecha:** $(date -u +"%Y-%m-%d %H:%M UTC")  
             **Commit:** ${{ github.sha }}
             
