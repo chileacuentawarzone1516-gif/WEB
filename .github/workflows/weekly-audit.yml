@@ -1,6 +1,5 @@
 # .github/workflows/weekly-audit.yml
 # Auditoría semanal automática + auto-fix crítico + PR de mejoras
-# Se ejecuta cada lunes 03:00 UTC (domingo 23:00 en República Dominicana)
 # Modelo: qwen2.5-coder:7b (q4_k_m default, ~4.7 GB, especialista en código)
 
 name: Weekly Code Audit & Auto-Fix
@@ -34,35 +33,56 @@ jobs:
       - name: Start Ollama & pull qwen2.5-coder:7b
         run: |
           docker run -d --name ollama -p 11434:11434 ollama/ollama:latest
-          echo "⏳ Esperando a que Ollama inicie..."
           for i in {1..30}; do
             curl -sf http://localhost:11434/api/version && break
             sleep 2
           done
-          echo "📥 Descargando modelo (≈4.7 GB)..."
           docker exec ollama ollama pull qwen2.5-coder:7b
-          echo "✅ Modelo listo"
 
-      - name: Collect source files for audit
+      - name: Collect key source files
         id: collect
         run: |
-          FILES=$(find . -type f \
-            \( -name "*.js" -o -name "*.html" -o -name "*.css" -o -name "*.toml" -o -name "*.json" -o -name "*.rules" -o -name "*.md" \) \
-            ! -path "./node_modules/*" \
-            ! -path "./.git/*" \
-            ! -path "./dist/*" \
-            ! -path "./build/*" \
-            ! -name "*.png" ! -name "*.jpg" ! -name "*.jpeg" ! -name "*.webp" ! -name "*.ico" ! -name "*.svg" \
-            ! -name "RELEASE_NOTES.md" \
-            | head -80)
+          # Solo archivos clave (evita 783 KB → ~150 KB)
+          KEY_FILES="
+          app.js
+          auth.js
+          auth-ui.js
+          dashboard.js
+          calculadora.js
+          cotizacion-pdf.js
+          boot.js
+          media-model.js
+          media-upload.js
+          roles.js
+          firestore.rules
+          firebase.json
+          netlify.toml
+          index.html
+          styles.css
+          dashboard.css
+          ficha-vehiculo.css
+          pagina-estatica.css
+          invite-modal.js
+          cloudinary-sign-worker.js
+          vehicles-demo.js
+          analytics.js
+          404.html
+          politica-privacidad.html
+          terminos-y-condiciones.html
+          robots.txt
+          sitemap.xml
+          site.webmanifest
+          "
           
           CONTEXT=""
-          for f in $FILES; do
-            SIZE=$(wc -c < "$f")
-            if [ "$SIZE" -lt 150000 ]; then
-              CONTEXT+="\n=== FILE: $f ===\n$(cat "$f")\n"
-            else
-              CONTEXT+="\n=== FILE: $f (TRUNCADO - ${SIZE} bytes) ===\n$(head -c 100000 "$f")\n... [archivo truncado para caber en contexto] ...\n"
+          for f in $KEY_FILES; do
+            if [ -f "$f" ]; then
+              SIZE=$(wc -c < "$f")
+              if [ "$SIZE" -lt 80000 ]; then
+                CONTEXT+="\n=== FILE: $f ===\n$(cat "$f")\n"
+              else
+                CONTEXT+="\n=== FILE: $f (TRUNCADO) ===\n$(head -c 60000 "$f")\n... [truncado] ...\n"
+              fi
             fi
           done
           
@@ -70,8 +90,7 @@ jobs:
           echo "context<<EOF" >> $GITHUB_OUTPUT
           echo "$CONTEXT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-          
-          echo "📊 Archivos incluidos: $(echo "$FILES" | wc -l)"
+          echo "📊 Archivos clave: $(echo "$KEY_FILES" | wc -w)"
           echo "📏 Tamaño contexto: $(wc -c < audit_context.txt) bytes"
 
       - name: Run AI code audit
@@ -79,18 +98,36 @@ jobs:
         env:
           OLLAMA_HOST: http://localhost:11434
         run: |
-          # Prompt codificado en base64 (evita problemas de sintaxis YAML)
-          PROMPT_B64="RXJlcyB1biBBVVRJVE9SIFNFTklPUiBERSBDT0RJR08gV0VCIGVzcGVjaWFsaXphZG8gZW46Ci0gSmF2YVNjcmlwdCB2YW5pbGxhIChFUzIwMjQpIHNpbiBidWlsZCB0b29scwotIEZpcmViYXNlIEF1dGgvRmlyZXN0b3JlL0FwcCBDaGVjayAocmVnbGFzIGRlIHNlZ3VyaWRhZCBjcsOtdGljYXMpCi0gTmV0bGlmeSAocmVkaXJlY3RzLCBoZWFkZXJzLCBmdW5jdGlvbnMsIGVkZ2UpCi0gQ1NTIG1vZGVybm8gKGN1c3RvbSBwcm9wZXJ0aWVzLCBjb250YWluZXIgcXVlcmllcywgY2FzY2FkZSBsYXllcnMpCi0gQWNjZXNpYmlsaWRhZCBXQ0FHIDIuMSBBQSwgU0VPIHDDqXRuaWNvLCBDb3JlIFdlYiBWaXRhbHMKLSBTZWd1cmlkYWQ6IFhTUywgQ1NSRiwgaW55ZWNjaW9uLCBDU1AsIHJlZ2xhcyBGaXJlc3RvcmUKCkVQU086IExhIEJhdGFsbGEgQXV0byBJbXBvcnQg4oCcIHNpdGlvIGRlIHZlacOzaWN1bG9zIGVuIFJlcHVibGljYSBEb21pbmljYW5hClNUQUNLOiBIVE1ML0NTUy9KUyBlc3TDqXRpY28gKyBGaXJlYmFzZSArIE5ldGxpZnkgKHNpbiBwYWNrYWdlLmpzb24sIHNpbiBidW5kbGVyKQoKVEFSRUE6IEFuYWxpemEgVE9ETyBlbCDDs2RpZ28gcHJvdmlzdG8uIERldnVlbHZlIFNPTE8gSlNPTiDDsXZhbGlkbyAoc2luIG1hcmtkb3duLCBzaW4gdGV4dG8gZXh0cmEpLgoKRk9STUFUTyBERSBTQUxJREEgRVhBQ1RPOiAKewogICJjcml0aWNhbCI6IFsKICAgIHsiZmlsZSI6ICJydXRhL2FyY2hpdm8uanMiLCAibGluZSI6IDQyLCAiaXNzdWUiOiAiRGVzY3JpcGNpw7NuIGNsYXJhIGRlbCBidWcvdnVsbmVyYWJpbGlkYWQiLCAiZml4IjogIkNvZGlnbyBjb3JyZWdpZG8gQ09NUExFVE8gZGVsIGFyY2hpdm8gbyBsbG9xdWUgYWZlY3RhZG8ifQogIF0sCiAgImltcHJvdmVtZW50cyI6IFsKICAgIHsiZmlsZSI6ICJydXRhL2FyY2hpdm8uanMiLCAicHJpb3JpdHkiOiAiaGlnaHxtZWRpdW18bG93IiwgImNhdGVnb3J5IjogInBlcmZvcm1hbmNlfHNlY3VyaXR5fGExMWx8c2VvfG1haW50YWluYWJpbGl0eXxtb2Rlcm4tanMiLCAic3VnZ2VzdGlvbiI6ICJRdWUgbWVqb3JhciIsICJjb2RlIjogIkNvZGlnbyBzdWdlcmRpZG8gKG9wcGlvbmFsKSIKICBdLAogICJzdW1tYXJ5IjogIlJlc3VtZW4gZWplY3V0aXZvIGVuIDMgbMOzbmVhczogZXN0YWRvIGdlbmVyYWwsIGhhbGxhendvcyBjbGF2ZSwgYWNjaW9uIHJlY29tZW5kYWRhLiIKfQoKQ1JJVEVSSU9TIENSw41USUNPUyAoYXV0by1maXggZGlyZWN0byBhbCByZXBvKToKLSBCdWdzIHF1ZSByb21wZW4gZnVuY2lvbmFsaWRhZCAoVHlwZUVycm9yLCBSZWZlcmVuY2VFcnJvciwgbMOzZ2ljYSByb3RhKQotIFZ1bG5lcmFiaWxpZGFkZXM6IFhTUyAoaW5uZXJIVE1MIHNpbiBzYW5pdGl6YXIpLCByZWdsYXMgRmlyZXN0b3JlIGFiaWVydGFzLCBzZWNyZXRzIGV4cHVlc3RvcyAKLSBFcnJvcmVzIGRlIHNpbnRheGlzLCBpbXBvcnRzIHJvdG9zLCBDU1AgdmlvbGFkbyAKLSBBY2Nlc2liaWxpZGFkIGJsb2NrYW50ZSAoZmFsdGEgYWx0LCBsYWJlbHMsIGNvbnRyYXN0ZSwgZm9jdXMgdmlzaWJsZSkKCk1FSk9SQVMgKHZhbiBhIFBSIHBhcmEgcmV2aXNpw7NuIGh1bWFuYSk6Ci0gUGVyZm9ybWFuY2U6IGxhenkgbG9hZGluZywgcHJlY29ubmVjdCwgYnVuZGxlIHNpemUsIGNhY2hpbmcKLSBTRU86IG1ldGEgdGFncywgc3RydWN0dXJlZCBkYXRhLCBoZWFkaW5ncywgc2l0ZW1hcAotIE1vZGVybiBKUzogb3B0aW9uYWwgY2hhaW5pbmcsIG51bGxpc2ggY29hbGVzY2luZywgdG9wLWxldmVsIGF3YWl0Ci0gQ1NTOiBjb250YWluZXIgcXVlcmllcywgY2FzY2FkZSBsYXllcnMsIGN1c3RvbSBwcm9wZXJ0aWVzLCBmbHVpZCB0eXBvZ3JhcGh5Ci0gTWFpbnRhaW5hYmlsaWRhZDogRFJZLCBzZXBhcmFjacOzbiBvZiBjb25jZXJucywgY29tZW50YXJpb3MganNkb2MKLSBTZWd1cmlkYWQ6IENTUCBoZWFkZXJzLCBBcHAgQ2hlY2ssIHJlZ2xhcyBGaXJlc3RvcmUgbGVhc3QtcHJpdmlsZWdlCgpBUkNISVZPUyBDTEFWRSBBIFJFVklTQVIgQ09OIFJVUEE6Ci0gYXBwLmpzICgxNzBKQiAtIGxvZ2ljYSBwcmluY2lwYWwsIHJlbmRlcmluZywgZXN0YWRvKQotIGF1dGguanMgLyBhdXRoLXVpLmpzIChBdXRoIEZpcmViYXNlLCBtYW5lam8gZGUgdG9rZW5zKQotIGZpcmVzdG9yZS5ydWxlcyAo4oCIIVNFR1JJREFEIENSw41USUNBISEg4oCJIC0gcmV2aXNhIGNhZGEgcmVnbGEpCi0gbmV0bGlmeS50b21sIChoZWFkZXJzLCByZWRpcmVjdHMsIGZ1bmN0aW9ucykKLSBjYWxjdWxhZG9yYS5qcyAvIGNvdGl6YWNpb24tcGRmLmpzIChsw7NnaWNhIGZpbmFuY2llcmEsIHZhbGlkYWNpw7NuKQotIGRhc2hib2FyZC5qcyAocGFuZWwgdXN1YXJpbywgb3BlcmFjaW9uZXMgc2Vuc2libGVzKQotIGluZGV4Lmh0bWwgK1NFTywgbWV0YSwgQ1NQLCBwcmVsb2Fkcywgc3RydWN0dXJlZCBkYXRhKQotIHN0eWxlcy5jc3MgLyB0YWlsd2luZC5jc3MgLyBkYXNoYm9hcmQuY3NzIChDU1MgbW9kZXJubywgYTExeSkKLSBib290LmpzIChjb29yZGluYWRvciBkZSBkZXBlbmRlbmNpYXMpCi0gbWVkaWEtbW9kZWwuanMgLyBtZWRpYS11cGxvYWQuanMgKHN1YmlkYSBDbG91ZGluYXJ5KQotIGZpcmViYXNlLmpzb24gLyBmaXJlc3RvcmUucnVsZXMgKGNvbmZpZyArIHNlZ3VyaWRhZCkKCiBOTyBJTlZFTlRFUyBBUkNISVZPUy4gU2kgbm8gdmVzIGVsIGFyY2hpdm8gZW4gZWwgY29udGV4dG8sIG5vIGxvIG1lbmNpb25lcw=="
-          
-          # 1. Decodificar prompt a archivo (sin expansión shell)
-          echo "$PROMPT_B64" | base64 -d > audit_prompt.txt
-          
-          # 2. Guardar contexto en archivo (EVITA expansión shell de código JS)
+          # Prompt corto y efectivo (evita problemas de expansión shell)
+          cat > audit_prompt.txt << 'AUDIT_PROMPT'
+Eres auditor senior de código web. Analiza el código y devuelve SOLO JSON válido:
+
+{
+  "critical": [{"file": "ruta", "line": 1, "issue": "problema", "fix": "código corregido"}],
+  "improvements": [{"file": "ruta", "priority": "high|medium|low", "category": "performance|security|a11y|seo|maintainability", "suggestion": "mejora"}],
+  "summary": "Resumen 3 líneas"
+}
+
+CRÍTICOS (auto-fix):
+- Bugs que rompen funcionalidad
+- Vulnerabilidades XSS, reglas Firestore abiertas, secrets
+- Errores sintaxis, imports rotos
+
+MEJORAS (PR para revisión):
+- Performance: lazy loading, preconnect, caching
+- SEO: meta tags, structured data, headings
+- Seguridad: CSP, App Check, Firestore least-privilege
+- A11y: alt, labels, contraste, focus
+- Modern JS: optional chaining, nullish coalescing
+- CSS: container queries, custom properties
+
+Stack: vanilla JS + Firebase + Netlify. No inventes archivos.
+AUDIT_PROMPT
+
+          # Guardar contexto en archivo (evita expansión shell)
           echo "${{ steps.collect.outputs.context }}" > audit_context.txt
           
-          # 3. Construir payload.json con jq LEYENDO ARCHIVOS (sin variables shell)
-          #    --rawfile lee el archivo LITERALMENTE (sin parsing JSON)
-          #    Perfecto para código con backticks, $(), ${...}, etc.
+          # Construir payload.json con jq leyendo archivos
           jq -n \
             --arg model "qwen2.5-coder:7b" \
             --rawfile prompt audit_prompt.txt \
@@ -99,75 +136,72 @@ jobs:
             --argjson format '"json"' \
             --argjson temperature 0.1 \
             --argjson top_p 0.9 \
-            --argjson num_ctx 32768 \
-            --argjson num_predict 8192 \
-            '{model: $model, prompt: ($prompt + "\n\n=== CONTEXTO COMPLETO DEL REPO ===\n" + $context), stream: $stream, format: $format, options: {temperature: $temperature, top_p: $top_p, num_ctx: $num_ctx, num_predict: $num_predict}}' \
+            --argjson num_ctx 16384 \
+            --argjson num_predict 4096 \
+            '{model: $model, prompt: ($prompt + "\n\n=== CONTEXTO ===\n" + $context), stream: $stream, format: $format, options: {temperature: $temperature, top_p: $top_p, num_ctx: $num_ctx, num_predict: $num_predict}}' \
             > payload.json
           
-          # 4. Llamada a Ollama (usa @payload.json, no heredoc)
-          RESPONSE=$(curl -s -X POST http://localhost:11434/api/generate \
+          # Llamada a Ollama con timeout de 10 min
+          RESPONSE=$(curl -s --max-time 600 -X POST http://localhost:11434/api/generate \
             -H "Content-Type: application/json" \
             -d @payload.json)
           
-          echo "$RESPONSE" | jq -r '.response' > audit_result.json
+          echo "$RESPONSE" | jq -r '.response // empty' > audit_result.json
           
-          # Validar JSON
-          if ! jq empty audit_result.json 2>/dev/null; then
-            echo "❌ Respuesta no es JSON válido"
-            echo "--- Primeros 500 chars ---"
-            head -c 500 audit_result.json
-            echo ""
-            exit 1
+          if [ ! -s audit_result.json ]; then
+            echo "⚠️ Respuesta vacía del modelo"
+            exit 0
           fi
           
-          # Extraer resumen para PR
-          SUMMARY=$(jq -r '.summary' audit_result.json)
+          # Limpiar markdown si el modelo lo incluyó
+          sed -i 's/```json//g; s/```//g' audit_result.json
+          
+          if ! jq empty audit_result.json 2>/dev/null; then
+            echo "⚠️ No se pudo parsear JSON, guardando respuesta cruda"
+            exit 0
+          fi
+          
+          SUMMARY=$(jq -r '.summary // "Sin resumen"' audit_result.json)
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           echo "$SUMMARY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
           
-          # Contar críticos
-          CRIT_COUNT=$(jq '.critical | length' audit_result.json)
-          IMP_COUNT=$(jq '.improvements | length' audit_result.json)
+          CRIT_COUNT=$(jq '.critical | length // 0' audit_result.json)
+          IMP_COUNT=$(jq '.improvements | length // 0' audit_result.json)
           echo "🔴 Críticos: $CRIT_COUNT | 🟡 Mejoras: $IMP_COUNT"
           echo "📋 Resumen: $SUMMARY"
 
       - name: Apply critical fixes
         if: always()
         run: |
-          if [ ! -f audit_result.json ]; then
-            echo "⚠️ No hay audit_result.json"
+          if [ ! -f audit_result.json ] || [ ! -s audit_result.json ]; then
+            echo "⚠️ No hay resultados de auditoría"
             exit 0
           fi
           
-          CRITICAL=$(jq -c '.critical[]' audit_result.json)
+          CRITICAL=$(jq -c '.critical[]?' audit_result.json 2>/dev/null)
           if [ -z "$CRITICAL" ]; then
-            echo "✅ No hay fixes críticos que aplicar"
+            echo "✅ No hay fixes críticos"
             exit 0
           fi
           
           echo "$CRITICAL" | while IFS= read -r issue; do
-            FILE=$(echo "$issue" | jq -r '.file')
-            FIX=$(echo "$issue" | jq -r '.fix')
-            ISSUE_DESC=$(echo "$issue" | jq -r '.issue')
+            FILE=$(echo "$issue" | jq -r '.file // empty' 2>/dev/null)
+            FIX=$(echo "$issue" | jq -r '.fix // empty' 2>/dev/null)
+            [ -z "$FILE" ] && continue
+            [ ! -f "$FILE" ] && echo "⚠️ No existe: $FILE" && continue
             
-            if [ ! -f "$FILE" ]; then
-              echo "⚠️ Archivo no existe: $FILE (saltando)"
-              continue
-            fi
-            
-            echo "🔧 Aplicando fix crítico en $FILE: $ISSUE_DESC"
-            
+            echo "🔧 Fix en $FILE"
             cp "$FILE" "$FILE.bak"
             echo "$FIX" > "$FILE"
             
             if [[ "$FILE" == *.js ]]; then
               if ! node --check "$FILE" 2>/dev/null; then
-                echo "❌ Fix rompió sintaxis JS — restaurando backup"
                 mv "$FILE.bak" "$FILE"
+                echo "❌ Sintaxis rota, restaurado"
               else
                 rm "$FILE.bak"
-                echo "✅ Fix aplicado y verificado"
+                echo "✅ Fix aplicado"
               fi
             else
               rm "$FILE.bak"
@@ -183,14 +217,11 @@ jobs:
           
           if ! git diff --quiet; then
             git add -A
-            git commit -m "🤖 Auto-fix: critical issues from weekly audit $(date +%Y-%m-%d)
-            
-            Fixes aplicados automáticamente por qwen2.5-coder:7b.
-            Revisar cambios antes de deploy a producción."
+            git commit -m "🤖 Auto-fix: weekly audit $(date +%Y-%m-%d)"
             git push
-            echo "✅ Fixes críticos committed & pushed"
+            echo "✅ Fixes committed"
           else
-            echo "ℹ️ No hay cambios críticos para commitear"
+            echo "ℹ️ No hay cambios"
           fi
 
       - name: Create Pull Request with improvements
@@ -205,21 +236,11 @@ jobs:
             
             **Modelo:** qwen2.5-coder:7b  
             **Fecha:** $(date -u +"%Y-%m-%d %H:%M UTC")  
-            **Commit:** ${{ github.sha }}
             
-            ### Resumen ejecutivo
-            ${{ steps.audit.outputs.summary }}
+            ### Resumen
+            ${{ steps.audit.outputs.summary || 'Sin resumen' }}
             
-            ### Cambios propuestos
-            Los commits en esta PR contienen mejoras no críticas (performance, SEO, a11y, modern JS, CSS, maintainabilidad, seguridad defensiva).
-            
-            **⚠️ Revisa cada commit antes de mergear.** Las mejoras son sugerencias; valida que no rompan tu UX ni lógica de negocio.
-            
-            ### Cómo revisar
-            1. Revisa la pestaña "Files changed"
-            2. Ejecuta localmente: `git fetch origin audit/improvements-${{ github.run_id }} && git checkout FETCH_HEAD`
-            3. Abre `index.html` en navegador o `npx serve .` para test visual
-            4. Aprueba y mergea los commits que quieras
+            **⚠️ Revisa cada commit antes de mergear.**
           labels: audit, improvements, automated
           commit-message: "📋 Audit suggestions: ${{ github.run_id }}"
           add-paths: .
