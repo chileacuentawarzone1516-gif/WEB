@@ -1,5 +1,6 @@
 // ============================================================
-// Batería de pruebas de firestore.rules — 116 casos (102 previos + 14 del tope de precio).
+// Batería de pruebas de firestore.rules — 118 casos
+// (114 previos + 4 de S-3: la rama de admin ancla email/createdAt/schemaVersion).
 // Requiere: npm install -D @firebase/rules-unit-testing firebase
 // Ejecutar:  firebase emulators:exec --only firestore "node firestore_rules_test.js"
 // ============================================================
@@ -698,6 +699,42 @@ async function main() {
   await run('Preferencia con campo desconocido → denegado', async () => {
     await assertFails(setDoc(doc(como('favA', 'fava@test.com'), 'users', 'favA', 'preferences', 'settings'),
       { brands: ['X'], backdoor: 1 }));
+  });
+
+  // ==========================================================
+  // S-3 — LA RAMA DE ADMIN ANCLA email / createdAt / schemaVersion
+  // ----------------------------------------------------------
+  // Regresión: esa rama era la única de las tres de /users que permitía
+  // reescribir la identidad del perfil. No es una escalada (un admin ya
+  // gobierna roles y estados), pero `email` es lo que consulta
+  // isWhitelistedAdminEmail() y `createdAt` es la fecha de alta que el resto
+  // del archivo trata como inmutable. Las tres primeras pruebas cierran la
+  // vía; la cuarta comprueba que el anclaje NO quitó al admin lo que sí debe
+  // poder hacer.
+  // ==========================================================
+  await run('[S-3] Admin cambia el email de otro usuario → denegado', async () => {
+    await seedWithoutRules(async db => {
+      await setDoc(doc(db, 'users', 'adminS3'), perfil('admins3@test.com', 'Admin S3', 'admin', 'active'));
+      await setDoc(doc(db, 'users', 'victimaS3'), perfil('victima@test.com', 'Victima', 'customer', 'active'));
+    });
+    await assertFails(updateDoc(doc(como('adminS3', 'admins3@test.com'), 'users', 'victimaS3'),
+      { email: 'secuestrado@test.com' }));
+  });
+
+  await run('[S-3] Admin reescribe createdAt de otro usuario → denegado', async () => {
+    await assertFails(updateDoc(doc(como('adminS3', 'admins3@test.com'), 'users', 'victimaS3'),
+      { createdAt: new Date(0) }));
+  });
+
+  await run('[S-3] Admin cambia schemaVersion de otro usuario → denegado', async () => {
+    await assertFails(updateDoc(doc(como('adminS3', 'admins3@test.com'), 'users', 'victimaS3'),
+      { schemaVersion: 99 }));
+  });
+
+  await run('[S-3] Admin sigue pudiendo cambiar role y status → permitido', async () => {
+    const db = como('adminS3', 'admins3@test.com');
+    await assertSucceeds(updateDoc(doc(db, 'users', 'victimaS3'), { role: 'editor' }));
+    await assertSucceeds(updateDoc(doc(db, 'users', 'victimaS3'), { status: 'disabled' }));
   });
 
   // ==========================================================
