@@ -103,7 +103,7 @@
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
-<link rel="stylesheet" href="/styles.css?v=20260910b">
+<link rel="stylesheet" href="/styles.css?v=20260920">
 <link rel="stylesheet" href="/ficha-vehiculo.css?v=20260905">
 <link rel="stylesheet" href="/dashboard.css?v=20260905">
 </head>
@@ -148,9 +148,18 @@
   <nav class="sticky top-0 z-30 shadow-md relative" style="background: rgb(30, 41, 59);">
     <div class="nav-bar max-w-6xl mx-auto flex items-center px-4 py-3 gap-3 relative">
       <div class="nav-cats flex items-center gap-4 md:gap-10 flex-1 justify-center">
-        <a href="#sedanes" class="nav-cat-link whitespace-nowrap text-sm md:text-base" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;">Sedanes</a>
-        <a href="#suvs" class="nav-cat-link whitespace-nowrap text-sm md:text-base" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;">SUVs</a>
-        <a href="#pickups" class="nav-cat-link whitespace-nowrap text-sm md:text-base" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;">Camionetas</a>
+        <!-- Las categorías van en su propio carril DESPLAZABLE (.nav-cat-scroll).
+             Con cuatro y nombres largos ya no caben en 320 px, y el contenedor
+             anterior no podía encogerse (flex-1 con min-width:auto + enlaces
+             nowrap): empujaba "Mi Cuenta" y "Publicar" fuera de la pantalla.
+             El menú Empresa queda FUERA del carril a propósito: overflow-x
+             recorta verticalmente y su desplegable quedaría cortado. -->
+        <div class="nav-cat-scroll flex items-center gap-4 md:gap-10">
+          <a href="#sedanes" class="nav-cat-link whitespace-nowrap text-sm md:text-base" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;">Sedanes</a>
+          <a href="#jeepetas_camionetas" class="nav-cat-link whitespace-nowrap text-sm md:text-base" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;">Jeepetas / Camionetas</a>
+          <a href="#minivan" class="nav-cat-link whitespace-nowrap text-sm md:text-base" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;">Minivans</a>
+          <a href="#vehiculos_pesados" class="nav-cat-link whitespace-nowrap text-sm md:text-base" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;">Vehículos Pesados</a>
+        </div>
         <div class="nav-empresa" id="nav-empresa">
           <button type="button" id="nav-empresa-btn" class="nav-cat-link whitespace-nowrap text-sm md:text-base flex items-center gap-1" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;" aria-haspopup="true" aria-expanded="false">
             Empresa <i data-lucide="chevron-down" class="w-3.5 h-3.5" aria-hidden="true"></i>
@@ -260,23 +269,33 @@
 
     <!-- ============== VISTA: CATÁLOGO (por defecto, visible) ============== -->
     <div id="catalog-view" class="space-y-16">
+      <!-- Las cuatro categorías de vehiculo-taxonomia.js. El id de cada
+           sección ES el valor que se guarda en Firestore: renderCategory()
+           busca "<valor>-scroll" y "<valor>-pagination", así que renombrar
+           uno sin tocar la taxonomía deja la sección vacía para siempre. -->
       <!-- Sedanes -->
       <section id="sedanes">
         <h2 class="font-bold mb-6" style="color:rgb(241,245,249); font-size:24px;">Sedanes</h2>
         <div class="scroll-section" id="sedanes-scroll"></div>
         <div id="sedanes-pagination"></div>
       </section>
-      <!-- SUVs -->
-      <section id="suvs">
-        <h2 class="font-bold mb-6" style="color:rgb(241,245,249); font-size:24px;">SUVs</h2>
-        <div class="scroll-section" id="suvs-scroll"></div>
-        <div id="suvs-pagination"></div>
+      <!-- Jeepetas / Camionetas -->
+      <section id="jeepetas_camionetas">
+        <h2 class="font-bold mb-6" style="color:rgb(241,245,249); font-size:24px;">Jeepetas / Camionetas</h2>
+        <div class="scroll-section" id="jeepetas_camionetas-scroll"></div>
+        <div id="jeepetas_camionetas-pagination"></div>
       </section>
-      <!-- Pickups -->
-      <section id="pickups">
-        <h2 class="font-bold mb-6" style="color:rgb(241,245,249); font-size:24px;">Camionetas</h2>
-        <div class="scroll-section" id="pickups-scroll"></div>
-        <div id="pickups-pagination"></div>
+      <!-- Minivans -->
+      <section id="minivan">
+        <h2 class="font-bold mb-6" style="color:rgb(241,245,249); font-size:24px;">Minivans</h2>
+        <div class="scroll-section" id="minivan-scroll"></div>
+        <div id="minivan-pagination"></div>
+      </section>
+      <!-- Vehículos Pesados -->
+      <section id="vehiculos_pesados">
+        <h2 class="font-bold mb-6" style="color:rgb(241,245,249); font-size:24px;">Vehículos Pesados</h2>
+        <div class="scroll-section" id="vehiculos_pesados-scroll"></div>
+        <div id="vehiculos_pesados-pagination"></div>
       </section>
       <!-- Contacto -->
       <section id="contacto" class="rounded-2xl p-10" style="background:rgb(30,41,59);">
@@ -551,7 +570,11 @@
       <div>
         <label class="text-slate-300 text-sm font-medium block mb-1" for="pub-category">Categoría *</label>
         <select id="pub-category" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-sky-400 focus:outline-none">
-          <option value="">Selecciona</option><option value="sedanes">Sedán</option><option value="suvs">SUV</option><option value="pickups">Camioneta</option>
+          <option value="">Selecciona</option>
+          <option value="sedanes">Sedán</option>
+          <option value="jeepetas_camionetas">Jeepetas / Camionetas</option>
+          <option value="minivan">Minivan</option>
+          <option value="vehiculos_pesados">Vehículos Pesados</option>
         </select>
       </div>
       <div>
@@ -998,8 +1021,9 @@
             <select id="db-pref-vehicle-type" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-sky-400 focus:outline-none transition">
               <option value="">Sin preferencia</option>
               <option value="sedanes">Sedán</option>
-              <option value="suvs">SUV</option>
-              <option value="pickups">Pickup</option>
+              <option value="jeepetas_camionetas">Jeepetas / Camionetas</option>
+              <option value="minivan">Minivan</option>
+              <option value="vehiculos_pesados">Vehículos Pesados</option>
             </select>
           </div>
           <div>
@@ -1209,12 +1233,14 @@
      dashboard.js: los dos leen window.LBMediaModel al renderizar. Todos
      los <script> son `defer`, así que se ejecutan en orden de documento. -->
 <script defer src="/media-model.js?v=20260910b"></script>
+<!-- Antes que app.js y dashboard.js: los dos leen LBTaxonomy al evaluarse. -->
+<script defer src="/vehiculo-taxonomia.js?v=20260920"></script>
 <script defer src="/roles.js?v=20260728"></script>
-<script defer src="/app.js?v=20260920"></script>
+<script defer src="/app.js?v=20260920b"></script>
 <script defer src="/auth.js?v=20260910"></script>
 <script defer src="/auth-ui.js?v=20260728"></script>
 <script defer src="/invite-modal.js?v=20260811"></script>
 <script defer src="/calculadora.js?v=20260905"></script>
-<script defer src="/dashboard.js?v=20260910b"></script>
+<script defer src="/dashboard.js?v=20260920"></script>
 </body>
 </html>

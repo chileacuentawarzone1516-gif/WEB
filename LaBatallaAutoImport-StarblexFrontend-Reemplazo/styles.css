@@ -63,7 +63,7 @@ body { font-family: 'DM Sans', sans-serif; }.slide { opacity: 0; transition: opa
    contenido no quede tapado por el nav sticky
 ============================================================ */
 html { scroll-behavior: smooth; }
-#sedanes, #suvs, #pickups, #contacto { scroll-margin-top: 88px; }
+#sedanes, #jeepetas_camionetas, #minivan, #vehiculos_pesados, #contacto { scroll-margin-top: 88px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
 /* ============================================================
@@ -110,10 +110,13 @@ html { scroll-behavior: smooth; }
   header p { font-size: 13px !important; }
   #hero-text-wrap { padding-left: 46px !important; padding-right: 46px !important; }
   .hero-arrow { width: 34px !important; height: 34px !important; font-size: 19px !important; }
-  /* H1 — el contenedor de categorías (Sedanes/SUVs/Camionetas/Empresa)
-     desborda el nav en anchos muy angostos. Se reduce el gap entre
-     enlaces y se anula el letter-spacing inline solo en este rango. */
+  /* El contenedor de categorías (las cuatro + Empresa) va muy justo en
+     anchos angostos. Ya no desborda el nav —eso lo resuelve el carril
+     desplazable .nav-cat-scroll—, pero apretar el espaciado deja ver más
+     categorías sin tener que arrastrar. Se reduce el gap y se anula el
+     letter-spacing inline solo en este rango. */
   nav .flex-1.justify-center { gap: 8px !important; }
+  .nav-cat-scroll { gap: 8px !important; }
   .nav-cat-link { letter-spacing: 0 !important; }
 }
 @media (max-width: 325px) {
@@ -293,12 +296,100 @@ footer a, #empresa-page a.inline-flex, #contacto a:not([class*="rounded"]) {
    empuja, por lo que esta regla es inocua). */
 .nav--admin .nav-actions { margin-left: auto; }
 
+/* ============================================================
+   CARRIL DE CATEGORÍAS DEL NAV (.nav-cat-scroll)
+   ------------------------------------------------------------
+   El menú pasó de tres categorías cortas ("SEDANES", "SUVS",
+   "CAMIONETAS") a cuatro, una de ellas de 21 caracteres
+   ("JEEPETAS / CAMIONETAS"). Medido en Chromium: a 320 px los cuatro
+   enlaces ocupan ~560 px. `.nav-cats` es `flex-1`, cuyo `min-width`
+   por defecto es `auto`, así que NO puede encogerse por debajo de su
+   contenido y los enlaces son `whitespace-nowrap`: el nav volvía a
+   desbordarse y "Mi Cuenta"/"Publicar" quedaban fuera de la pantalla
+   — exactamente el defecto que documenta el bloque "MODO
+   ADMINISTRADOR" de más abajo, ahora también sin sesión.
+
+   `min-width: 0` le devuelve la capacidad de encogerse y
+   `overflow-x: auto` convierte el sobrante en desplazamiento lateral
+   en vez de en desbordamiento del documento. El menú Empresa está
+   FUERA de este carril: `overflow-x` recorta también en vertical y su
+   desplegable aparecería cortado.
+============================================================ */
+.nav-cats {
+  /* El contenedor de categorías es un flex item `flex-1`, cuyo `min-width`
+     por defecto es `auto`: sin esto NO puede encogerse por debajo de su
+     contenido y el `overflow-x` del carril de dentro nunca llega a actuar
+     — la barra entera seguía siendo más ancha que la pantalla. */
+  min-width: 0;
+}
+/* El menú Empresa no se comprime: es el único enlace del nav que no vive
+   en el carril desplazable. */
+.nav-cats > .nav-empresa { flex-shrink: 0; }
+
+.nav-cat-scroll {
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;            /* Firefox */
+  -ms-overflow-style: none;         /* Edge antiguo */
+  /* Aire para que el subrayado :hover y el anillo de foco del teclado no
+     los recorte el propio contenedor desplazable. */
+  padding-block: 6px;
+  margin-block: -6px;
+}
+.nav-cat-scroll::-webkit-scrollbar { display: none; }   /* Chrome/Safari */
+
+/* ============================================================
+   CATEGORÍA VACÍA (.cat-empty)
+   ------------------------------------------------------------
+   Con cuatro categorías y un inventario pequeño, que una sección esté
+   vacía es un estado normal, no un error. Ocupa la fila entera en los
+   tres modos de .scroll-section: rejilla de 3 columnas (>=1024 px),
+   rejilla de 2 (<1024 px) y carrusel flex (donde `.scroll-section > *`
+   fija 300 px y `flex-shrink: 0`).
+============================================================ */
+.cat-empty {
+  grid-column: 1 / -1;
+  width: 100% !important;
+  min-width: 0 !important;
+  flex: 1 1 100% !important;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 28px 18px;
+  background: rgba(255,255,255,0.025);
+  border: 1px dashed rgba(148,163,184,0.28);
+  border-radius: 16px;
+}
+.cat-empty-icon { width: 34px; height: 34px; color: #38bdf8; opacity: 0.8; margin-bottom: 4px; }
+.cat-empty-title { color: #e2e8f0; font-weight: 800; font-size: 15px; line-height: 1.35; }
+.cat-empty-sub { color: #94a3b8; font-size: 13px; line-height: 1.5; max-width: 46ch; }
+.cat-empty-cta {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; margin-top: 10px; padding: 10px 20px;
+  background: rgb(37,211,102); color: #052e16;
+  font-weight: 800; font-size: 13.5px; text-decoration: none; border-radius: 12px;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.cat-empty-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(37,211,102,0.32); }
+.cat-empty-cta:focus-visible { outline: 2px solid #38bdf8; outline-offset: 3px; }
+.cat-empty-cta-icon { width: 18px; height: 18px; fill: currentColor; flex-shrink: 0; }
+@media (max-width: 767px) {
+  .cat-empty { padding: 20px 14px; }
+  .cat-empty-title { font-size: 13.5px; }
+  .cat-empty-sub { font-size: 12px; }
+}
+
 /* Los anclajes de categoría se compensan con la altura real del nav;
    en modo administración es más alto al partirse en dos líneas. */
 @media (max-width: 1023px) {
   #main-page:has(.nav--admin) #sedanes,
-  #main-page:has(.nav--admin) #suvs,
-  #main-page:has(.nav--admin) #pickups { scroll-margin-top: 128px; }
+  #main-page:has(.nav--admin) #jeepetas_camionetas,
+  #main-page:has(.nav--admin) #minivan,
+  #main-page:has(.nav--admin) #vehiculos_pesados { scroll-margin-top: 128px; }
 }
 
 /* ————————————————————————————————————————————————

@@ -143,15 +143,19 @@ function initLocalMode() {
   document.head.appendChild(script);
 }
 // ————— Estado vacío explícito (reemplaza el auto-seed) —————
-// Con el inventario a cero, las tres cabeceras de categoría no aportan nada
-// y quien llega se queda sin ninguna salida: antes solo se pintaba el texto
-// "Inventario en actualización — vuelve pronto." repetido tres veces, sin
-// icono, sin contacto y sin acción posible. Ahora las tres secciones se
+// Con el inventario a cero, las cabeceras de categoría no aportan nada y
+// quien llega se queda sin ninguna salida: antes solo se pintaba el texto
+// "Inventario en actualización — vuelve pronto." repetido en cada sección,
+// sin icono, sin contacto y sin acción posible. Ahora las secciones se
 // ocultan y en su lugar aparece UN panel con la misma forma que la página
 // 404 del sitio (icono + título + explicación + botón), con el WhatsApp del
 // negocio ya cargado con el mensaje. El número es el mismo que usan la ficha
 // de vehículo, el botón de contacto y el pie de página.
-const CATALOG_SECTIONS = ['sedanes', 'suvs', 'pickups'];
+//
+// La lista de secciones NO se escribe aquí: es la de vehiculo-taxonomia.js,
+// que también decide el <select> de publicar, los contadores del panel y las
+// etiquetas. Añadir una categoría es tocar ESE archivo y el HTML, nada más.
+const CATALOG_SECTIONS = LBTaxonomy.CATEGORY_VALUES;
 const CATALOG_EMPTY_ID = 'catalog-empty';
 const WHATSAPP_NUMBER = '18097759771';
 const EMPTY_STATE_MESSAGE = 'Hola, vi que ahora mismo no hay vehículos publicados en la web. '
@@ -857,12 +861,16 @@ function injectVehicleJsonLd(v) {
 // resultados de búsqueda en vez de la URL cruda.
 function injectBreadcrumbJsonLd(v) {
   document.getElementById('breadcrumb-jsonld')?.remove();
-  const catLabel = v.category === 'sedanes' ? 'Sedanes' : v.category === 'suvs' ? 'SUVs' : 'Camionetas';
+  // El ancla tiene que ser la categoría CANÓNICA: un vehículo histórico
+  // guardado como 'suvs' vive hoy en la sección #jeepetas_camionetas, y una
+  // miga de pan que apunte a #suvs no lleva a ninguna parte.
+  const catValue = LBTaxonomy.normalizeCategory(v.category);
+  const catLabel = LBTaxonomy.categoryLabel(v.category, { plural: true });
   const data = {
     "@context": "https://schema.org", "@type": "BreadcrumbList",
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Inicio", "item": getBaseUrl() + '/' },
-      { "@type": "ListItem", "position": 2, "name": catLabel, "item": getBaseUrl() + '/#' + v.category },
+      { "@type": "ListItem", "position": 2, "name": catLabel, "item": getBaseUrl() + '/#' + (catValue || 'sedanes') },
       { "@type": "ListItem", "position": 3, "name": v.name, "item": getVehicleUrl(v) }
     ]
   };
@@ -930,7 +938,7 @@ function renderCard(v) {
       <h3 class="font-bold mb-1" style="color:rgb(248,250,252); font-size:19px;">${escapeHtml(v.name)}</h3>
       <span class="font-bold text-lg block mb-2" style="color:rgb(56,189,248);">${escapeHtml(fmtPrice(v.price, v))}</span>
       <div class="flex gap-1 mb-2 flex-wrap">
-        <span class="text-xs px-2 py-1 rounded-full" style="background:rgba(14,165,233,0.15); color:#38bdf8;">${v.category === 'sedanes' ? 'Sedán' : v.category === 'suvs' ? 'SUV' : 'Camioneta'}</span>
+        <span class="text-xs px-2 py-1 rounded-full" style="background:rgba(14,165,233,0.15); color:#38bdf8;">${escapeHtml(LBTaxonomy.categoryLabel(v.category))}</span>
         <span class="text-xs px-2 py-1 rounded-full" style="background:rgba(100,116,139,0.2); color:#94a3b8;">${v.condition === 'nuevo' ? 'Nuevo' : v.condition === 'importado' ? 'Importado' : 'Usado'}</span>
       </div>
       ${activeTags.length > 0 ? `<div class="flex gap-1 mb-3 flex-wrap">${activeTags.map(t => `<span class="text-xs px-2 py-1 rounded-full font-semibold" style="background:${tagDefs[t].bg};color:${tagDefs[t].color};">${tagDefs[t].label}</span>`).join('')}</div>` : '<div class="mb-1"></div>'}
@@ -1225,18 +1233,24 @@ document.querySelectorAll('.account-tab[data-tab]').forEach(tab => {
 // ============================================================
 // PAGINATION — Todos los dispositivos
 // ============================================================
-const pageState = { sedanes: 1, suvs: 1, pickups: 1 };
+// Una entrada por categoría, generada desde la taxonomía: una categoría
+// nueva sin su línea aquí paginaba desde `undefined` y no mostraba nada.
+const pageState = LBTaxonomy.CATEGORY_VALUES.reduce((acc, cat) => { acc[cat] = 1; return acc; }, {});
 function getPageSize() {
   const w = window.innerWidth;
   if (w < 768) return 6;   // móvil: 2 col × 3 rows
   if (w < 1024) return 6;  // tablet: 2 col × 3 rows
   return 9;                 // PC: 3 col × 3 rows
 }
+// Se declara ANTES de quien la lee: una `let` leída por una función que
+// llegue a ejecutarse antes de esta línea es un ReferenceError por zona
+// muerta temporal, el mismo fallo que ya dejó el sitio en "Cargando…".
+let _legacyHashHandled = false;
 function renderSections() {
   const overlay = document.getElementById('loading-overlay');
   if (overlay) overlay.style.display = 'none';
   hideCatalogEmptyState();
-  ['sedanes','suvs','pickups'].forEach(cat => renderCategory(cat));
+  LBTaxonomy.CATEGORY_VALUES.forEach(cat => renderCategory(cat));
   // Los listeners de .ver-btn los pone renderCategory() sobre las tarjetas
   // que acaba de crear. Aquí había un segundo querySelectorAll('.ver-btn')
   // global que volvía a enlazar LAS MISMAS tarjetas: cada clic ejecutaba
@@ -1244,21 +1258,53 @@ function renderSections() {
   // historial del usuario (documentos repetidos en Firestore).
   renderBrandLogoFilter();
   if (window.lucide) lucide.createIcons();
+  // Una sola vez, cuando ya existen las secciones a las que saltar: si el
+  // visitante llegó con un ancla histórica (#suvs), aquí es donde aparece
+  // por fin la sección canónica que la sustituye.
+  if (!_legacyHashHandled) { _legacyHashHandled = true; scrollToLegacyHash(); }
 }
+// Estado vacío de UNA categoría (las otras sí tienen vehículos). Distinto
+// del panel de #catalog-empty, que sustituye al catálogo entero cuando no
+// hay NADA publicado. Todo el texto variable pasa por escapeHtml/escapeAttr
+// y el icono sale de la taxonomía, nunca de datos del vehículo.
+function renderCategoryEmptyState(cat) {
+  const info = LBTaxonomy.categoryInfo(cat);
+  const etiqueta = LBTaxonomy.categoryLabel(cat, { plural: true });
+  const icono = lucideIconName(info ? info.icon : 'car', 'car');
+  const mensaje = `Hola, me interesan las ${etiqueta}. ¿Me avisan cuando entre alguna?`;
+  return `<div class="cat-empty" role="status">
+      <i data-lucide="${escapeAttr(icono)}" class="cat-empty-icon" aria-hidden="true"></i>
+      <p class="cat-empty-title">Sin ${escapeHtml(etiqueta)} en el inventario ahora mismo</p>
+      <p class="cat-empty-sub">Recibimos unidades nuevas cada semana. Escríbenos y te avisamos en cuanto entre una.</p>
+      <a class="cat-empty-cta" href="https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(mensaje)}"
+         target="_blank" rel="noopener noreferrer">
+        <svg class="cat-empty-cta-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-whatsapp"></use></svg>
+        Avísame por WhatsApp
+      </a>
+    </div>`;
+}
+
 function renderCategory(cat, page) {
   if (page !== undefined) pageState[cat] = page;
   const scroll = document.getElementById(cat + '-scroll');
   const paginationEl = document.getElementById(cat + '-pagination');
   scroll.innerHTML = '';
   if (paginationEl) paginationEl.innerHTML = '';
-  const all = vehicles.filter(v => v.category === cat);
+  // Comparación NORMALIZADA, no literal: los vehículos publicados antes de
+  // esta versión guardan 'suvs' o 'pickups' y tienen que aparecer en
+  // #jeepetas_camionetas sin que nadie reescriba su documento.
+  const all = vehicles.filter(v => LBTaxonomy.normalizeCategory(v.category) === cat);
   const pageSize = getPageSize();
   const totalPages = Math.max(1, Math.ceil(all.length / pageSize));
   const p = Math.min(pageState[cat], totalPages);
   pageState[cat] = p;
   const toShow = all.slice((p - 1) * pageSize, p * pageSize);
   if (all.length === 0) {
-    scroll.innerHTML = '<p class="text-slate-400 text-sm py-4">No hay vehículos en esta categoría.</p>';
+    // Una categoría vacía es un estado normal del negocio (hay cuatro y el
+    // inventario es pequeño), no un error: se pinta con la misma forma que
+    // el panel de inventario vacío —icono, explicación y una salida— en vez
+    // de una línea de texto gris que parece un fallo de carga.
+    scroll.innerHTML = renderCategoryEmptyState(cat);
   } else {
     toShow.forEach(v => scroll.appendChild(renderCard(v)));
   }
@@ -1330,6 +1376,21 @@ function renderPagination(container, currentPage, totalPages, onPageClick) {
 }
 // ============================================================
 // NAV CATEGORY LINKS (scroll to section)
+// ------------------------------------------------------------
+// Las anclas #suvs y #pickups estuvieron publicadas en el JSON-LD de migas
+// de pan de cada ficha, así que Google las conoce y hay enlaces vivos que
+// las usan. Ya no existe ninguna sección con ese id: sin esto, llegar por
+// uno de esos enlaces deja al visitante arriba del todo, sin señal de que
+// la categoría se fusionó. Se traduce el hash a la sección canónica.
+// ============================================================
+function scrollToLegacyHash() {
+  const hash = (window.location.hash || '').replace('#', '');
+  if (!hash || document.getElementById(hash)) return;
+  const canonica = LBTaxonomy.normalizeCategory(hash);
+  if (canonica && document.getElementById(canonica)) scrollToSection(canonica);
+}
+window.addEventListener('hashchange', scrollToLegacyHash);
+
 // ============================================================
 document.querySelectorAll('a[href^="#"]').forEach(a => {
   a.addEventListener('click', e => {
@@ -1513,8 +1574,6 @@ function featureIconFor(text) {
 
 // Etiquetas legibles del campo `condition` — un único punto de verdad.
 const CONDITION_LABELS = { nuevo: 'Nuevo', importado: 'Recién Importado', usado: 'Usado' };
-// Claves reales del selector de publicación (#pub-category).
-const CATEGORY_LABELS = { sedanes: 'Sedán', suvs: 'SUV', pickups: 'Camioneta' };
 
 // Insignia de historial. El estado se comunica con una clase (no con
 // estilos en línea), para que color, borde e icono cambien juntos y
@@ -1534,7 +1593,7 @@ function renderVehicleCarfax(v) {
 function renderVehicleSpecs(v) {
   const specs = document.getElementById('detail-specs');
   if (!specs) return;
-  const categoria = v.category ? (CATEGORY_LABELS[String(v.category).toLowerCase()] || v.category) : '';
+  const categoria = v.category ? LBTaxonomy.categoryLabel(v.category, { fallback: '' }) : '';
   const filas = [
     ['Marca', v.brand],
     ['Año', v.year],
@@ -1755,7 +1814,7 @@ function renderSimilarPage(page) {
         <p style="color:#f1f5f9;font-weight:700;font-size:13px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(sv.name)}</p>
         <p style="color:#38bdf8;font-weight:800;font-size:13px;margin-bottom:6px;">${escapeHtml(fmtPrice(sv.price, sv))}</p>
         <span style="background:rgba(14,165,233,0.15);color:#38bdf8;font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;">
-          ${sv.category === 'sedanes' ? 'Sedán' : sv.category === 'suvs' ? 'SUV' : 'Camioneta'}
+          ${escapeHtml(LBTaxonomy.categoryLabel(sv.category))}
         </span>
       </div>`;
     card.addEventListener('click', (e) => {
@@ -2062,7 +2121,12 @@ function openPublishModal(vehicle) {
     document.getElementById('pub-price').value = formatAmount(
       (vehicle.currency === 'USD' && vehicle.priceUSD) ? vehicle.priceUSD : vehicle.price
     );
-    document.getElementById('pub-category').value = vehicle.category || '';
+    // Normalizada: un vehículo histórico guardado como 'suvs' ya no existe
+    // como opción del <select>, así que asignarlo crudo dejaba el campo en
+    // blanco y el formulario exigía "Categoría" en un vehículo que sí la
+    // tiene. Con la traducción, el <select> muestra "Jeepetas / Camionetas",
+    // que es donde ese vehículo se ve desde esta versión.
+    document.getElementById('pub-category').value = LBTaxonomy.normalizeCategory(vehicle.category);
     document.getElementById('pub-condition').value = vehicle.condition || '';
     document.getElementById('pub-brand').value = vehicle.brand || '';
     document.getElementById('pub-year').value = vehicle.year || '';
