@@ -363,8 +363,11 @@ async function dbRenderCotizaciones() {
 // la autorización real de editar/eliminar la sigue decidiendo
 // firestore.rules, sin cambios.
 // ============================================================
+// Misma tabla que el catálogo y el formulario (vehiculo-taxonomia.js). Antes
+// esta copia decía "Pickup" donde el resto del sitio decía "Camioneta", y un
+// valor desconocido se mostraba crudo solo aquí.
 function dbCategoryLabel(cat) {
-  return cat === 'sedanes' ? 'Sedán' : cat === 'suvs' ? 'SUV' : cat === 'pickups' ? 'Pickup' : (cat || '—');
+  return LBTaxonomy.categoryLabel(cat);
 }
 function dbRenderPublicaciones() {
   const wrap = document.getElementById('db-pub-content');
@@ -377,16 +380,23 @@ function dbRenderPublicaciones() {
   }
 
   const total = vehicles.length;
-  const nSedanes = vehicles.filter(v => v.category === 'sedanes').length;
-  const nSuvs = vehicles.filter(v => v.category === 'suvs').length;
-  const nPickups = vehicles.filter(v => v.category === 'pickups').length;
+  // Un contador por categoría, generado desde la taxonomía. Antes eran tres
+  // constantes escritas a mano: los vehículos de cualquier otra categoría no
+  // aparecían en ningún contador y la suma de las insignias no cuadraba con
+  // el total, sin que nada lo dijera.
+  const porCategoria = LBTaxonomy.CATEGORIES.map(c => ({
+    etiqueta: c.plural,
+    n: vehicles.filter(v => LBTaxonomy.normalizeCategory(v.category) === c.value).length,
+  }));
+  // Lo que no encaja en ninguna categoría conocida también se cuenta: es
+  // justo lo que el administrador necesita ver para poder corregirlo.
+  const sinCategoria = vehicles.filter(v => !LBTaxonomy.normalizeCategory(v.category)).length;
+  if (sinCategoria > 0) porCategoria.push({ etiqueta: 'Sin categoría', n: sinCategoria });
 
   const statsHtml = `
     <div class="db-badges" style="margin-bottom:16px;">
       <span class="db-badge">Total: ${total}</span>
-      <span class="db-badge">Sedanes: ${nSedanes}</span>
-      <span class="db-badge">SUVs: ${nSuvs}</span>
-      <span class="db-badge">Pickups: ${nPickups}</span>
+      ${porCategoria.map(c => `<span class="db-badge">${escapeHtml(c.etiqueta)}: ${c.n}</span>`).join('')}
     </div>`;
 
   const listHtml = vehicles.map(v => `
@@ -449,7 +459,10 @@ async function dbRenderPreferencias() {
   attachAmountFormatter(maxInput);
   minInput.value = prefs.priceMin == null ? '' : formatAmount(prefs.priceMin);
   maxInput.value = prefs.priceMax == null ? '' : formatAmount(prefs.priceMax);
-  document.getElementById('db-pref-vehicle-type').value = prefs.vehicleType || '';
+  // Normalizada: una preferencia guardada como 'suvs' ya no es una opción
+  // del <select> y el campo aparecía vacío, como si nunca se hubiera
+  // guardado nada.
+  document.getElementById('db-pref-vehicle-type').value = LBTaxonomy.normalizeCategory(prefs.vehicleType);
   document.getElementById('db-pref-transmission').value = prefs.transmission || '';
   document.getElementById('db-pref-fuel').value = prefs.fuel || '';
   document.getElementById('db-pref-brands').value = (prefs.brands || []).join(', ');
@@ -506,7 +519,13 @@ function dbRenderCards() {
     { icon: 'car', title: 'Recomendados para ti', count: recommended.length,
       sub: 'Según tus marcas y categorías de interés',
       preview: recommended.slice(0, 3), cta: 'Explorar',
-      onClick: () => { closeDashboardPage(); window.scrollTo(0, 0); scrollToSection(recommended[0]?.category || 'sedanes'); } },
+      onClick: () => {
+        closeDashboardPage(); window.scrollTo(0, 0);
+        // La sección a la que se salta es la CANÓNICA: con el valor crudo de
+        // un vehículo histórico ('suvs') no existe ningún id que buscar y el
+        // botón "Explorar" no hacía nada.
+        scrollToSection(LBTaxonomy.normalizeCategory(recommended[0]?.category) || 'sedanes');
+      } },
     { icon: 'file-text', title: 'Cotizaciones guardadas', count: _dbQuoteCountCache, sub: 'Simulaciones de la calculadora de financiamiento', onClick: () => dbSetTab('cotizaciones') },
     { icon: 'sliders-horizontal', title: 'Preferencias de búsqueda', count: 0, sub: 'Marcas, precio, transmisión y combustible favoritos', onClick: () => dbSetTab('perfil') }
   ];

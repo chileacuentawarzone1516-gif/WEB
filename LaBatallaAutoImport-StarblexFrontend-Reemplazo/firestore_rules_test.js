@@ -1,6 +1,7 @@
 // ============================================================
-// Batería de pruebas de firestore.rules — 118 casos
-// (114 previos + 4 de S-3: la rama de admin ancla email/createdAt/schemaVersion).
+// Batería de pruebas de firestore.rules — 124 casos
+// (118 previos + 6 del enum de categorías: las 4 que ofrece el formulario
+//  hoy y las 2 históricas que siguen siendo editables).
 // Requiere: npm install -D @firebase/rules-unit-testing firebase
 // Ejecutar:  firebase emulators:exec --only firestore "node firestore_rules_test.js"
 // ============================================================
@@ -685,6 +686,26 @@ async function main() {
     await assertFails(setDoc(doc(como('adminL', 'adminl@test.com'), 'vehicles', 'cat1'),
       Object.assign(vehiculo('Moto 2024', 'moto-2024'), { category: 'motos' })));
   });
+
+  // Las cuatro categorías que el formulario ofrece hoy. Si una falta en el
+  // enum de firestore.rules, publicar en ella devuelve permission-denied y
+  // el administrador solo ve "Error al guardar": este es el aviso.
+  for (const [i, cat] of ['sedanes', 'jeepetas_camionetas', 'minivan', 'vehiculos_pesados'].entries()) {
+    await run(`Vehículo en la categoría "${cat}" → permitido`, async () => {
+      await assertSucceeds(setDoc(doc(como('adminL', 'adminl@test.com'), 'vehicles', `catok${i}`),
+        Object.assign(vehiculo(`Vehículo Cat ${i} 2024`, `vehiculo-cat-${i}-2024`), { category: cat })));
+    });
+  }
+
+  // Los valores del esquema anterior siguen siendo escribibles A PROPÓSITO:
+  // son los que llevan los vehículos ya publicados y, sin ellos, editar uno
+  // de esos documentos sería imposible. Ya no se ofrecen al publicar.
+  for (const [i, cat] of ['suvs', 'pickups'].entries()) {
+    await run(`Vehículo con la categoría histórica "${cat}" → sigue permitido (editable)`, async () => {
+      await assertSucceeds(setDoc(doc(como('adminL', 'adminl@test.com'), 'vehicles', `catlegacy${i}`),
+        Object.assign(vehiculo(`Vehículo Legacy ${i} 2024`, `vehiculo-legacy-${i}-2024`), { category: cat })));
+    });
+  }
 
   await run('Vehículo con slug en mayúsculas → denegado', async () => {
     await assertFails(setDoc(doc(como('adminL', 'adminl@test.com'), 'vehicles', 'slug1'),

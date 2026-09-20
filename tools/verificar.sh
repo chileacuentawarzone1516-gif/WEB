@@ -314,6 +314,62 @@ printf ' Verificación determinista — La Batalla Auto Import\n'
 printf ' %s\n' "$(date -u '+%Y-%m-%d %H:%M UTC')"
 printf '%s\n' "════════════════════════════════════════════════════════"
 
+# ------------------------------------------------------------
+# 11. Categorías: vehiculo-taxonomia.js ↔ index.html ↔ firestore.rules
+#
+# El valor de `category` es UNA cosa en tres sitios a la vez: lo que se
+# guarda en Firestore, el id de la sección del catálogo (#minivan) y el
+# `value` de una opción del <select> de publicar. Si los tres dejan de
+# coincidir el fallo es MUDO:
+#   · sin la sección → renderCategory() no encuentra "<valor>-scroll"
+#     y esos vehículos no se pintan en ninguna parte;
+#   · sin el valor en el enum de firestore.rules → publicar en esa
+#     categoría se rechaza con permission-denied y el formulario solo
+#     puede decir "Error al guardar".
+# Ninguno de los dos da error en consola, así que nadie se entera hasta
+# que un cliente pregunta por un vehículo que no aparece.
+# ------------------------------------------------------------
+check_categorias_sincronizadas() {
+  titulo "Categorías (taxonomía ↔ index.html ↔ firestore.rules)"
+  local cats cat desajuste=0 n=0
+  cats=$(grep -oE "^    \{ value: '[a-z_]+'" vehiculo-taxonomia.js | grep -oE "'[a-z_]+'" | tr -d "'")
+  if [ -z "$cats" ]; then
+    error "no se pudo leer CATEGORIES de vehiculo-taxonomia.js"
+    return
+  fi
+  while IFS= read -r cat; do
+    n=$((n+1))
+    grep -q "id=\"$cat\"" index.html            || { error "la categoría '$cat' no tiene <section id=\"$cat\"> en index.html"; desajuste=1; }
+    grep -q "id=\"$cat-scroll\"" index.html     || { error "falta el contenedor #$cat-scroll en index.html"; desajuste=1; }
+    grep -q "id=\"$cat-pagination\"" index.html || { error "falta el contenedor #$cat-pagination en index.html"; desajuste=1; }
+    grep -q "value=\"$cat\"" index.html         || { error "la categoría '$cat' no es una opción del <select> de publicar"; desajuste=1; }
+    grep -q "'$cat'" firestore.rules              || { error "la categoría '$cat' no está en el enum de firestore.rules: publicar ahí daría permission-denied"; desajuste=1; }
+  done <<< "$cats"
+  # Las categorías del esquema anterior tienen que seguir aceptadas por las
+  # Rules o los vehículos ya publicados dejarían de poder editarse.
+  for cat in sedanes suvs pickups; do
+    grep -q "'$cat'" firestore.rules || { error "el valor histórico '$cat' desapareció del enum de firestore.rules: los vehículos que lo llevan ya no se podrían guardar"; desajuste=1; }
+  done
+  [ "$desajuste" -eq 0 ] && ok "las $n categorías existen en la taxonomía, el HTML y las Rules (+ 3 valores históricos aceptados)"
+}
+
+# ------------------------------------------------------------
+# 12. Pruebas de la taxonomía (categorías e iconos)
+#
+# tools/test-taxonomia.js corre sin red y sin dependencias: no hay
+# motivo para no ejecutarlo en cada push junto al resto.
+# ------------------------------------------------------------
+check_pruebas_taxonomia() {
+  titulo "Pruebas de taxonomía (node tools/test-taxonomia.js)"
+  local salida
+  if salida=$(node "$RAIZ/tools/test-taxonomia.js" 2>&1); then
+    ok "$(printf '%s' "$salida" | tr -d '\033' | sed 's/\[3[0-9]m//g' | grep -oE '[0-9]+ comprobaciones.*' | head -1)"
+  else
+    error "las pruebas de taxonomía fallan:"
+    printf '%s\n' "$salida" | sed 's/^/        /'
+  fi
+}
+
 check_sintaxis_js
 check_referencias_locales
 check_versionado_cache
@@ -324,6 +380,8 @@ check_slugify_sincronizado
 check_csp_script_src
 check_handlers_inline
 check_secretos
+check_categorias_sincronizadas
+check_pruebas_taxonomia
 
 printf '\n%s\n' "════════════════════════════════════════════════════════"
 if [ "$ERRORES" -eq 0 ]; then

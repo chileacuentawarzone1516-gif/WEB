@@ -105,10 +105,27 @@ service cloud.firestore {
         // rechazo llegue como mensaje y no como fallo mudo al guardar.
         && d.price < 2000000000
 
+        // Lista CERRADA de categorías. Tiene que contener TODO valor que
+        // el sitio pueda escribir, o la publicación se rechaza entera con
+        // permission-denied y el formulario solo puede decir "Error al
+        // guardar". Debe mantenerse sincronizada con CATEGORIES de
+        // vehiculo-taxonomia.js (app.js, el <select> y las secciones de
+        // index.html salen todos de ahí).
+        //
+        // Los tres primeros valores son los del esquema anterior. 'suvs' y
+        // 'pickups' ya NO se ofrecen al publicar —las dos se muestran
+        // fusionadas como "Jeepetas / Camionetas"— pero siguen aceptados a
+        // propósito: son los que llevan los vehículos ya publicados, y
+        // quitarlos de aquí haría que cualquier intento de guardar uno de
+        // esos documentos fuese rechazado. No se migra ningún documento:
+        // el valor guardado se traduce al leer.
         && d.category in [
           'sedanes',
           'suvs',
-          'pickups'
+          'pickups',
+          'jeepetas_camionetas',
+          'minivan',
+          'vehiculos_pesados'
         ]
 
         && d.condition in [
