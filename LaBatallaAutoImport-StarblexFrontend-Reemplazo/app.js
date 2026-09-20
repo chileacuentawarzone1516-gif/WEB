@@ -295,6 +295,9 @@ const VEHICLE_FIELDS = [
   'name','price','priceUSD','currency','priceDisplay',
   'category','condition','brand','year','carfax',
   'mileage','color','transmission',
+  // `seoTags` ya no se pide al publicar (salió del formulario), pero sigue
+  // en la lista: es lo que permite que un vehículo histórico que lo lleva
+  // conserve el suyo al editarlo. Quitarlo de aquí lo borraría al guardar.
   'features','seoTags','media',
   'tags','slug','img','createdAt'
 ];
@@ -814,6 +817,8 @@ function resetSeoToDefault() {
 function injectVehicleJsonLd(v) {
   document.getElementById('vehicle-jsonld')?.remove();
   const img = getVehicleCover(v, '');
+  // Solo lectura, y solo de documentos históricos: el formulario dejó de
+  // pedir `seoTags`. Un vehículo nuevo no lo trae y `keywords` se omite.
   const keywords = Array.isArray(v.seoTags) ? v.seoTags : [];
   // ============================================================
   // A-5 — El precio estructurado debe ser EL MISMO que el visible.
@@ -2105,7 +2110,6 @@ function openPublishModal(vehicle) {
     document.getElementById('pub-color').value = vehicle.color || '';
     document.getElementById('pub-transmission').value = vehicle.transmission || '';
     document.getElementById('pub-features').value = Array.isArray(vehicle.features) ? vehicle.features.join('\n') : '';
-    document.getElementById('pub-seo-tags').value = Array.isArray(vehicle.seoTags) ? vehicle.seoTags.join(', ') : '';
     // Restore currency
     const currSel = document.getElementById('pub-currency');
     if (currSel) currSel.value = vehicle.currency || 'RD';
@@ -2126,7 +2130,7 @@ function openPublishModal(vehicle) {
   } else {
     title.textContent = 'Publicar Vehículo';
     document.getElementById('pub-edit-id').value = '';
-    ['pub-name','pub-price','pub-mileage','pub-color','pub-features','pub-seo-tags'].forEach(id => {
+    ['pub-name','pub-price','pub-mileage','pub-color','pub-features'].forEach(id => {
       document.getElementById(id).value = '';
     });
     ['pub-category','pub-condition','pub-brand','pub-year','pub-transmission'].forEach(id => {
@@ -2536,7 +2540,6 @@ function readPublishForm() {
     ? `USD$ ${priceRaw.toLocaleString('en-US')}`
     : null;
   const featuresRaw = document.getElementById('pub-features').value.trim();
-  const seoTagsRaw = document.getElementById('pub-seo-tags').value.trim();
   return {
     editId: document.getElementById('pub-edit-id').value,
     priceRaw, // solo para validar — no se persiste
@@ -2552,11 +2555,21 @@ function readPublishForm() {
       color: document.getElementById('pub-color').value.trim(),
       transmission: document.getElementById('pub-transmission').value,
       features: featuresRaw ? featuresRaw.split('\n').map(f=>f.trim()).filter(Boolean) : [],
-      seoTags: seoTagsRaw ? seoTagsRaw.split(',').map(t=>t.trim().toLowerCase()).filter(Boolean) : [],
+      // `seoTags` YA NO SE PIDE. El campo salió del formulario porque su
+      // único consumidor es la propiedad `keywords` del JSON-LD de la ficha
+      // —que Google no usa para posicionar desde 2009— y quien publica no lo
+      // rellenaba. Deliberadamente no se devuelve la clave: así
+      // sanitizeVehicleForWrite() no la escribe en los vehículos nuevos y el
+      // spread de updateVehicle() CONSERVA la que ya tengan los históricos.
+      // Poner aquí `seoTags: []` habría borrado el campo de todo vehículo
+      // antiguo en cuanto se editara por cualquier otro motivo.
       tags: {
         financiamiento: document.getElementById('pub-tag-financiamiento').checked,
-        negociable: document.getElementById('pub-tag-negociable').checked,
         unicodueno: document.getElementById('pub-tag-unicodueno').checked,
+        // La casilla se llama ahora "Recién Importado". El CAMPO sigue
+        // siendo `importado`: renombrarlo obligaría a migrar todos los
+        // documentos que ya lo llevan a cambio de nada. Era un cambio de
+        // texto, no de dato.
         importado: document.getElementById('pub-tag-importado').checked,
       }
     }
