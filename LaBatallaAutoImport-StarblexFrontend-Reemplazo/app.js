@@ -2528,10 +2528,41 @@ function readPublishForm() {
     }
   };
 }
+// ============================================================
+// CAMPOS OBLIGATORIOS — cada uno dice su nombre y a dónde llevar el foco
+// ------------------------------------------------------------
+// Antes los seis se comprobaban en una sola condición que devolvía
+// siempre el mismo texto: "(el precio debe ser mayor que cero)". Con la
+// marca vacía —el caso real— el formulario acusaba al PRECIO, que
+// estaba perfectamente escrito. Quien publicaba veía "68,900" en
+// pantalla, leía que su precio era inválido, lo reescribía, y volvía a
+// fallar: el mensaje enviaba a corregir el único campo que no tenía
+// nada que corregir.
+//
+// La lista nombra el campo que falta y dice dónde está. Un mensaje de
+// validación que no identifica el campo no es un mensaje de validación.
+// ============================================================
+const PUBLISH_REQUIRED_FIELDS = [
+  { label: 'Nombre',        focusId: 'pub-name',         falta: (d) => !d.name },
+  { label: 'Precio',        focusId: 'pub-price',        falta: (d, f) => !(f.priceRaw > 0) },
+  { label: 'Categoría',     focusId: 'pub-category',     falta: (d) => !d.category },
+  { label: 'Estado',        focusId: 'pub-condition',    falta: (d) => !d.condition },
+  { label: 'Marca',         focusId: 'pub-brand-search', falta: (d) => !d.brand },
+  { label: 'Año',           focusId: 'pub-year',         falta: (d) => !d.year },
+];
+
 function validatePublishForm(form) {
   const d = form.data;
-  if (!d.name || !(form.priceRaw > 0) || !d.category || !d.condition || !d.brand || !d.year) {
-    return { valid: false, message: '⚠️ Completa todos los campos obligatorios (el precio debe ser mayor que cero)' };
+  const faltantes = PUBLISH_REQUIRED_FIELDS.filter(campo => campo.falta(d, form));
+  if (faltantes.length > 0) {
+    const nombres = faltantes.map(c => c.label).join(', ');
+    // El precio es el único que puede estar escrito y aun así ser
+    // inválido (cero o texto), así que se le aclara el motivo.
+    const soloPrecio = faltantes.length === 1 && faltantes[0].label === 'Precio';
+    const message = soloPrecio
+      ? '⚠️ El precio debe ser un número mayor que cero'
+      : `⚠️ Falta completar: ${nombres}`;
+    return { valid: false, message, focusId: faltantes[0].focusId };
   }
   // Los topes son los de firestore.rules. Comprobarlos aquí evita el caso
   // peor: el vehículo se sube a Cloudinary, Firestore rechaza el
@@ -2684,9 +2715,24 @@ async function removeVehicle(id, token) {
 // ============================================================
 document.getElementById('publish-submit-btn').addEventListener('click', async () => {
   if (operations.vehicle.save) return; // doble clic — ignorar
+  // Confirma lo tecleado en los combos (marca, color) ANTES de leer: sin
+  // esto, una marca escrita a mano y no elegida en el desplegable llega
+  // vacía aunque el campo la esté mostrando.
+  commitSearchDropdowns();
   const form = readPublishForm();
   const validation = validatePublishForm(form);
-  if (!validation.valid) { showToast(validation.message); return; }
+  if (!validation.valid) {
+    showToast(validation.message);
+    // Llevar el foco al campo que falta: en móvil el formulario es más
+    // largo que la pantalla y el campo culpable suele quedar fuera de
+    // vista, así que decir cuál es no basta — hay que ir a él.
+    const destino = validation.focusId && document.getElementById(validation.focusId);
+    if (destino) {
+      destino.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      try { destino.focus({ preventScroll: true }); } catch (e) { destino.focus(); }
+    }
+    return;
+  }
 
   operations.vehicle.save = true;
   const token = ++currentSaveToken;
@@ -3005,6 +3051,46 @@ const ALL_COLORS = [
 // formulario de publicación no se podían usar con teclado (WCAG 2.1.1),
 // y tampoco anunciaban nada a un lector de pantalla. Ahora responden a
 // ArrowUp/ArrowDown/Enter/Escape y exponen role/aria-expanded/aria-activedescendant.
+// ============================================================
+// COMBOS CON BUSCADOR — el valor VISIBLE y el valor que se GUARDA
+// no pueden divergir nunca.
+// ------------------------------------------------------------
+// Cada combo (marca, color) es en realidad dos campos: el <input> de
+// texto que se ve y un <input type="hidden"> que es el que viaja a
+// Firestore. Escribir en el visible BORRA el oculto —la marca deja de
+// estar confirmada mientras se teclea—, y solo `choose()` volvía a
+// rellenarlo. Quien escribía "Toyota" entero y pasaba al campo
+// siguiente sin tocar el desplegable dejaba el formulario enseñando
+// "Toyota" y mandando "" a la validación: el campo AFIRMABA un valor
+// que no se iba a guardar. Peor aún al editar: bastaba corregir una
+// letra de una marca ya elegida para deseleccionarla en silencio.
+//
+// `commit()` cierra esa grieta al salir del campo: si lo escrito
+// identifica una opción sin ambigüedad se confirma, y si no identifica
+// ninguna se vacía TAMBIÉN el texto visible. El invariante resultante
+// es el que faltaba: lo que el campo muestra es exactamente lo que se
+// va a guardar.
+// ============================================================
+// Registro de los `commit()` de cada combo, por id del campo oculto.
+const searchDropdownCommits = new Map();
+
+// Confirma lo tecleado en todos los combos. Se llama al enviar el
+// formulario: `blur` ya lo hace, pero el orden entre el blur del campo
+// y el click del botón no está garantizado en todos los navegadores, y
+// de ese orden no puede depender que el vehículo se guarde con marca.
+function commitSearchDropdowns() {
+  searchDropdownCommits.forEach(commit => commit());
+}
+
+// Comparación indulgente con el usuario: ignora mayúsculas, acentos y
+// espacios sobrantes. "mercedes benz" encuentra "Mercedes-Benz".
+function normalizeSearchTerm(text) {
+  return String(text ?? '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
 function createSearchDropdown({ inputId, hiddenId, dropdownId, displayId, options, emptyText, allowEmptyFilter = true }) {
   const searchInput = document.getElementById(inputId);
   const hiddenInput = document.getElementById(hiddenId);
@@ -3077,8 +3163,44 @@ function createSearchDropdown({ inputId, hiddenId, dropdownId, displayId, option
     display.classList.add('hidden');
     renderDropdown(searchInput.value);
   });
+  // Resuelve el texto tecleado contra la lista de opciones.
+  // Confirma si identifica UNA sola opción (coincidencia exacta, o un
+  // filtro que deja una única candidata: justo lo que el desplegable
+  // está enseñando). Si no identifica ninguna, limpia los dos campos
+  // para que el visible no prometa lo que el oculto no tiene.
+  function commit() {
+    // Ya confirmado y sin retocar: nada que hacer.
+    if (hiddenInput.value && hiddenInput.value === searchInput.value) return;
+    const typed = searchInput.value.trim();
+    if (!typed) {
+      hiddenInput.value = '';
+      display.classList.add('hidden');
+      searchInput.value = '';
+      return;
+    }
+    const term = normalizeSearchTerm(typed);
+    const exact = options.find(o => normalizeSearchTerm(o) === term);
+    const partial = options.filter(o => normalizeSearchTerm(o).includes(term));
+    const resolved = exact || (partial.length === 1 ? partial[0] : null);
+    if (resolved) {
+      hiddenInput.value = resolved;
+      searchInput.value = resolved;
+      display.textContent = '✓ ' + resolved;
+      display.classList.remove('hidden');
+    } else {
+      hiddenInput.value = '';
+      searchInput.value = '';
+      display.classList.add('hidden');
+    }
+  }
+  searchDropdownCommits.set(hiddenId, commit);
+
   searchInput.addEventListener('focus', () => renderDropdown(searchInput.value));
-  searchInput.addEventListener('blur', () => setTimeout(closeDropdown, 150));
+  // `commit()` va SÍNCRONO: si el siguiente toque es el botón de
+  // publicar, su handler debe encontrar el valor ya confirmado. Solo el
+  // cierre visual del desplegable se retrasa, para que un toque sobre
+  // una opción llegue a registrarse antes de que desaparezca.
+  searchInput.addEventListener('blur', () => { commit(); setTimeout(closeDropdown, 150); });
   searchInput.addEventListener('keydown', e => {
     const open = !dropdown.classList.contains('hidden');
     if (e.key === 'ArrowDown') {
