@@ -344,6 +344,27 @@ footer a, #empresa-page a.inline-flex, #contacto a:not([class*="rounded"]) {
 .nav-cat-ico { display: none; }
 
 /* ------------------------------------------------------------
+   ESCRITORIO EN MODO ADMINISTRADOR (>= 1024 px)
+   ------------------------------------------------------------
+   Medido en Chromium a 1024 px: con sesión de administrador o editor el
+   grupo de acciones pasa de "Mi Cuenta" a "Mi Cuenta + ADMIN +
+   Publicar" (~300 px). Las cuatro categorías necesitan 662 px y el menú
+   Empresa otros ~98: no caben, y como `.nav-cats` lleva `min-width: 0`
+   el carril se encogía en silencio y dejaba "Vehículos Pesados" fuera
+   de vista — 3 de 4 visibles, con 120 px de desplazamiento oculto.
+
+   `.nav--admin .nav-bar` ya declara `flex-wrap: wrap` justo para este
+   caso, pero nunca llegaba a dispararse: el carril absorbía el apretón
+   antes de que la barra necesitara partir. Devolverle a `.nav-cats` un
+   mínimo basado en su contenido hace que la barra parta de verdad y las
+   acciones bajen a la segunda fila, que es lo que esa regla pretendía.
+   El visitante sin sesión no lleva `.nav--admin`: para él nada cambia.
+------------------------------------------------------------ */
+@media (min-width: 1024px) {
+  .nav--admin .nav-cats { min-width: max-content; }
+}
+
+/* ------------------------------------------------------------
    DESTINO DE LOS ANCLAS BAJO UN NAV STICKY (scroll-margin-top)
    ------------------------------------------------------------
    `scrollToSection()` (app.js) usa `scrollIntoView()`, que alinea la
