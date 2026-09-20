@@ -2528,10 +2528,41 @@ function readPublishForm() {
     }
   };
 }
+// ============================================================
+// CAMPOS OBLIGATORIOS — cada uno dice su nombre y a dónde llevar el foco
+// ------------------------------------------------------------
+// Antes los seis se comprobaban en una sola condición que devolvía
+// siempre el mismo texto: "(el precio debe ser mayor que cero)". Con la
+// marca vacía —el caso real— el formulario acusaba al PRECIO, que
+// estaba perfectamente escrito. Quien publicaba veía "68,900" en
+// pantalla, leía que su precio era inválido, lo reescribía, y volvía a
+// fallar: el mensaje enviaba a corregir el único campo que no tenía
+// nada que corregir.
+//
+// La lista nombra el campo que falta y dice dónde está. Un mensaje de
+// validación que no identifica el campo no es un mensaje de validación.
+// ============================================================
+const PUBLISH_REQUIRED_FIELDS = [
+  { label: 'Nombre',        focusId: 'pub-name',         falta: (d) => !d.name },
+  { label: 'Precio',        focusId: 'pub-price',        falta: (d, f) => !(f.priceRaw > 0) },
+  { label: 'Categoría',     focusId: 'pub-category',     falta: (d) => !d.category },
+  { label: 'Estado',        focusId: 'pub-condition',    falta: (d) => !d.condition },
+  { label: 'Marca',         focusId: 'pub-brand-search', falta: (d) => !d.brand },
+  { label: 'Año',           focusId: 'pub-year',         falta: (d) => !d.year },
+];
+
 function validatePublishForm(form) {
   const d = form.data;
-  if (!d.name || !(form.priceRaw > 0) || !d.category || !d.condition || !d.brand || !d.year) {
-    return { valid: false, message: '⚠️ Completa todos los campos obligatorios (el precio debe ser mayor que cero)' };
+  const faltantes = PUBLISH_REQUIRED_FIELDS.filter(campo => campo.falta(d, form));
+  if (faltantes.length > 0) {
+    const nombres = faltantes.map(c => c.label).join(', ');
+    // El precio es el único que puede estar escrito y aun así ser
+    // inválido (cero o texto), así que se le aclara el motivo.
+    const soloPrecio = faltantes.length === 1 && faltantes[0].label === 'Precio';
+    const message = soloPrecio
+      ? '⚠️ El precio debe ser un número mayor que cero'
+      : `⚠️ Falta completar: ${nombres}`;
+    return { valid: false, message, focusId: faltantes[0].focusId };
   }
   // Los topes son los de firestore.rules. Comprobarlos aquí evita el caso
   // peor: el vehículo se sube a Cloudinary, Firestore rechaza el
@@ -2684,9 +2715,24 @@ async function removeVehicle(id, token) {
 // ============================================================
 document.getElementById('publish-submit-btn').addEventListener('click', async () => {
   if (operations.vehicle.save) return; // doble clic — ignorar
+  // Confirma lo tecleado en los combos (marca, color) ANTES de leer: sin
+  // esto, una marca escrita a mano y no elegida en el desplegable llega
+  // vacía aunque el campo la esté mostrando.
+  commitSearchDropdowns();
   const form = readPublishForm();
   const validation = validatePublishForm(form);
-  if (!validation.valid) { showToast(validation.message); return; }
+  if (!validation.valid) {
+    showToast(validation.message);
+    // Llevar el foco al campo que falta: en móvil el formulario es más
+    // largo que la pantalla y el campo culpable suele quedar fuera de
+    // vista, así que decir cuál es no basta — hay que ir a él.
+    const destino = validation.focusId && document.getElementById(validation.focusId);
+    if (destino) {
+      destino.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      try { destino.focus({ preventScroll: true }); } catch (e) { destino.focus(); }
+    }
+    return;
+  }
 
   operations.vehicle.save = true;
   const token = ++currentSaveToken;
