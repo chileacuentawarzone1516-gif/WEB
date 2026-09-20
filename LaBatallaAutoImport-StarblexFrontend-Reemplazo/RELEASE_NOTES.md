@@ -1,5 +1,100 @@
 # RELEASE NOTES — La Batalla Auto Import
 
+## LAS CATEGORÍAS DEL NAV PASAN A SER UNA BANDA: DOS DE CUATRO ERAN INVISIBLES EN MÓVIL
+
+**Síntoma.** Desde que el menú pasó a cuatro categorías, en móvil solo se
+veían dos. Para descubrir "Minivans" y "Vehículos Pesados" había que
+arrastrar el menú de lado — si es que al visitante se le ocurría intentarlo.
+
+**Causa raíz.** La solución anterior fue un carril con `overflow-x: auto`.
+Resolvía el desbordamiento del documento, pero no el problema real. Medido
+en Chromium sobre el sitio servido:
+
+| Ancho | Carril | Contenido | Categorías 100 % visibles |
+|---|---|---|---|
+| 320 px | 173 px | 423 px | **1 de 4** |
+| 360 px | 203 px | 423 px | **1 de 4** |
+| 375 px | 218 px | 423 px | **2 de 4** |
+| 390 px | 219 px | 490 px | **1 de 4** |
+| 412 px | 241 px | 490 px | **1 de 4** |
+| 430 px | 259 px | 490 px | **2 de 4** |
+| 768 px | 474 px | 662 px | **3 de 4** |
+
+"Minivans" y "Vehículos Pesados" tenían **0 px visibles en los seis anchos
+de móvil**. Y el carril no tenía afordancia ninguna: `scrollbar-width: none`,
+sin degradado de borde, sin flechas. A 375, 430 y 768 px el último enlace
+visible ni siquiera quedaba cortado, así que el menú se leía como completo
+—`SEDANES · JEEPETAS / CAMIONETAS · EMPRESA`— y la mitad del catálogo era
+indescubrible. El coste no era de dos toques: era que nadie sabía que
+estaban ahí.
+
+A esto se sumaba que el tramo 381–430 px era el peor de la curva: la regla
+que apretaba el espaciado terminaba en `max-width: 380px`, así que a 390 px
+—el iPhone 14/15— el sobrante subía a 271 px frente a los 205 px de 375 px.
+
+**Corrección — dos presentaciones, corte en 1024 px.** Por debajo de
+1024 px las cuatro categorías se presentan como una **banda de 4 columnas
+iguales**, con el icono encima de la etiqueta y las cuatro visibles a la
+vez. Por encima, la fila de enlaces de siempre, intacta. El corte está en
+1024 px porque es donde las cuatro etiquetas dejan de caber en una línea, y
+`1023px`/`1024px` es el único punto de ruptura nuevo.
+
+Las etiquetas **no se abrevian**: "Jeepetas / Camionetas" y "Vehículos
+Pesados" se envuelven a dos líneas dentro de su celda. Se probó abreviarlas
+y se descartó: "Camionetas" es la palabra con la que se busca una pickup en
+RD y perderla costaría más que los 10 px de alto que ahorraba.
+
+El icono **no se escribe en `index.html`**: `initNavCategoryIcons()` lo toma
+de `CATEGORIES[].icon` en `vehiculo-taxonomia.js`. Copiarlo al HTML habría
+creado un cuarto sitio que mantener sincronizado a mano, que es justo lo que
+la taxonomía vino a eliminar. Si esa función no llegara a ejecutarse, la
+banda se pinta igual con la etiqueta sola: se pierde el icono, no la
+navegación.
+
+**Dos defectos que salieron al medir y van en el mismo cambio.**
+
+1. **A 1024 px con sesión de administrador solo se veían 3 de 4** — y esto
+   ya pasaba antes de este cambio. El grupo de acciones crece a "Mi Cuenta +
+   ADMIN + Publicar" (~300 px), y como `.nav-cats` lleva `min-width: 0`, el
+   carril se encogía en silencio y dejaba "Vehículos Pesados" fuera con
+   120 px de desplazamiento oculto. `.nav--admin .nav-bar` ya declaraba
+   `flex-wrap: wrap` justo para este caso, pero no se disparaba nunca porque
+   el carril absorbía el apretón antes. Devolverle a `.nav-cats` un mínimo
+   basado en su contenido hace que la barra parta de verdad y las acciones
+   bajen a la segunda fila.
+2. **El nav sticky tapaba el encabezado de la sección de destino.**
+   `scrollIntoView()` alinea con el borde del viewport, no con el borde
+   inferior del nav. Con 63 px no se notaba; con la banda el nav pasa a
+   141,6 px y tapaba 54 px del título en móvil y 26 px en tablet. Se corrige
+   con `scroll-margin-top` en las secciones del catálogo.
+
+**Qué NO cambia.** Escritorio: nav de 63 px, misma fila de enlaces, mismas
+anchuras (78,1 / 206,3 / 78,6 / 178,6 px), 4 de 4 visibles, 0 de
+desplazamiento — idéntico a antes en 1024, 1280, 1366, 1440 y 1920 px. Los
+`href` siguen siendo `#sedanes`, `#jeepetas_camionetas`, `#minivan` y
+`#vehiculos_pesados`, y el destino de cada uno es el mismo: el sitio
+intercepta los anclas y hace scroll suave, sin tocar el hash.
+
+**Verificación.** Chromium real, 13 resoluciones (320, 360, 375, 390, 412,
+430, 768, 1023, 1024, 1280, 1366, 1440, 1920) × 3 estados (visitante,
+administrador, editor) = 39 combinaciones, todas en verde:
+
+- 4 de 4 categorías visibles en las 39 — antes eran 1 o 2 de 4 en móvil.
+- `documentElement.scrollWidth === clientWidth` y lo mismo en `body` en las
+  39. Sin `overflow-x: hidden` en ninguna parte: el contenido cabe de verdad.
+- 0 de desplazamiento lateral en el carril por debajo de 1024 px.
+- Objetivo táctil de **80 × 56 px a 320 px** (107,5 × 56 px a 430 px) contra
+  los **25 px de alto** de antes. Por encima de los 44 px de Apple y los
+  48 dp de Material en ambas dimensiones.
+- 0 solapes entre categorías, menú Empresa y acciones; 0 botones fuera de
+  pantalla; 0 etiquetas desbordadas; 0 excepciones de JavaScript.
+- El icono pintado coincide con el declarado en la taxonomía: `car`,
+  `truck`, `bus`, `container`.
+- Navegación, deep link, recarga, volver atrás, sección vacía, sección con
+  vehículos, paginación, filtro de marcas, carrusel, ficha, menú Empresa y
+  recorrido de teclado: sin regresión.
+
+
 ## CUATRO CATEGORÍAS, UNA SOLA FUENTE DE VERDAD, Y UN ICONO POR CARACTERÍSTICA
 
 **Punto de partida.** El catálogo tenía tres categorías —Sedanes, SUVs,

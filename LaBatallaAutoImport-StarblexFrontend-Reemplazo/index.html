@@ -103,7 +103,7 @@
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
-<link rel="stylesheet" href="/styles.css?v=20260920">
+<link rel="stylesheet" href="/styles.css?v=20260920b">
 <link rel="stylesheet" href="/ficha-vehiculo.css?v=20260905">
 <link rel="stylesheet" href="/dashboard.css?v=20260905">
 </head>
@@ -148,20 +148,25 @@
   <nav class="sticky top-0 z-30 shadow-md relative" style="background: rgb(30, 41, 59);">
     <div class="nav-bar max-w-6xl mx-auto flex items-center px-4 py-3 gap-3 relative">
       <div class="nav-cats flex items-center gap-4 md:gap-10 flex-1 justify-center">
-        <!-- Las categorías van en su propio carril DESPLAZABLE (.nav-cat-scroll).
-             Con cuatro y nombres largos ya no caben en 320 px, y el contenedor
-             anterior no podía encogerse (flex-1 con min-width:auto + enlaces
-             nowrap): empujaba "Mi Cuenta" y "Publicar" fuera de la pantalla.
-             El menú Empresa queda FUERA del carril a propósito: overflow-x
-             recorta verticalmente y su desplegable quedaría cortado. -->
+        <!-- .nav-cat-scroll tiene DOS presentaciones, ambas en styles.css:
+             · >=1024 px — fila de enlaces, con overflow-x de seguridad.
+             · <1024 px  — BANDA de 4 columnas iguales, icono sobre etiqueta.
+             Con cuatro categorías y nombres largos, la fila desplazable
+             dejaba dos de las cuatro con 0 px visibles en todos los móviles
+             y sin ninguna pista de que existieran (ver RELEASE_NOTES).
+             El icono NO se escribe aquí: lo inyecta initNavCategoryIcons()
+             desde CATEGORIES[].icon en vehiculo-taxonomia.js, que ya es la
+             fuente única de la categoría. El menú Empresa queda FUERA del
+             carril a propósito: overflow-x recorta también en vertical y su
+             desplegable quedaría cortado. -->
         <div class="nav-cat-scroll flex items-center gap-4 md:gap-10">
-          <a href="#sedanes" class="nav-cat-link whitespace-nowrap text-sm md:text-base" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;">Sedanes</a>
-          <a href="#jeepetas_camionetas" class="nav-cat-link whitespace-nowrap text-sm md:text-base" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;">Jeepetas / Camionetas</a>
-          <a href="#minivan" class="nav-cat-link whitespace-nowrap text-sm md:text-base" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;">Minivans</a>
-          <a href="#vehiculos_pesados" class="nav-cat-link whitespace-nowrap text-sm md:text-base" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;">Vehículos Pesados</a>
+          <a href="#sedanes" class="nav-cat-link whitespace-nowrap">Sedanes</a>
+          <a href="#jeepetas_camionetas" class="nav-cat-link whitespace-nowrap">Jeepetas / Camionetas</a>
+          <a href="#minivan" class="nav-cat-link whitespace-nowrap">Minivans</a>
+          <a href="#vehiculos_pesados" class="nav-cat-link whitespace-nowrap">Vehículos Pesados</a>
         </div>
         <div class="nav-empresa" id="nav-empresa">
-          <button type="button" id="nav-empresa-btn" class="nav-cat-link whitespace-nowrap text-sm md:text-base flex items-center gap-1" style="color:#f8fafc;font-weight:800;letter-spacing:0.8px;font-size:15px;text-transform:uppercase;" aria-haspopup="true" aria-expanded="false">
+          <button type="button" id="nav-empresa-btn" class="nav-cat-link whitespace-nowrap flex items-center gap-1" aria-haspopup="true" aria-expanded="false">
             Empresa <i data-lucide="chevron-down" class="w-3.5 h-3.5" aria-hidden="true"></i>
           </button>
           <div id="nav-empresa-menu" class="nav-empresa-menu hidden" role="menu">
@@ -1228,7 +1233,7 @@
 <!-- Antes que app.js y dashboard.js: los dos leen LBTaxonomy al evaluarse. -->
 <script defer src="/vehiculo-taxonomia.js?v=20260920"></script>
 <script defer src="/roles.js?v=20260728"></script>
-<script defer src="/app.js?v=20260920b"></script>
+<script defer src="/app.js?v=20260920c"></script>
 <script defer src="/auth.js?v=20260910"></script>
 <script defer src="/auth-ui.js?v=20260728"></script>
 <script defer src="/invite-modal.js?v=20260811"></script>

@@ -3313,6 +3313,48 @@ function resetBrandSearch(value = '') {
   if (dropdown) dropdown.classList.add('hidden');
 }
 // ============================================================
+// BANDA DE CATEGORÍAS DEL NAV — el icono sale de la taxonomía
+// ------------------------------------------------------------
+// Por debajo de 1024 px los cuatro enlaces de categoría se presentan
+// como una banda de 4 columnas con el icono encima de la etiqueta (la
+// maqueta entera vive en styles.css). Lo único que no puede resolver el
+// CSS es de dónde sale ese icono.
+//
+// NO se escribe en index.html a propósito: `CATEGORIES[].icon` de
+// vehiculo-taxonomia.js ya es la fuente única del valor que se guarda en
+// Firestore, del id de la sección y del <select> de publicar. Si el
+// icono se copiara al HTML habría un cuarto sitio que mantener
+// sincronizado a mano, que es justo el fallo que la taxonomía vino a
+// eliminar. Añadir una categoría sigue siendo editar un solo archivo.
+//
+// DEGRADACIÓN: si esta función no llegara a ejecutarse, la banda se
+// pinta igual con la etiqueta sola. Se pierde el icono, no la
+// navegación. Y es idempotente: volver a llamarla no duplica nada.
+// ============================================================
+function initNavCategoryIcons() {
+  document.querySelectorAll('.nav-cat-scroll .nav-cat-link').forEach(link => {
+    if (link.querySelector('.nav-cat-ico')) return;
+    // El href ES el valor canónico de la categoría (#sedanes, #minivan…),
+    // el mismo que el id de su <section>. normalizeCategory() lo valida:
+    // un ancla que no sea una categoría se queda sin icono en vez de
+    // pintar un hueco con un data-lucide inexistente.
+    const info = LBTaxonomy.categoryInfo(link.hash.slice(1));
+    if (!info) return;
+    const etiqueta = link.textContent.trim();
+    const icono = document.createElement('i');
+    // resolveIconName() degrada a un icono existente si una versión futura
+    // de Lucide retirase el declarado en la taxonomía.
+    icono.setAttribute('data-lucide', LBTaxonomy.resolveIconName(info.icon, 'car'));
+    icono.className = 'nav-cat-ico';
+    icono.setAttribute('aria-hidden', 'true');
+    const texto = document.createElement('span');
+    texto.textContent = etiqueta;
+    link.textContent = '';
+    link.append(icono, texto);
+  });
+}
+
+// ============================================================
 // MENÚ "EMPRESA" — dropdown accesible (clic + teclado, funciona
 // igual en desktop y móvil; no depende de :hover para no romperse
 // en pantallas táctiles)
@@ -3430,6 +3472,9 @@ window.addEventListener('DOMContentLoaded', () => {
   initCalcModalA11y();
   initFabCalc();
   initNavEmpresa();
+  // Antes de createIcons(): inserta los <i data-lucide> de la banda de
+  // categorías para que los resuelva la misma pasada que el resto del nav.
+  initNavCategoryIcons();
   updateNavFavCount();
   if (window.lucide) lucide.createIcons();
   // Si alguien entra con un link directo tipo /vehiculos/bmw-330i-2024,
