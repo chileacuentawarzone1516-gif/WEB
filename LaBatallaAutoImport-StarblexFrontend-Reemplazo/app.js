@@ -187,7 +187,7 @@ function showCatalogEmptyState() {
   box.setAttribute('aria-live', 'polite');
   box.innerHTML = `
     <div class="ce-box">
-      <i data-lucide="car-front" class="ce-icon" aria-hidden="true"></i>
+      <i data-lucide="car" class="ce-icon" aria-hidden="true"></i>
       <h2>Estamos renovando el inventario</h2>
       <p>Ahora mismo no hay vehículos publicados. Recibimos unidades nuevas cada semana
          — escríbenos y te avisamos en cuanto entre algo que encaje con lo que buscas.</p>
@@ -1523,53 +1523,23 @@ const SPEC_ICONS = {
   'Millaje': 'gauge', 'Color': 'palette', 'Transmisión': 'cog',
 };
 
-// Reglas texto → icono para las características. Se evalúan en orden, así
-// que las más específicas van primero. Ampliar esta tabla es la única
-// edición necesaria para cubrir equipamiento nuevo.
-const FEATURE_ICON_RULES = [
-  [/c[áa]mara|retrovisor|360|reversa/i, 'camera'],
-  [/carplay|android auto/i, 'smartphone'],
-  [/pantalla|t[áa]ctil|touch|display|infotainment|multimedia/i, 'monitor'],
-  [/bluetooth/i, 'bluetooth'],
-  [/gps|navegaci[óo]n|waze/i, 'map-pin'],
-  [/bocina|sonido|audio|bose|harman|jbl|parlante|sub/i, 'volume-2'],
-  [/techo|sunroof|panor[áa]mic|quemacoco|corredizo/i, 'sun'],
-  [/cuero|piel|asiento|tapicer[íi]a/i, 'armchair'],
-  [/clima|aire|a\/c|calefacci[óo]n|calefactad|ventilad/i, 'wind'],
-  [/sensor|parqueo|park|punto ciego|colisi[óo]n|frenado|asistencia/i, 'radar'],
-  [/crucero|cruise|control de velocidad/i, 'gauge'],
-  [/llave|keyless|arranque|push start|bot[óo]n/i, 'key-round'],
-  [/rin|aro|llanta|neum[áa]tic/i, 'circle-dot'],
-  [/4x4|awd|4wd|tracci[óo]n|off.?road/i, 'mountain'],
-  [/turbo|caballo|\bhp\b|motor|cilindr|v6|v8/i, 'zap'],
-  [/led|luz|luces|faro|x[ée]non|halogen/i, 'lightbulb'],
-  [/airbag|abs|seguridad|alarma|blindaj|isofix/i, 'shield'],
-  [/usb|carga|inal[áa]mbric|cargador|bater[íi]a/i, 'battery-charging'],
-  [/autom[áa]tic|transmisi[óo]n|caja|manual|paddle/i, 'cog'],
-  [/el[ée]ctric|h[íi]brid|gasolina|di[ée]sel|combustible|gas/i, 'fuel'],
-  [/vidrio|ventana|cristal|polariza/i, 'square'],
-  [/garant[íi]a|servicio|mantenimiento/i, 'badge-check'],
-];
-const FEATURE_ICON_FALLBACK = 'check-circle';
+// La tabla texto → icono vive en vehiculo-taxonomia.js (FEATURE_ICON_RULES),
+// junto a las categorías, porque es el mismo tipo de dato: la traducción de
+// lo que el administrador escribe a lo que el sitio enseña. Aquí quedan solo
+// los adaptadores, para no cambiar las llamadas de las tres vistas.
+const FEATURE_ICON_FALLBACK = LBTaxonomy.FEATURE_ICON_FALLBACK;
 
-// kebab-case → PascalCase, que es como Lucide indexa sus iconos.
-function toPascalIcon(name) {
-  return name.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('');
-}
 // Devuelve `name` si Lucide lo conoce; si no, el icono de reserva. Evita
-// el hueco silencioso que deja un data-lucide inexistente. Mientras la
-// librería no haya cargado se confía en el nombre pedido (se resuelve al
-// llamar a lucide.createIcons() al final del render).
+// el hueco silencioso que deja un data-lucide inexistente.
 function lucideIconName(name, fallback = FEATURE_ICON_FALLBACK) {
-  const icons = window.lucide?.icons;
-  if (!icons) return name;
-  if (icons[toPascalIcon(name)] || icons[name]) return name;
-  return fallback;
+  return LBTaxonomy.resolveIconName(name, fallback);
 }
 
-function featureIconFor(text) {
-  const rule = FEATURE_ICON_RULES.find(([re]) => re.test(text));
-  return lucideIconName(rule ? rule[1] : FEATURE_ICON_FALLBACK);
+// `brand` permite distinguir el MODELO del equipamiento: si la línea empieza
+// por la marca del propio vehículo ("Mazda CX9 Touring"), no es una
+// característica, es el nombre del carro, y lleva icono de vehículo.
+function featureIconFor(text, brand) {
+  return lucideIconName(LBTaxonomy.featureIcon(text, brand));
 }
 
 // Etiquetas legibles del campo `condition` — un único punto de verdad.
@@ -1626,7 +1596,7 @@ function renderVehicleFeatures(v) {
     return;
   }
   list.innerHTML = feats.map(f => `<li class="vd-feature">
-      <span class="vd-feature-icon"><i data-lucide="${escapeAttr(featureIconFor(f))}" aria-hidden="true"></i></span>
+      <span class="vd-feature-icon"><i data-lucide="${escapeAttr(featureIconFor(f, v.brand))}" aria-hidden="true"></i></span>
       <span class="vd-feature-text">${escapeHtml(f)}</span>
     </li>`).join('');
 }
