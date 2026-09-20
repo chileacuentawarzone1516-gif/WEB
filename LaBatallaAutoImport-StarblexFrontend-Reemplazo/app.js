@@ -919,11 +919,14 @@ function renderCard(v) {
     isNew = days <= 5;
   }
   // Tags destacados
+  // Etiquetas destacadas que el sitio PINTA. 'negociable' se retiró de aquí
+  // y del formulario: dejó de ofrecerse y deja de mostrarse. Los documentos
+  // que ya la tienen guardada no se tocan —el dato sigue ahí, simplemente no
+  // se anuncia—, así que reponerla es volver a añadir su línea.
   const tagDefs = {
     financiamiento: { label: '💰 Financiamiento', color: '#34d399', bg: 'rgba(52,211,153,0.15)' },
-    negociable: { label: '🤝 Negociable', color: '#fbbf24', bg: 'rgba(251,191,36,0.15)' },
     unicodueno: { label: '👤 Único dueño', color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
-    importado: { label: '🌎 Importado', color: '#38bdf8', bg: 'rgba(56,189,248,0.15)' },
+    importado: { label: '🌎 Recién Importado', color: '#38bdf8', bg: 'rgba(56,189,248,0.15)' },
   };
   const activeTags = Object.keys(tagDefs).filter(k => v.tags && v.tags[k]);
   // Favoritos
@@ -2118,7 +2121,6 @@ function openPublishModal(vehicle) {
     resetColorSearch(vehicle.color || '');
     // Restaurar etiquetas destacadas (checkboxes) al editar
     document.getElementById('pub-tag-financiamiento').checked = !!vehicle.tags?.financiamiento;
-    document.getElementById('pub-tag-negociable').checked = !!vehicle.tags?.negociable;
     document.getElementById('pub-tag-unicodueno').checked = !!vehicle.tags?.unicodueno;
     document.getElementById('pub-tag-importado').checked = !!vehicle.tags?.importado;
     // Cargar fotos existentes en pendingFiles como URLs ya subidas. Mismo
@@ -2143,7 +2145,6 @@ function openPublishModal(vehicle) {
     resetBrandSearch('');
     resetColorSearch('');
     document.getElementById('pub-tag-financiamiento').checked = false;
-    document.getElementById('pub-tag-negociable').checked = false;
     document.getElementById('pub-tag-unicodueno').checked = false;
     document.getElementById('pub-tag-importado').checked = false;
   }
@@ -2709,7 +2710,13 @@ async function updateVehicle(editId, data, media, token) {
   // coverSrc además salta los vídeos: una URL .mp4 en el <img> de la
   // tarjeta es una imagen rota garantizada.
   const coverImg = LBMediaModel.coverSrc({ media }, '');
-  const updated = { ...existing, ...data, img: coverImg, media };
+  // `tags` se fusiona en vez de sustituirse. El formulario gestiona tres
+  // casillas; un documento histórico puede llevar además 'negociable', que
+  // se retiró de la interfaz. Con el spread a secas, guardar cualquier otro
+  // cambio del vehículo borraba esa clave de paso: retirar una etiqueta de
+  // la interfaz no es una orden de borrar el dato a quien ya lo tiene.
+  const tags = { ...(existing.tags || {}), ...(data.tags || {}) };
+  const updated = { ...existing, ...data, tags, img: coverImg, media };
   // Slug inmutable: se conserva el existente.
   updated.slug = existing.slug || getVehicleSlug(existing);
 
