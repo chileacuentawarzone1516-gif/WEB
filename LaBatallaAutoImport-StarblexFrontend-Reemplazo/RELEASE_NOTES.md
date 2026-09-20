@@ -1,5 +1,118 @@
 # RELEASE NOTES — La Batalla Auto Import
 
+## PUBLICAR RECHAZABA EL VEHÍCULO CULPANDO AL PRECIO CUANDO LO QUE FALTABA ERA LA MARCA
+
+**Síntoma.** En móvil, con el formulario aparentemente completo —RD$ 68,900,
+Camioneta, Nuevo, Toyota, 2027, Clean Carfax Sí— el botón de publicar
+respondía siempre lo mismo:
+
+> ⚠️ Completa todos los campos obligatorios (el precio debe ser mayor que cero)
+
+El precio estaba escrito y bien formateado en pantalla. Quien publicaba lo
+borraba, lo reescribía de otra forma, cambiaba de moneda, y volvía a fallar:
+el mensaje mandaba a corregir el único campo que no tenía nada que corregir.
+Se atribuyó al sistema de monedas de la PR #8.
+
+**El precio nunca fue el problema.** Medido en un navegador real sobre el
+sitio servido, con el caso exacto de la captura:
+
+```
+#pub-price.value      "68,900"
+parseAmount(".value")  68900
+form.priceRaw          68900        priceRaw > 0 → true
+price                  68900  (number)
+priceUSD               null
+currency               "RD"
+vehicleAmount()        68900        vehicleCurrency() "RD"
+```
+
+Toda la cadena del importe —formateador, parser, moneda, payload, topes—
+estaba correcta. El campo que llegaba vacío a la validación era **`brand`**.
+La misma medición sobre el commit anterior a la PR #8 (`f40fd02`) devuelve
+exactamente el mismo resultado, y `validatePublishForm()` es byte a byte la
+misma función antes y después: **no es una regresión de la PR #8**, es un
+defecto anterior que su mensaje de error llevaba tiempo escondiendo.
+
+**Causa raíz 1 — el campo visible y el que se guarda podían divergir.**
+La marca son dos campos: el `<input>` de texto que se ve
+(`#pub-brand-search`) y un `<input type="hidden">` (`#pub-brand`) que es el
+que viaja a Firestore. En `createSearchDropdown()`, teclear BORRA el oculto
+—la marca deja de estar confirmada mientras se escribe— y solo `choose()`,
+que corre al tocar una opción del desplegable, volvía a rellenarlo. El
+`blur` se limitaba a cerrar el desplegable.
+
+Escribir "Toyota" entero y pasar al campo siguiente dejaba, por tanto, el
+formulario **enseñando "Toyota" y mandando `""` a la validación**. Y al
+editar era peor: bastaba corregir una letra de una marca ya elegida para
+deseleccionarla en silencio, sin que el campo lo reflejara.
+
+```
+escrito "Toyota", sin tocar el desplegable
+  #pub-brand-search.value  "Toyota"     ← lo que se ve
+  #pub-brand.value         ""           ← lo que se guarda
+```
+
+**Causa raíz 2 — el mensaje acusaba al campo equivocado.** Los seis campos
+obligatorios se comprobaban en una sola condición que devolvía siempre el
+mismo texto, y ese texto solo hablaba del precio. Un mensaje de validación
+que no identifica el campo que falta no es un mensaje de validación.
+
+**Corrección.**
+
+1. `createSearchDropdown()` gana un `commit()` que, al salir del campo,
+   resuelve lo tecleado contra la lista de opciones ignorando mayúsculas,
+   acentos y espacios: si identifica una opción sin ambigüedad —coincidencia
+   exacta, o un filtro que deja una única candidata, que es justo lo que el
+   desplegable está enseñando— la confirma; si no identifica ninguna, vacía
+   **también** el texto visible. El invariante que faltaba: lo que el campo
+   muestra es exactamente lo que se va a guardar.
+2. `commit()` corre **síncrono** en el `blur` (solo el cierre visual del
+   desplegable sigue retrasado 150 ms, para que un toque sobre una opción
+   llegue a registrarse). El orden entre el `blur` del campo y el `click` del
+   botón no está garantizado en todos los navegadores, así que el listener de
+   publicar llama además a `commitSearchDropdowns()` antes de leer el
+   formulario: de ese orden no puede depender que el vehículo se guarde con
+   marca.
+3. `validatePublishForm()` pasa a recorrer `PUBLISH_REQUIRED_FIELDS`, nombra
+   los campos que faltan y devuelve `focusId`. El listener lleva el foco y el
+   scroll a ese campo: en móvil el formulario es más largo que la pantalla y
+   el campo culpable suele quedar fuera de vista, así que decir cuál es no
+   basta.
+
+No se tocaron `parseAmount`, `formatAmount`, `fmtMoney`, `vehicleAmount`,
+`vehicleCurrency`, `fmtPrice`, `readPublishForm` ni `firestore.rules`: no
+había nada roto en ellos.
+
+**Verificación.** Navegador real (Chromium), sitio servido, viewport del
+móvil de la captura (360×800, `hasTouch`, UA Android).
+
+- El caso exacto de la captura publica: toast `✅ Vehículo publicado`.
+- Formateador tecla a tecla: `6 · 68 · 689 · 6,890 · 68,900 · 689,000`, más
+  borrar y reescribir.
+- `parseAmount()`: 13 formas de teclear el importe, incluidas `1.550.000`
+  (formato europeo), `RD$ 68,900`, vacío y texto.
+- Matriz de publicación **RD$** (1,000 · 10,000 · 68,900 · 100,000 ·
+  1,550,000 · 19,999,999 · 20,000,000 · 1,999,999,999) y **USD** (1,000 ·
+  10,000 · 32,900 · 68,900 · 100,000 · 339,000), comprobando en cada una
+  input → parser → validación → payload → tipo → pintado. Los dos topes de
+  `firestore.rules` siguen rechazando con su mensaje: RD$ 2,000,000,000 y
+  USD 20,000,000.
+- Combos: escrito sin tocar el desplegable, minúsculas, con espacios,
+  parcial única, inexistente, marca ya elegida y retocada, toque sobre la
+  opción, y el campo de color.
+- Edición ida y vuelta de un vehículo en RD$ y otro en USD sin alterar
+  `price`, `priceUSD`, `currency` ni `brand`; y cambiar solo el precio sin
+  perder la marca.
+- Un vehículo USD sin `priceUSD` sigue dando `vehicleAmount() === null` y
+  pintándose "Precio a consultar": el índice interno nunca se presenta como
+  dinero.
+- 320 · 360 · 390 · 412 · 430 · 768 · 1280 · 1920 px sin desbordamiento
+  horizontal. Sin errores de consola.
+- `tools/verificar.sh`: todo en verde, 0 avisos.
+
+Total: 45 comprobaciones de la matriz + 17 de regresión, todas en verde.
+
+
 ## AUDITORÍA DE SEGURIDAD DE FIRESTORE.RULES — ANCLAJE DE IDENTIDAD EN LA RAMA DE ADMIN
 
 Primera auditoría de seguridad con las reglas ya desplegadas en producción.
