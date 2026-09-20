@@ -1,5 +1,51 @@
 # RELEASE NOTES — La Batalla Auto Import
 
+## EL DESPLEGABLE DE "EMPRESA" SE ABRÍA FUERA DE LA PANTALLA EN MÓVIL
+
+**Síntoma.** Al tocar "Empresa" en el teléfono, el menú aparecía cortado por
+el borde izquierdo y encima tapaba la banda de categorías. Ninguna de sus
+seis entradas se podía leer ni pulsar.
+
+**Causa raíz.** Regresión introducida por la banda de categorías. El menú
+se alinea por su borde DERECHO (`right: 0`, y `right: -8px` por debajo de
+768 px) porque en escritorio el botón "Empresa" está a la derecha del nav.
+Al pasar ese botón a la izquierda de la primera fila en móvil, anclar 230 px
+de menú por su borde derecho lo empuja fuera de la pantalla. Medido en
+Chromium: el menú empezaba en **x = −121 px a 320 px** y en x = −119 px de
+360 a 430 px, con **0 de 6 enlaces alcanzables** en los ocho anchos por
+debajo de 1024 px.
+
+A eso se sumaba un segundo error de anclaje: `top: calc(100% + 14px)` se
+medía sobre el botón (25 px de alto), no sobre la barra, así que el menú
+caía sobre la banda de categorías en vez de por debajo de ella.
+
+**Corrección.** Por debajo de 1024 px el menú deja de colgar del botón y
+cuelga de la barra entera: `position: static` en `.nav-empresa` le quita su
+contexto de posicionamiento y el menú se resuelve contra `.nav-bar`, que ya
+era `relative`. Con eso, `top: 100%` lo sitúa bajo la barra completa —banda
+incluida— y `left: var(--nav-pad-x)` lo alinea con el borde izquierdo del
+botón. Un `max-width: calc(100vw - 2 * var(--nav-pad-x))` impide que
+sobresalga aunque en el futuro se alargue alguna entrada. Se retira el
+`right: -8px` del tramo ≤767 px, que era del anclaje anterior.
+
+Escritorio no se toca: por encima de 1024 px el botón sigue a la derecha y
+el menú se alinea por su borde derecho, igual que siempre.
+
+**Verificación.** Chromium real, 11 resoluciones (320, 360, 375, 390, 412,
+430, 768, 1023, 1024, 1280, 1920) × 3 estados (visitante, administrador,
+editor) = 33 combinaciones:
+
+- **6 de 6 enlaces dentro de la pantalla en las 33** — antes eran 0 de 6 en
+  las ocho resoluciones por debajo de 1024 px.
+- Ni un píxel del menú fuera del viewport: arranca en 8 px a 320 px, 10 px
+  de 360 a 430 px y 16 px de 768 a 1023 px, siguiendo el padding real del
+  nav en cada tramo.
+- 0 solapes con la banda de categorías.
+- Escritorio sin cambio: a 1024 px el menú sigue en 619,8–849,8 px.
+- Las 39 combinaciones de la banda de categorías y la batería funcional
+  completa siguen en verde.
+
+
 ## LAS CATEGORÍAS DEL NAV PASAN A SER UNA BANDA: DOS DE CUATRO ERAN INVISIBLES EN MÓVIL
 
 **Síntoma.** Desde que el menú pasó a cuatro categorías, en móvil solo se

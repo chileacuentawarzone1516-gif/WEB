@@ -77,7 +77,11 @@ html { scroll-behavior: smooth; }
 .nav-empresa-item--secondary:hover { color: #38bdf8; background: rgba(56,189,248,0.08); }
 .nav-empresa-sep { height: 1px; background: rgba(255,255,255,0.08); margin: 6px 4px; }
 @media (max-width: 767px) {
-  .nav-empresa-menu { right: -8px; min-width: 220px; }
+  /* `right: -8px` se retiró al mover el botón Empresa a la izquierda: con
+     el menú anclado por su borde DERECHO, empujaba los 230 px de ancho
+     fuera de la pantalla. El anclaje de móvil/tablet vive ahora junto a la
+     banda de categorías, más abajo. */
+  .nav-empresa-menu { min-width: 220px; }
 }
 
 /* ============================================================
@@ -414,6 +418,28 @@ footer a, #empresa-page a.inline-flex, #contacto a:not([class*="rounded"]) {
   .nav-empresa { order: 1; margin-right: auto; flex-shrink: 0; }
   .nav-actions { order: 2; }
   #nav-empresa-btn { flex-shrink: 0; white-space: nowrap; }
+
+  /* DESPLEGABLE DE EMPRESA — cuelga de la BARRA, no del botón.
+     En escritorio el botón está a la derecha del nav y el menú se alinea
+     por su borde derecho (`right: 0`). Al pasar el botón a la izquierda
+     eso lo empujaba fuera de la pantalla: medido, el menú empezaba en
+     x = -121 px a 320 px y los SEIS enlaces quedaban inalcanzables.
+     Además, anclado al botón (25 px de alto), caía encima de la banda de
+     categorías.
+
+     `position: static` en .nav-empresa le quita su contexto de
+     posicionamiento, así que el menú se resuelve contra .nav-bar, que ya
+     es `relative`: `top: 100%` lo deja bajo la barra ENTERA —banda
+     incluida— y `left: var(--nav-pad-x)` lo alinea con el borde izquierdo
+     del botón. El `max-width` garantiza que nunca sobresalga, incluso si
+     algún día se alarga una entrada del menú. */
+  .nav-empresa { position: static; }
+  .nav-empresa-menu {
+    top: calc(100% + 6px);
+    left: var(--nav-pad-x, 16px);
+    right: auto;
+    max-width: calc(100vw - var(--nav-pad-x, 16px) * 2);
+  }
 
   /* Fila 2: la banda, a lo ancho completo. El sangrado usa --nav-pad-x
      (16 px por defecto, 10 px bajo 768 y 8 px bajo 326) para llegar
