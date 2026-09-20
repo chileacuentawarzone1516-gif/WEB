@@ -44,7 +44,13 @@ que más cuesta descubrir por las malas:
    `LBBoot.once([...])`. Una compuerta nunca rechaza: falla con
    `{ok:false}` para desbloquear a quien espera. Ignorar esto ya dejó el
    sitio en "Cargando…" permanente.
-3. **`slugify()` existe en tres entornos** que no comparten scope:
+3. **La categoría es tres cosas a la vez.** `vehiculo-taxonomia.js` es la
+   fuente única: el valor que se guarda en Firestore es también el id de la
+   sección del catálogo y el `value` del `<select>` de publicar. Falta en
+   uno de los tres y el fallo es mudo (vehículos que no se pintan, o
+   `permission-denied` al publicar). Los valores antiguos (`suvs`,
+   `pickups`) se traducen al leer; no se migra ningún documento.
+4. **`slugify()` existe en tres entornos** que no comparten scope:
    `app.js` (navegador), `scripts/generar-sitemap.js` (Node del build) y
    `netlify/edge-functions/vehicle-og.js` (Deno). Si cambia una, cambian
    las tres, o la URL que genera el sitio deja de resolver.

@@ -115,6 +115,30 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
     presente antes de asignárselo a alguien esperando que le dé acceso.
   `tools/verificar.sh` comprueba la parte automatizable: que todo rol de
   `roles.js` aparezca en `firestore.rules`.
+- **Categorías: `vehiculo-taxonomia.js` manda.** El valor de `category` es
+  tres cosas a la vez: lo que se guarda en Firestore, el **id de la sección**
+  del catálogo (`#minivan`) y el `value` de una opción del `<select>` de
+  publicar. Las cuatro categorías, sus etiquetas y sus sinónimos viven en
+  `vehiculo-taxonomia.js` (`CATEGORIES`), y de ahí salen catálogo, tarjetas,
+  ficha, panel y migas de pan. Añadir una exige **tres** ediciones
+  coordinadas: la fila en `CATEGORIES`, la `<section id="…">` con sus
+  `…-scroll`/`…-pagination` y la opción del `<select>` en `index.html`, y el
+  valor en el enum cerrado de `firestore.rules`. Faltar en cualquiera de las
+  tres falla **en silencio**: sin sección, esos vehículos no se pintan en
+  ninguna parte; sin el valor en las Rules, publicar se rechaza con
+  `permission-denied` y el formulario solo puede decir "Error al guardar".
+  `tools/verificar.sh` comprueba las tres en cada push.
+  Los valores del esquema anterior (`sedanes`, `suvs`, `pickups`) **no se
+  migran**: se traducen al leer y siguen aceptados por las Rules, porque sin
+  ellos un vehículo ya publicado no se podría ni guardar.
+- **Iconos de características: una lista ORDENADA, no un objeto.**
+  `FEATURE_ICON_RULES` (mismo archivo) se evalúa de arriba abajo y el orden
+  es parte del contrato: la regla del baúl va antes que la de "eléctrico" y
+  la de filas antes que la de asientos, o "Baúl eléctrico" vuelve a salir con
+  un surtidor de combustible. Los nombres son de **Lucide 0.263.0**; un
+  `data-lucide` que no existe en esa versión no da error, simplemente no
+  pinta nada (le pasó a `car-front`). `tools/test-taxonomia.js` fija los
+  nombres válidos.
 - Si agregas un dominio externo nuevo (CDN, API), añádelo a la CSP en `netlify.toml` o el navegador lo bloqueará.
 - **Barra de navegación en modo administración:** `updateAdminUI()` (app.js)
   pone/quita la clase `.nav--admin` en el `<nav>` del catálogo según
@@ -146,7 +170,7 @@ Sitio web de venta y exhibición de vehículos — SPA estática desplegada en N
   juntos en `empresa/por-que-elegirnos.html`; si editas una pregunta, edita
   también su entrada en el JSON-LD de esa misma página (y en ninguna otra:
   el schema solo debe existir donde el contenido existe).
-- Cada vez que edites `app.js`, `calculadora.js`, `dashboard.js`, `styles.css`, `ficha-vehiculo.css` o `invite-modal.js`, incrementa el `?v=` de ese archivo en `index.html` (evita servir JS/CSS cacheado desacoplado del HTML nuevo). No hace falta subir el número de los archivos que no tocaste.
+- Cada vez que edites `app.js`, `calculadora.js`, `dashboard.js`, `vehiculo-taxonomia.js`, `styles.css`, `ficha-vehiculo.css` o `invite-modal.js`, incrementa el `?v=` de ese archivo en `index.html` (evita servir JS/CSS cacheado desacoplado del HTML nuevo). No hace falta subir el número de los archivos que no tocaste.
 
 ## Tareas pendientes del propietario (una sola vez)
 

@@ -1,5 +1,128 @@
 # RELEASE NOTES — La Batalla Auto Import
 
+## CUATRO CATEGORÍAS, UNA SOLA FUENTE DE VERDAD, Y UN ICONO POR CARACTERÍSTICA
+
+**Punto de partida.** El catálogo tenía tres categorías —Sedanes, SUVs,
+Camionetas— y el negocio necesita cuatro: **Sedán**, **Jeepetas /
+Camionetas** (las dos anteriores fusionadas, que en República Dominicana se
+compran y se buscan como una sola cosa), **Minivan** y **Vehículos
+Pesados**. Además, la ficha repetía el mismo icono genérico en la mitad de
+las características, y el formulario pedía dos cosas que nadie usa
+(Etiquetas SEO, Negociable).
+
+**Causa raíz del coste de añadir una categoría.** `category` se
+interpretaba en NUEVE sitios, cada uno con su propia cadena de ternarios:
+
+```
+app.js       CATALOG_SECTIONS · pageState · renderSections · renderCard
+             · breadcrumb JSON-LD · CATEGORY_LABELS · tarjeta "similar"
+dashboard.js dbCategoryLabel · contadores del panel
+index.html   nav · secciones · <select> de publicar · preferencias
+```
+
+Ninguna de esas copias decía lo mismo: el panel llamaba "Pickup" a lo que la
+ficha llamaba "Camioneta", y las tres tarjetas resolvían la categoría con un
+`else` —cualquier valor que no fuera `sedanes` ni `suvs` se anunciaba como
+"Camioneta", incluido un valor corrupto—. Añadir una categoría exigía tocar
+los nueve y olvidarse de uno dejaba vehículos invisibles, sin ningún error
+en consola.
+
+**Corrección — `vehiculo-taxonomia.js`.** Un módulo nuevo, cargado antes que
+`app.js`, con las cuatro categorías (valor, etiqueta singular, plural e
+icono), la tabla de sinónimos y el mapa texto → icono. Nadie más interpreta
+`category` ni decide qué icono lleva una característica. `index.html`
+declara las secciones y `firestore.rules` el enum; `tools/verificar.sh`
+comprueba en cada push que los tres coinciden, porque desincronizarlos falla
+en silencio: sin sección, `renderCategory()` no encuentra `<valor>-scroll` y
+esos vehículos no se pintan; sin el valor en las Rules, publicar se rechaza
+con `permission-denied` y el formulario solo puede decir "Error al guardar".
+
+**Los vehículos ya publicados no se tocan.** Los únicos tres valores que
+`firestore.rules` ha aceptado nunca son `sedanes`, `suvs` y `pickups`, así
+que eso es lo que hay en producción. No se migra ninguno: se traducen al
+leer (`suvs` y `pickups` → "Jeepetas / Camionetas") y los tres siguen
+aceptados por las Rules, porque quitarlos haría que editar un vehículo
+histórico se rechazara. El `<select>` de edición preselecciona la categoría
+ya traducida, así que un vehículo antiguo se abre, se guarda y se ve igual
+que siempre.
+
+**Verificación.** Navegador real (Chromium), inventario de 1, 3, 10, 50 y
+100 vehículos y las 12 resoluciones de 320 a 1920 px:
+
+```
+taxonomía (node, sin red)          138/138
+categorías en navegador             98/98
+ficha, formulario y publicación     64/64
+responsive (12 resoluciones)       288/288
+verificar.sh                       12 bloques, 0 errores, 0 avisos
+```
+
+**Defectos anteriores que aparecieron al medir, y su corrección:**
+
+- **El panel de "inventario vacío" no tenía icono.** Pedía
+  `data-lucide="car-front"`, un nombre que **no existe** en Lucide 0.263.0
+  —la versión que carga `index.html`—. Un `data-lucide` inexistente no da
+  error: deja el hueco y ya. Comprobado contra el paquete npm de esa
+  versión exacta; ahora el nombre es `car` y el icono se dibuja. Una prueba
+  fija los 41 nombres de icono que usa el sitio contra el inventario real
+  de esa versión.
+- **El menú del nav se salía de la pantalla.** `.nav-cats` es un flex item
+  `flex-1` con `min-width:auto`, así que no podía encogerse por debajo de
+  su contenido, y los enlaces son `whitespace-nowrap`. Con tres categorías
+  cortas ya iba justo; con cuatro y una de 21 caracteres, a 320 px el nav
+  medía 560 px y "Mi Cuenta" quedaba fuera. Las categorías pasan a un
+  carril propio con desplazamiento lateral (`.nav-cat-scroll`) y
+  `.nav-cats` recupera `min-width:0`. El menú Empresa queda FUERA del
+  carril a propósito: `overflow-x` recorta también en vertical y su
+  desplegable aparecería cortado.
+- **"Touring" se leía como "rin".** La regla de llantas era
+  `/rin|aro|llanta/` sin límites de palabra, así que "Mazda CX9 **T-o-u-r-i-n-g**"
+  salía con icono de neumático. Ahora es `/\brines?\b|\baros?\b|…/`.
+
+**Iconos: una regla por significado, no un check para todo.** La tabla
+`FEATURE_ICON_RULES` es una lista ORDENADA (lo concreto arriba), no un
+objeto, porque las características son texto libre. Tres empates reales que
+resolvía mal: "Baúl eléctrico" caía en `/eléctric/` y salía con icono de
+combustible; "3 filas de asientos" y "Interior en piel" compartían butaca
+con "Asiento eléctrico". Medido sobre la ficha de referencia de 16
+características, con la tabla anterior y con la nueva:
+
+```
+                       antes    ahora
+iconos distintos          7       16
+caen en el genérico       8        0
+```
+
+Tres de los cambios no son "más variedad", son errores: "Garantía en Motor
+y transmisión" salía con el rayo de *motor*, "Baúl eléctrico" con el
+surtidor de *combustible* y el modelo del vehículo con una *llanta*.
+
+**Etiquetas SEO — retirada sin pérdida de datos.** `seoTags` tenía UN
+consumidor real: la propiedad `keywords` del JSON-LD de la ficha. No entra
+en el sitemap, ni en Open Graph, ni en la Edge Function, ni en el PDF, ni en
+el buscador, ni en ningún filtro. `keywords` no es señal de posicionamiento
+para Google desde 2009. El campo sale del formulario; la LECTURA se
+conserva, así que un vehículo histórico que lo lleve sigue emitiendo sus
+keywords. Deliberadamente `readPublishForm()` **no devuelve la clave**: así
+los vehículos nuevos no la estrenan y el `{...existing, ...data}` de
+`updateVehicle()` conserva la de los antiguos. Devolver `seoTags: []`
+habría borrado el campo de todo vehículo viejo en cuanto se editara por
+cualquier otro motivo.
+
+**Negociable e Importado.** "Negociable" sale del formulario y de las
+tarjetas; los documentos que ya la tienen guardada **no se tocan**, y
+`updateVehicle()` fusiona `tags` en vez de sustituirlo para que guardar
+otro cambio no la borre de paso. "Importado" pasa a leerse "🌎 Recién
+Importado" en la casilla y en la tarjeta: es un cambio de TEXTO. El campo
+sigue siendo `tags.importado`, porque renombrarlo obligaría a migrar todos
+los documentos que ya lo llevan a cambio de nada.
+
+**Pendiente de una acción manual.** `firestore.rules` añade los tres
+valores nuevos al enum cerrado de `category`. **Mientras no se despliegue
+(`firebase deploy --only firestore:rules`), publicar en Minivan o Vehículos
+Pesados será rechazado con `permission-denied`.** El resto del cambio
+—catálogo, etiquetas, iconos— funciona sin desplegar nada.
+
 ## PUBLICAR RECHAZABA EL VEHÍCULO CULPANDO AL PRECIO CUANDO LO QUE FALTABA ERA LA MARCA
 
 **Síntoma.** En móvil, con el formulario aparentemente completo —RD$ 68,900,
